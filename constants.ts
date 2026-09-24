@@ -5,6 +5,7 @@ export const BRAND_TAGLINE = "Crafting Journeys, Creating Memories";
 
 export const NAV_LINKS = [
   { name: 'Home', path: '/' },
+  { name: 'Trip Planner', path: '/planner' },
   { name: 'Services', path: '/services' },
   { name: 'Destinations', path: '/destinations' },
   { name: 'Guides & Insights', path: '/news' },

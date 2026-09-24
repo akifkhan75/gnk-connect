@@ -14,6 +14,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 const Home = lazy(() => import('./pages/Home'));
 const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const DestinationsPage = lazy(() => import('./pages/DestinationsPage'));
+const TripPlannerPage = lazy(() => import('./pages/TripPlannerPage'));
 const NewsPage = lazy(() => import('./pages/NewsPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
@@ -49,6 +50,7 @@ const App: React.FC = () => {
                   <Suspense fallback={<PageLoadingFallback />}>
                     <Routes>
                       <Route path="/" element={<Home />} />
+                      <Route path="/planner" element={<TripPlannerPage />} />
                       <Route path="/services" element={<ServicesPage />} />
                       <Route path="/services/:slug" element={<ServicesPage />} />
                       <Route path="/destinations" element={<DestinationsPage />} />
