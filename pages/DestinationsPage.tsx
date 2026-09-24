@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { MapPin, Calendar, Camera, Search, ArrowRight, Star } from 'lucide-react';
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, BRAND_NAME } from '../constants';
 import { motion } from 'framer-motion';
+import InquiryModal from '../components/InquiryModal';
 
 const DestinationsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [searchTerm, setSearchTerm] = useState(initialQuery);
   const [filterType, setFilterType] = useState<'all' | 'domestic' | 'international'>('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedDestName, setSelectedDestName] = useState('');
+  const [modalNotes, setModalNotes] = useState('');
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -35,6 +39,12 @@ const DestinationsPage: React.FC = () => {
     } else {
       setSearchParams({});
     }
+  };
+
+  const handleBookDestination = (destName: string, duration: string, price: string) => {
+    setSelectedDestName(`${destName} Tour Package`);
+    setModalNotes(`Booking request for ${destName} (${duration}, starting at ${price}). Please check flight and hotel availability.`);
+    setModalOpen(true);
   };
 
   return (
@@ -123,7 +133,7 @@ const DestinationsPage: React.FC = () => {
           <div className="text-center py-16 bg-white rounded-3xl border border-gray-200 shadow-sm max-w-lg mx-auto p-8">
             <MapPin className="w-12 h-12 text-cyan-500 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-navy-900 mb-1">No destinations found</h3>
-            <p className="text-xs text-gray-500 mb-6">No matches found for "{searchTerm}". Would you like a custom custom itinerary?</p>
+            <p className="text-xs text-gray-500 mb-6">No matches found for "{searchTerm}". Would you like a custom itinerary?</p>
             <button
               type="button"
               onClick={() => handleSearchChange('')}
@@ -190,18 +200,26 @@ const DestinationsPage: React.FC = () => {
                 </div>
 
                 <div className="p-6 pt-0">
-                  <Link 
-                    to="/contact" 
+                  <button 
+                    type="button"
+                    onClick={() => handleBookDestination(dest.name, dest.duration, dest.price)}
                     className="w-full bg-navy-50 text-navy-900 py-3 rounded-xl font-bold text-xs hover:bg-cyan-500 hover:text-navy-900 transition-all flex items-center justify-center gap-1.5"
                   >
                     <span>Check Availability & Book</span> <ArrowRight size={14} />
-                  </Link>
+                  </button>
                 </div>
               </motion.div>
             ))}
           </div>
         )}
       </div>
+
+      <InquiryModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        packageName={selectedDestName}
+        initialNotes={modalNotes}
+      />
     </div>
   );
 };

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Phone, Mail, MapPin, Send, CheckCircle, Clock } from 'lucide-react';
 import { CONTACT_INFO, BRAND_NAME } from '../constants';
 import { ContactFormData } from '../types';
+import { useToast } from '../context/ToastContext';
 
 const ContactPage: React.FC = () => {
+  const { showToast } = useToast();
   const [formState, setFormState] = useState<ContactFormData>({
     name: '',
     email: '',
@@ -11,15 +13,26 @@ const ContactPage: React.FC = () => {
     subject: '',
     message: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitted(true);
+    setIsSubmitting(true);
+
     setTimeout(() => {
-      setIsSubmitted(false);
-      setFormState({ name: '', email: '', phone: '', subject: '', message: '' });
-    }, 5000);
+      setIsSubmitting(false);
+      setIsSubmitted(true);
+      showToast(
+        'Inquiry Dispatched!',
+        `Thank you ${formState.name}. An executive travel advisor will contact you at ${formState.phone || formState.email} shortly.`,
+        'success'
+      );
+      setTimeout(() => {
+        setIsSubmitted(false);
+        setFormState({ name: '', email: '', phone: '', subject: '', message: '' });
+      }, 5000);
+    }, 500);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -127,7 +140,7 @@ const ContactPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="contact-name" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Full Name
+                      Full Name *
                     </label>
                     <input 
                       id="contact-name"
@@ -142,7 +155,7 @@ const ContactPage: React.FC = () => {
                   </div>
                   <div>
                     <label htmlFor="contact-phone" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                      Phone Number
+                      Phone Number *
                     </label>
                     <input 
                       id="contact-phone"
@@ -159,7 +172,7 @@ const ContactPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="contact-email" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Email Address
+                    Email Address *
                   </label>
                   <input 
                     id="contact-email"
@@ -197,7 +210,7 @@ const ContactPage: React.FC = () => {
 
                 <div>
                   <label htmlFor="contact-message" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-                    Your Requirements / Message
+                    Your Requirements / Message *
                   </label>
                   <textarea 
                     id="contact-message"
@@ -213,9 +226,10 @@ const ContactPage: React.FC = () => {
 
                 <button 
                   type="submit"
+                  disabled={isSubmitting}
                   className="w-full bg-navy-900 text-white font-bold py-3.5 rounded-xl hover:bg-cyan-500 hover:text-navy-900 transition-all flex items-center justify-center gap-2 shadow-lg text-sm"
                 >
-                  <Send size={16} /> Send Inquiry
+                  {isSubmitting ? 'Dispatching...' : 'Send Inquiry'} <Send size={16} />
                 </button>
               </form>
             )}

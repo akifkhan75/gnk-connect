@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { SERVICES, BRAND_NAME, CONTACT_INFO } from '../constants';
 import { CheckCircle, ArrowLeft, ArrowRight, Moon, FileCheck, Hotel, Plane, Map, ShieldCheck, Globe, Upload, Calendar, Users, Info, Check } from 'lucide-react';
 import { ServiceIconType, ServicePackage } from '../types';
+import InquiryModal from '../components/InquiryModal';
+import { useToast } from '../context/ToastContext';
 
 const ServiceIcon: React.FC<{ name: ServiceIconType; size?: number; className?: string }> = ({ name, size = 28, className }) => {
   switch (name) {
@@ -18,37 +20,24 @@ const ServiceIcon: React.FC<{ name: ServiceIconType; size?: number; className?: 
   }
 };
 
-// Form 1: Visa Form (Extracted outside to avoid re-mounting and focus destruction)
-const VisaForm: React.FC<{ serviceTitle: string }> = ({ serviceTitle }) => {
+// Form 1: Visa Form
+const VisaForm: React.FC<{ serviceTitle: string; onOpenModal: (pkg: string, note: string) => void }> = ({ serviceTitle, onOpenModal }) => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [visaType, setVisaType] = useState('Dubai UAE E-Visa');
+  const { showToast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setFullName('');
-      setPhone('');
-    }, 4000);
+    onOpenModal(`${serviceTitle} (${visaType})`, `Applicant: ${fullName}, Phone: ${phone}. Visa Category: ${visaType}`);
+    showToast('Visa Application Received', 'Please confirm your submission details.', 'info');
   };
-
-  if (submitted) {
-    return (
-      <div className="p-6 bg-green-50 border border-green-200 rounded-2xl text-center text-green-800">
-        <CheckCircle className="w-10 h-10 text-green-600 mx-auto mb-2" />
-        <h4 className="font-bold text-base mb-1">Application Inquiry Submitted</h4>
-        <p className="text-xs text-green-700">Our visa specialist will contact you on {phone} within 2 hours with required document checklists.</p>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 mt-4">
       <div>
-        <label htmlFor="visa-fullname" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-          Full Name
+        <label htmlFor="visa-fullname" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+          Full Name *
         </label>
         <input 
           id="visa-fullname"
@@ -56,13 +45,13 @@ const VisaForm: React.FC<{ serviceTitle: string }> = ({ serviceTitle }) => {
           required 
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm" 
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm" 
           placeholder="As shown on passport" 
         />
       </div>
       <div>
-        <label htmlFor="visa-phone" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-          Contact Phone / WhatsApp
+        <label htmlFor="visa-phone" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+          Contact Phone / WhatsApp *
         </label>
         <input 
           id="visa-phone"
@@ -70,9 +59,27 @@ const VisaForm: React.FC<{ serviceTitle: string }> = ({ serviceTitle }) => {
           required 
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm" 
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm" 
           placeholder="0300 1234567" 
         />
+      </div>
+
+      <div>
+        <label htmlFor="visa-type" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+          Destination Country / Visa Type
+        </label>
+        <select
+          id="visa-type"
+          value={visaType}
+          onChange={(e) => setVisaType(e.target.value)}
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+        >
+          <option value="Dubai UAE E-Visa">Dubai (UAE) 30/60 Days E-Visa ($150)</option>
+          <option value="Thailand Sticker Visa">Thailand Official Sticker Visa ($80)</option>
+          <option value="Schengen File Consultation">Schengen Complete Dossier ($200)</option>
+          <option value="UK & USA Visit Visa File">UK / USA File Preparation</option>
+          <option value="Malaysia & Singapore Visa">Malaysia / Singapore E-Visa</option>
+        </select>
       </div>
       
       <div className="p-4 bg-cyan-50/60 rounded-xl border-2 border-dashed border-cyan-200 hover:border-cyan-400 transition-colors text-center cursor-pointer">
@@ -83,48 +90,34 @@ const VisaForm: React.FC<{ serviceTitle: string }> = ({ serviceTitle }) => {
 
       <button 
         type="submit" 
-        className="w-full bg-navy-900 text-white py-3.5 rounded-xl font-bold text-sm hover:bg-cyan-500 hover:text-navy-900 transition-colors shadow-lg"
+        className="w-full bg-navy-900 text-white py-3.5 rounded-xl font-bold text-xs hover:bg-cyan-500 hover:text-navy-900 transition-colors shadow-lg"
       >
-        Submit {serviceTitle} Inquiry
+        Proceed to File Submission
       </button>
     </form>
   );
 };
 
-// Form 2: Booking Form (Extracted outside)
-const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string }> = ({ packages, serviceTitle }) => {
+// Form 2: Booking Form
+const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string; onOpenModal: (pkg: string, note: string) => void }> = ({ packages, serviceTitle, onOpenModal }) => {
   const [name, setName] = useState('');
-  const [selectedPkg, setSelectedPkg] = useState('');
+  const [selectedPkg, setSelectedPkg] = useState(packages?.[0]?.name || 'Standard Package');
   const [travelDate, setTravelDate] = useState('');
-  const [adults, setAdults] = useState('1');
+  const [adults, setAdults] = useState('2');
   const [phone, setPhone] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const { showToast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setName('');
-      setPhone('');
-    }, 4000);
+    onOpenModal(`${serviceTitle} - ${selectedPkg}`, `Booking request for ${name} (${phone}), ${adults} travelers on date ${travelDate}.`);
+    showToast('Booking Request Initiated', 'Please confirm your reservation details in the modal.', 'info');
   };
-
-  if (submitted) {
-    return (
-      <div className="p-6 bg-green-50 border border-green-200 rounded-2xl text-center text-green-800">
-        <CheckCircle className="w-10 h-10 text-green-600 mx-auto mb-2" />
-        <h4 className="font-bold text-base mb-1">Booking Request Received</h4>
-        <p className="text-xs text-green-700">Thank you, {name}! Our executive concierge will confirm availability and send your itinerary shortly.</p>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3.5 mt-4">
       <div>
-        <label htmlFor="booking-name" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-          Full Name
+        <label htmlFor="booking-name" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+          Full Name *
         </label>
         <input 
           id="booking-name"
@@ -138,7 +131,7 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
       </div>
 
       <div>
-        <label htmlFor="booking-package" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+        <label htmlFor="booking-package" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
           Select Package
         </label>
         <select 
@@ -147,14 +140,13 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
           onChange={(e) => setSelectedPkg(e.target.value)}
           className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
         >
-          <option value="">-- Choose a Package --</option>
           {packages?.map((p, i) => <option key={i} value={p.name}>{p.name} ({p.price})</option>)}
-          <option value="Custom VIP Package">Custom VIP Itinerary</option>
+          <option value="Custom VIP Itinerary">Custom VIP Itinerary</option>
         </select>
       </div>
       
       <div>
-        <label htmlFor="booking-date" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+        <label htmlFor="booking-date" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
           Estimated Travel Date
         </label>
         <div className="relative">
@@ -162,7 +154,6 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
           <input 
             id="booking-date"
             type="date" 
-            required 
             value={travelDate}
             onChange={(e) => setTravelDate(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm" 
@@ -172,8 +163,8 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="booking-adults" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-            Guests / Pilgrims
+          <label htmlFor="booking-adults" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+            Guests
           </label>
           <div className="relative">
             <Users className="absolute left-3.5 top-2.5 text-gray-400" size={16} />
@@ -188,8 +179,8 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
           </div>
         </div>
         <div>
-          <label htmlFor="booking-phone" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-            Contact Phone
+          <label htmlFor="booking-phone" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+            Phone Number *
           </label>
           <input 
             id="booking-phone"
@@ -205,9 +196,9 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
 
       <button 
         type="submit" 
-        className="w-full bg-navy-900 text-white py-3.5 rounded-xl font-bold text-sm hover:bg-cyan-500 hover:text-navy-900 transition-colors shadow-lg mt-2"
+        className="w-full bg-navy-900 text-white py-3.5 rounded-xl font-bold text-xs hover:bg-cyan-500 hover:text-navy-900 transition-colors shadow-lg mt-2"
       >
-        Request {serviceTitle} Booking
+        Request {serviceTitle} Reservation
       </button>
     </form>
   );
@@ -217,6 +208,9 @@ const BookingForm: React.FC<{ packages?: ServicePackage[]; serviceTitle: string 
 const ServicesPage: React.FC = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalPackageName, setModalPackageName] = useState('');
+  const [modalNotes, setModalNotes] = useState('');
 
   const activeService = slug ? SERVICES.find(s => s.link.endsWith(slug)) : null;
 
@@ -226,10 +220,16 @@ const ServicesPage: React.FC = () => {
     }
   }, [slug, activeService, navigate]);
 
+  const handleOpenModal = (pkg: string, note = '') => {
+    setModalPackageName(pkg);
+    setModalNotes(note);
+    setModalOpen(true);
+  };
+
   // Main Services Listing View
   if (!activeService) {
     return (
-      <div className="pt-20 bg-gray-50 min-h-screen">
+      <div className="pt-20 bg-gray-50 min-h-screen pb-20">
         <div className="bg-navy-900 text-white py-20 px-4 relative overflow-hidden">
           <div className="container mx-auto text-center relative z-10">
             <span className="text-cyan-400 font-bold tracking-widest uppercase text-xs mb-2 block">{BRAND_NAME} Services</span>
@@ -249,27 +249,43 @@ const ServicesPage: React.FC = () => {
                 transition={{ delay: idx * 0.08 }}
                 key={service.id}
               >
-                <Link 
-                  to={service.link} 
-                  className="group block h-full bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl hover:border-cyan-200 transition-all duration-300 relative overflow-hidden"
-                >
-                  <div className="w-14 h-14 bg-navy-50 rounded-2xl flex items-center justify-center text-navy-900 mb-6 group-hover:bg-cyan-500 group-hover:text-navy-900 transition-colors shadow-sm">
-                    <ServiceIcon name={service.iconName} size={28} />
+                <div className="group block h-full bg-white rounded-3xl p-8 shadow-lg border border-gray-100 hover:shadow-2xl hover:border-cyan-200 transition-all duration-300 relative overflow-hidden flex flex-col justify-between">
+                  <div>
+                    <div className="w-14 h-14 bg-navy-50 rounded-2xl flex items-center justify-center text-navy-900 mb-6 group-hover:bg-cyan-500 group-hover:text-navy-900 transition-colors shadow-sm">
+                      <ServiceIcon name={service.iconName} size={28} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-navy-900 mb-3 group-hover:text-cyan-600 transition-colors">
+                      {service.title}
+                    </h3>
+                    <p className="text-gray-600 mb-6 leading-relaxed text-sm">
+                      {service.description}
+                    </p>
                   </div>
-                  <h3 className="text-2xl font-bold text-navy-900 mb-3 group-hover:text-cyan-600 transition-colors">
-                    {service.title}
-                  </h3>
-                  <p className="text-gray-600 mb-6 leading-relaxed text-sm">
-                    {service.description}
-                  </p>
-                  <div className="flex items-center text-xs font-bold text-cyan-600 group-hover:text-cyan-500 transition-colors">
-                    <span>Explore Packages & Itineraries</span> <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+
+                  <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <Link to={service.link} className="inline-flex items-center text-xs font-bold text-cyan-600 hover:text-cyan-500 transition-colors">
+                      <span>Explore Details</span> <ArrowRight size={14} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenModal(service.title, `Quick inquiry for ${service.title}`)}
+                      className="bg-navy-900 hover:bg-cyan-500 hover:text-navy-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition-colors"
+                    >
+                      Book Now
+                    </button>
                   </div>
-                </Link>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
+
+        <InquiryModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          packageName={modalPackageName}
+          initialNotes={modalNotes}
+        />
       </div>
     );
   }
@@ -356,12 +372,13 @@ const ServicesPage: React.FC = () => {
                           ))}
                         </ul>
                       </div>
-                      <a 
-                        href={`tel:${CONTACT_INFO.phone}`}
+                      <button 
+                        type="button"
+                        onClick={() => handleOpenModal(`${activeService.title} - ${pkg.name}`, `Booking inquiry for ${pkg.name} (${pkg.price}).`)}
                         className="w-full py-2.5 rounded-xl border-2 border-navy-900 text-navy-900 text-center font-bold text-xs hover:bg-navy-900 hover:text-white transition-all block"
                       >
                         Book {pkg.name}
-                      </a>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -419,9 +436,9 @@ const ServicesPage: React.FC = () => {
                 </p>
                 
                 {isVisa ? (
-                  <VisaForm serviceTitle={activeService.title} />
+                  <VisaForm serviceTitle={activeService.title} onOpenModal={handleOpenModal} />
                 ) : (
-                  <BookingForm packages={activeService.packages} serviceTitle={activeService.title} />
+                  <BookingForm packages={activeService.packages} serviceTitle={activeService.title} onOpenModal={handleOpenModal} />
                 )}
               </div>
 
@@ -433,7 +450,7 @@ const ServicesPage: React.FC = () => {
                 </p>
                 <a 
                   href={`tel:${CONTACT_INFO.phone}`} 
-                  className="w-full bg-cyan-500 text-navy-900 py-3 rounded-xl font-bold text-xs hover:bg-cyan-400 transition-colors text-center block"
+                  className="w-full bg-cyan-500 text-navy-900 py-3 rounded-xl font-bold text-xs hover:bg-cyan-400 transition-colors text-center block shadow-md"
                 >
                   Call {CONTACT_INFO.displayPhone}
                 </a>
@@ -442,6 +459,13 @@ const ServicesPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <InquiryModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        packageName={modalPackageName}
+        initialNotes={modalNotes}
+      />
     </div>
   );
 };

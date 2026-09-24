@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, Send, ChevronRight, Compass } from 'lucide-react';
+import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, ChevronRight, Compass } from 'lucide-react';
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, SERVICES, TESTIMONIALS, LATEST_NEWS, BRAND_NAME } from '../constants';
 import { ServiceIconType } from '../types';
+import TravelCalculator from '../components/TravelCalculator';
+import InquiryModal from '../components/InquiryModal';
+import { useToast } from '../context/ToastContext';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -27,8 +30,10 @@ const ServiceIcon: React.FC<{ name: ServiceIconType; size?: number; className?: 
 
 const Home: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [quoteInput, setQuoteInput] = useState('');
-  const [quoteSubmitted, setQuoteSubmitted] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPackageName, setSelectedPackageName] = useState('Custom Travel Inquiry');
+  const [customNotes, setCustomNotes] = useState('');
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const handleHeroSearch = (e: React.FormEvent) => {
@@ -40,15 +45,15 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleQuoteSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (quoteInput.trim()) {
-      setQuoteSubmitted(true);
-      setTimeout(() => {
-        setQuoteSubmitted(false);
-        setQuoteInput('');
-      }, 4000);
-    }
+  const openInquiryForPackage = (pkgTitle: string, defaultNote = '') => {
+    setSelectedPackageName(pkgTitle);
+    setCustomNotes(defaultNote);
+    setModalOpen(true);
+  };
+
+  const handleCalculatorEstimate = (summary: string) => {
+    openInquiryForPackage('Custom Calculator Estimate', summary);
+    showToast('Estimate Selected', 'Please enter your contact details to lock this custom quotation.', 'info');
   };
 
   return (
@@ -98,7 +103,7 @@ const Home: React.FC = () => {
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Where do you want to travel? (e.g. Skardu, Dubai, Umrah)..."
+                placeholder="Where do you want to travel? (e.g. Skardu, Dubai, Umrah)..." 
                 aria-label="Search travel destinations"
                 className="flex-1 bg-transparent px-5 py-3 text-white placeholder-gray-300 outline-none text-sm md:text-base"
               />
@@ -190,12 +195,13 @@ const Home: React.FC = () => {
                     <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
                     <span>{dest.activities} Activities Included</span>
                   </div>
-                  <Link 
-                    to="/destinations" 
+                  <button 
+                    type="button"
+                    onClick={() => openInquiryForPackage(`${dest.name} Tour Package`, `I am interested in booking the ${dest.name} tour package (${dest.duration}, starting at ${dest.price}).`)}
                     className="inline-flex items-center justify-center w-full bg-cyan-500 text-navy-900 py-3 rounded-xl font-bold hover:bg-cyan-400 transition-colors shadow-lg"
                   >
-                    Explore Package Details
-                  </Link>
+                    Request Itinerary & Book
+                  </button>
                 </div>
               </motion.div>
             ))}
@@ -203,8 +209,15 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* 4. Comprehensive Services Bento Grid */}
+      {/* 4. Interactive Travel Cost Estimator */}
       <section className="py-20 bg-gray-50 border-t border-gray-200/60">
+        <div className="container mx-auto px-4 md:px-6">
+          <TravelCalculator onBookEstimate={handleCalculatorEstimate} />
+        </div>
+      </section>
+
+      {/* 5. Comprehensive Services Bento Grid */}
+      <section className="py-20 bg-white border-t border-gray-200/60">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center max-w-3xl mx-auto mb-14">
             <span className="text-cyan-600 font-bold uppercase tracking-wider text-xs block mb-1">Tailored Solutions</span>
@@ -242,16 +255,25 @@ const Home: React.FC = () => {
                 <p className="text-gray-600 leading-relaxed text-sm mb-4">
                   {service.description}
                 </p>
-                <Link to={service.link} className="inline-flex items-center text-xs font-bold text-cyan-600 hover:text-cyan-500 transition-colors">
-                  View Packages & Inquire <ArrowRight size={14} className="ml-1" />
-                </Link>
+                <div className="flex items-center justify-between">
+                  <Link to={service.link} className="inline-flex items-center text-xs font-bold text-cyan-600 hover:text-cyan-500 transition-colors">
+                    View Packages <ArrowRight size={14} className="ml-1" />
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => openInquiryForPackage(service.title, `Inquiry for ${service.title}`)}
+                    className="text-xs font-bold bg-navy-50 hover:bg-navy-900 hover:text-white text-navy-900 px-3.5 py-1.5 rounded-lg transition-colors"
+                  >
+                    Quick Inquiry
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* 5. Trust & Mission Section */}
+      {/* 6. Trust & Mission Section */}
       <section className="py-20 bg-navy-900 text-white overflow-hidden relative">
         <div className="container mx-auto px-4 md:px-6 relative z-10">
           <div className="flex flex-col lg:flex-row items-center gap-14">
@@ -282,12 +304,21 @@ const Home: React.FC = () => {
                   ))}
                 </div>
 
-                <Link 
-                  to="/about" 
-                  className="inline-block bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300 text-navy-900 px-8 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20"
-                >
-                  Learn More About Us
-                </Link>
+                <div className="flex flex-wrap gap-3">
+                  <Link 
+                    to="/about" 
+                    className="inline-block bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300 text-navy-900 px-8 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20"
+                  >
+                    Learn More About Us
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => openInquiryForPackage('VIP Consultation', 'Requesting a dedicated consultation with a senior GNK Connect travel advisor.')}
+                    className="inline-block bg-white/10 hover:bg-white/20 text-white px-6 py-3.5 rounded-xl font-bold text-sm transition-all border border-white/20"
+                  >
+                    Schedule Consultation
+                  </button>
+                </div>
               </motion.div>
             </div>
             
@@ -304,40 +335,6 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* 6. Quick Free Quote CTA */}
-      <section className="py-16 bg-navy-800 text-white relative">
-        <div className="container mx-auto px-4 md:px-6 text-center max-w-3xl">
-          <h2 className="text-2xl md:text-3xl font-bold mb-3">Request a Custom Travel Itinerary</h2>
-          <p className="text-gray-300 text-sm md:text-base mb-6">
-            Tell us your travel dream or package requirements, and our consultants will structure a tailored proposal.
-          </p>
-          
-          {quoteSubmitted ? (
-            <div className="p-4 bg-green-500/20 border border-green-400/40 rounded-2xl text-green-300 text-sm font-bold">
-              ✓ Thank you! Your custom quote request has been received. Our travel advisor will reach out promptly.
-            </div>
-          ) : (
-            <form onSubmit={handleQuoteSubmit} className="flex flex-col sm:flex-row gap-3">
-              <input 
-                type="text" 
-                value={quoteInput}
-                onChange={(e) => setQuoteInput(e.target.value)}
-                placeholder="E.g. '10 days Umrah for family in December' or 'Dubai 5-day tour'..."
-                required
-                aria-label="Describe your custom travel requirements"
-                className="flex-1 px-5 py-3.5 rounded-xl bg-navy-900 border border-navy-700 text-white placeholder-gray-400 outline-none focus:border-cyan-400 text-sm"
-              />
-              <button 
-                type="submit"
-                className="bg-cyan-500 hover:bg-cyan-400 text-navy-900 px-7 py-3.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shrink-0 shadow-lg shadow-cyan-500/20"
-              >
-                Get Free Quote <Send size={16} />
-              </button>
-            </form>
-          )}
-        </div>
-      </section>
-
       {/* 7. International Getaways */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4 md:px-6">
@@ -349,10 +346,10 @@ const Home: React.FC = () => {
           
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {INTERNATIONAL_DESTINATIONS.map((country) => (
-              <Link 
-                to="/destinations" 
+              <div 
                 key={country.id} 
-                className="group relative rounded-2xl overflow-hidden aspect-[3/4] shadow-md hover:shadow-xl transition-shadow"
+                onClick={() => openInquiryForPackage(`${country.name} Holiday Package`, `Inquiring for ${country.name} package from ${country.price}.`)}
+                className="group relative rounded-2xl overflow-hidden aspect-[3/4] shadow-md hover:shadow-2xl transition-all cursor-pointer"
               >
                 <img 
                   src={country.image} 
@@ -365,10 +362,10 @@ const Home: React.FC = () => {
                   <div className="h-0.5 w-8 bg-cyan-500 mb-1.5 transition-all duration-300 group-hover:w-full"></div>
                   <p className="text-xs text-gray-200 flex justify-between items-center">
                     <span>From {country.price}</span>
-                    <ArrowRight size={12} />
+                    <span className="text-[10px] font-bold text-cyan-300 bg-white/10 px-2 py-0.5 rounded">Book</span>
                   </p>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         </div>
@@ -433,15 +430,27 @@ const Home: React.FC = () => {
                     </h3>
                     <p className="text-gray-600 text-xs line-clamp-2 leading-relaxed mb-4">{news.excerpt}</p>
                   </div>
-                  <Link to="/contact" className="inline-flex items-center gap-1 text-xs font-bold text-cyan-600 hover:text-cyan-500">
+                  <button 
+                    type="button"
+                    onClick={() => openInquiryForPackage(`Advisory: ${news.title}`, `Inquiry regarding the guide: ${news.title}`)}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-cyan-600 hover:text-cyan-500 text-left"
+                  >
                     <span>Contact Advisory Desk</span> <ArrowRight size={12} />
-                  </Link>
+                  </button>
                 </div>
               </article>
             ))}
           </div>
         </div>
       </section>
+
+      {/* Inquiry Modal */}
+      <InquiryModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        packageName={selectedPackageName}
+        initialNotes={customNotes}
+      />
     </div>
   );
 };
