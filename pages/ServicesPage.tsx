@@ -6,6 +6,8 @@ import { CheckCircle, ArrowLeft, ArrowRight, Moon, FileCheck, Hotel, Plane, Map,
 import { ServiceIconType, ServicePackage } from '../types';
 import InquiryModal from '../components/InquiryModal';
 import ItineraryTimeline from '../components/ItineraryTimeline';
+import PackageComparison from '../components/PackageComparison';
+import VisaChecker from '../components/VisaChecker';
 import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
@@ -244,7 +246,7 @@ const ServicesPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="container mx-auto px-4 md:px-6 py-16">
+        <div className="container mx-auto px-4 md:px-6 py-16 space-y-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {SERVICES.map((service, idx) => (
               <motion.div
@@ -282,6 +284,15 @@ const ServicesPage: React.FC = () => {
               </motion.div>
             ))}
           </div>
+
+          {/* Visa Intelligence Tool */}
+          <VisaChecker onApply={handleOpenModal} />
+
+          {/* Package Comparison Matrix */}
+          <PackageComparison onSelectPackage={(pkg) => handleOpenModal(pkg, `Selected via package comparison matrix.`)} />
+
+          {/* FAQs */}
+          <FAQSection />
         </div>
 
         <InquiryModal
@@ -392,9 +403,14 @@ const ServicesPage: React.FC = () => {
               </div>
             )}
 
-            {/* Itinerary Timeline (Rendered for Umrah and Tour Packages) */}
+            {/* Itinerary Timeline */}
             {isUmrah && (
               <ItineraryTimeline />
+            )}
+
+            {/* Visa Checker on Visa Pages */}
+            {isVisa && (
+              <VisaChecker onApply={handleOpenModal} />
             )}
 
             {/* Process Steps */}

@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-d
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChatWidget from './components/ChatWidget';
+import WhatsAppButton from './components/WhatsAppButton';
 import { ToastProvider } from './context/ToastContext';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -56,6 +57,7 @@ const App: React.FC = () => {
               </main>
               <Footer />
               <ChatWidget />
+              <WhatsAppButton />
             </div>
           </Router>
         </ToastProvider>
