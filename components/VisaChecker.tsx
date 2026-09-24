@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FileCheck, ArrowRight, CheckCircle2, Clock, Shield, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { FileCheck, ArrowRight, CheckCircle2, Clock, Shield, Sparkles, Search } from 'lucide-react';
 
 export interface VisaRequirement {
   destination: string;
@@ -268,14 +269,24 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleApplyClick}
-              className="w-full bg-cyan-500 hover:bg-cyan-400 text-navy-900 py-3.5 rounded-xl font-bold text-xs transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2"
-            >
-              <span>Apply for {visa.destination.split(' ')[0]} Visa</span>
-              <ArrowRight size={14} />
-            </button>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={handleApplyClick}
+                className="w-full bg-cyan-500 hover:bg-cyan-400 text-navy-900 py-3.5 rounded-xl font-bold text-xs transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-95"
+              >
+                <span>Apply for {visa.destination.split(' ')[0]} Visa</span>
+                <ArrowRight size={14} />
+              </button>
+
+              <Link
+                to="/tracking"
+                className="w-full bg-white/10 hover:bg-white/20 text-white py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 border border-white/10"
+              >
+                <Search size={13} className="text-cyan-400" />
+                <span>Track Existing Application Status</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>

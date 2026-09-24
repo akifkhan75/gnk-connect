@@ -122,10 +122,11 @@ const Footer: React.FC = () => {
           <p>
             &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved. Licensed Travel & Tourism Agency.
           </p>
-          <div className="flex gap-6 mt-4 md:mt-0">
+          <div className="flex flex-wrap gap-4 sm:gap-6 mt-4 md:mt-0">
             <Link to="/about" className="hover:text-cyan-400 transition-colors">About Us</Link>
             <Link to="/reviews" className="hover:text-cyan-400 transition-colors">Reviews</Link>
             <Link to="/planner" className="hover:text-cyan-400 transition-colors">Trip Planner</Link>
+            <Link to="/tracking" className="hover:text-cyan-400 transition-colors">Visa Tracker</Link>
             <Link to="/contact" className="hover:text-cyan-400 transition-colors">Support</Link>
             <Link to="/services" className="hover:text-cyan-400 transition-colors">All Packages</Link>
           </div>

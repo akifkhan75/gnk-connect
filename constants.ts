@@ -8,6 +8,7 @@ export const NAV_LINKS = [
   { name: 'Trip Planner', path: '/planner' },
   { name: 'Services', path: '/services' },
   { name: 'Destinations', path: '/destinations' },
+  { name: 'Visa Tracker', path: '/tracking' },
   { name: 'Guides & Insights', path: '/news' },
   { name: 'About Us', path: '/about' },
   { name: 'Contact', path: '/contact' },
