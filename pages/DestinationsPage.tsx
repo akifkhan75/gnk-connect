@@ -4,6 +4,8 @@ import { MapPin, Calendar, Camera, Search, ArrowRight, Star } from 'lucide-react
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, BRAND_NAME } from '../constants';
 import { motion } from 'framer-motion';
 import InquiryModal from '../components/InquiryModal';
+import FAQSection from '../components/FAQSection';
+import { useCurrency } from '../context/CurrencyContext';
 
 const DestinationsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,6 +15,7 @@ const DestinationsPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDestName, setSelectedDestName] = useState('');
   const [modalNotes, setModalNotes] = useState('');
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -43,7 +46,7 @@ const DestinationsPage: React.FC = () => {
 
   const handleBookDestination = (destName: string, duration: string, price: string) => {
     setSelectedDestName(`${destName} Tour Package`);
-    setModalNotes(`Booking request for ${destName} (${duration}, starting at ${price}). Please check flight and hotel availability.`);
+    setModalNotes(`Booking request for ${destName} (${duration}, starting at ${formatPrice(price)}). Please check flight and hotel availability.`);
     setModalOpen(true);
   };
 
@@ -177,7 +180,9 @@ const DestinationsPage: React.FC = () => {
                         {dest.name}
                       </h3>
                       <div className="text-right">
-                        <span className="block text-lg font-extrabold text-cyan-600">{dest.price}</span>
+                        <span className="block text-lg font-extrabold text-cyan-600">
+                          {formatPrice(dest.price)}
+                        </span>
                         <span className="text-[10px] text-gray-400">per person</span>
                       </div>
                     </div>
@@ -213,6 +218,9 @@ const DestinationsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Global FAQ Section */}
+      <FAQSection />
 
       <InquiryModal
         isOpen={modalOpen}

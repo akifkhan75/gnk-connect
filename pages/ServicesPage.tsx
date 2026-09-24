@@ -5,7 +5,10 @@ import { SERVICES, BRAND_NAME, CONTACT_INFO } from '../constants';
 import { CheckCircle, ArrowLeft, ArrowRight, Moon, FileCheck, Hotel, Plane, Map, ShieldCheck, Globe, Upload, Calendar, Users, Info, Check } from 'lucide-react';
 import { ServiceIconType, ServicePackage } from '../types';
 import InquiryModal from '../components/InquiryModal';
+import ItineraryTimeline from '../components/ItineraryTimeline';
+import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 const ServiceIcon: React.FC<{ name: ServiceIconType; size?: number; className?: string }> = ({ name, size = 28, className }) => {
   switch (name) {
@@ -211,6 +214,7 @@ const ServicesPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalPackageName, setModalPackageName] = useState('');
   const [modalNotes, setModalNotes] = useState('');
+  const { formatPrice } = useCurrency();
 
   const activeService = slug ? SERVICES.find(s => s.link.endsWith(slug)) : null;
 
@@ -292,6 +296,7 @@ const ServicesPage: React.FC = () => {
 
   // Detailed Single Service View
   const isVisa = activeService.title.toLowerCase().includes('visa');
+  const isUmrah = activeService.title.toLowerCase().includes('umrah');
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
@@ -360,7 +365,9 @@ const ServicesPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <div className="text-cyan-600 font-extrabold text-2xl">{pkg.price}</div>
+                          <div className="text-cyan-600 font-extrabold text-2xl">
+                            {formatPrice(pkg.price)}
+                          </div>
                         </div>
                         <div className="h-px w-full bg-gray-100 my-3"></div>
                         <ul className="space-y-2 mb-6">
@@ -374,7 +381,7 @@ const ServicesPage: React.FC = () => {
                       </div>
                       <button 
                         type="button"
-                        onClick={() => handleOpenModal(`${activeService.title} - ${pkg.name}`, `Booking inquiry for ${pkg.name} (${pkg.price}).`)}
+                        onClick={() => handleOpenModal(`${activeService.title} - ${pkg.name}`, `Booking inquiry for ${pkg.name} (${formatPrice(pkg.price)}).`)}
                         className="w-full py-2.5 rounded-xl border-2 border-navy-900 text-navy-900 text-center font-bold text-xs hover:bg-navy-900 hover:text-white transition-all block"
                       >
                         Book {pkg.name}
@@ -383,6 +390,11 @@ const ServicesPage: React.FC = () => {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Itinerary Timeline (Rendered for Umrah and Tour Packages) */}
+            {isUmrah && (
+              <ItineraryTimeline />
             )}
 
             {/* Process Steps */}
@@ -458,6 +470,11 @@ const ServicesPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Global FAQ on Detailed Service */}
+      <div className="mt-12">
+        <FAQSection />
       </div>
 
       <InquiryModal

@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Phone, ChevronDown, Compass } from 'lucide-react';
+import { Menu, X, Phone, ChevronDown, Compass, Globe } from 'lucide-react';
 import { NAV_LINKS, CONTACT_INFO, SERVICES, BRAND_NAME } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useCurrency, CurrencyCode, CURRENCIES } from '../context/CurrencyContext';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [currencyDropdown, setCurrencyDropdown] = useState<boolean>(false);
+  const { currency, setCurrency } = useCurrency();
   const location = useLocation();
 
   useEffect(() => {
@@ -22,6 +25,7 @@ const Navbar: React.FC = () => {
   useEffect(() => {
     setIsOpen(false);
     setActiveDropdown(null);
+    setCurrencyDropdown(false);
   }, [location]);
 
   return (
@@ -29,7 +33,7 @@ const Navbar: React.FC = () => {
       role="navigation"
       aria-label="Main Navigation"
       className={`fixed w-full z-50 transition-all duration-300 ${
-        isScrolled ? 'glass-dark py-3 shadow-2xl' : 'bg-navy-900/60 backdrop-blur-md py-4'
+        isScrolled ? 'glass-dark py-3 shadow-2xl' : 'bg-navy-900/70 backdrop-blur-md py-4'
       }`}
     >
       <div className="container mx-auto px-4 md:px-6">
@@ -54,7 +58,7 @@ const Navbar: React.FC = () => {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6 lg:space-x-8">
             {NAV_LINKS.map((link) => {
               if (link.name === 'Services') {
                 return (
@@ -114,6 +118,54 @@ const Navbar: React.FC = () => {
               );
             })}
 
+            {/* Currency Selector */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setCurrencyDropdown(!currencyDropdown)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-navy-800 border border-navy-700 text-xs font-bold text-gray-200 hover:text-white hover:border-cyan-400 transition-all"
+                aria-label="Select display currency"
+              >
+                <Globe size={12} className="text-cyan-400" />
+                <span>{currency}</span>
+                <ChevronDown size={12} />
+              </button>
+
+              <AnimatePresence>
+                {currencyDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 6 }}
+                    className="absolute top-full right-0 mt-2 w-32 bg-navy-900 border border-navy-700 rounded-xl shadow-xl overflow-hidden py-1 z-50"
+                  >
+                    {Object.keys(CURRENCIES).map((key) => {
+                      const code = key as CurrencyCode;
+                      return (
+                        <button
+                          key={code}
+                          type="button"
+                          onClick={() => {
+                            setCurrency(code);
+                            setCurrencyDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-xs font-bold flex items-center justify-between ${
+                            currency === code
+                              ? 'bg-cyan-500 text-navy-900'
+                              : 'text-gray-300 hover:bg-navy-800 hover:text-white'
+                          }`}
+                        >
+                          <span>{code}</span>
+                          <span className="opacity-75 text-[10px]">{CURRENCIES[code].symbol}</span>
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Direct Telephone Helpline */}
             <a
               href={`tel:${CONTACT_INFO.phone}`}
               aria-label={`Call GNK Connect at ${CONTACT_INFO.displayPhone}`}
@@ -147,6 +199,28 @@ const Navbar: React.FC = () => {
             className="md:hidden w-full bg-navy-900/98 backdrop-blur-2xl border-t border-navy-800 shadow-2xl overflow-hidden"
           >
             <div className="flex flex-col p-6 space-y-4">
+              {/* Currency Selector Mobile */}
+              <div className="flex items-center justify-between pb-3 border-b border-navy-800">
+                <span className="text-xs font-bold text-gray-400 uppercase">Currency</span>
+                <div className="flex gap-1.5">
+                  {Object.keys(CURRENCIES).map((key) => {
+                    const code = key as CurrencyCode;
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => setCurrency(code)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                          currency === code ? 'bg-cyan-500 text-navy-900' : 'bg-navy-800 text-gray-300'
+                        }`}
+                      >
+                        {code}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {NAV_LINKS.map((link) => (
                 <div key={link.name}>
                   <Link

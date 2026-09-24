@@ -6,7 +6,9 @@ import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, SERVICES, TESTIMONIA
 import { ServiceIconType } from '../types';
 import TravelCalculator from '../components/TravelCalculator';
 import InquiryModal from '../components/InquiryModal';
+import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
+import { useCurrency } from '../context/CurrencyContext';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -34,6 +36,7 @@ const Home: React.FC = () => {
   const [selectedPackageName, setSelectedPackageName] = useState('Custom Travel Inquiry');
   const [customNotes, setCustomNotes] = useState('');
   const { showToast } = useToast();
+  const { formatPrice } = useCurrency();
   const navigate = useNavigate();
 
   const handleHeroSearch = (e: React.FormEvent) => {
@@ -181,7 +184,7 @@ const Home: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/30 to-transparent opacity-90"></div>
                 
                 <div className="absolute top-5 right-5 bg-white/20 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-xs font-bold border border-white/30">
-                  From {dest.price}
+                  From {formatPrice(dest.price)}
                 </div>
 
                 <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full">
@@ -197,7 +200,7 @@ const Home: React.FC = () => {
                   </div>
                   <button 
                     type="button"
-                    onClick={() => openInquiryForPackage(`${dest.name} Tour Package`, `I am interested in booking the ${dest.name} tour package (${dest.duration}, starting at ${dest.price}).`)}
+                    onClick={() => openInquiryForPackage(`${dest.name} Tour Package`, `I am interested in booking the ${dest.name} tour package (${dest.duration}, starting at ${formatPrice(dest.price)}).`)}
                     className="inline-flex items-center justify-center w-full bg-cyan-500 text-navy-900 py-3 rounded-xl font-bold hover:bg-cyan-400 transition-colors shadow-lg"
                   >
                     Request Itinerary & Book
@@ -348,7 +351,7 @@ const Home: React.FC = () => {
             {INTERNATIONAL_DESTINATIONS.map((country) => (
               <div 
                 key={country.id} 
-                onClick={() => openInquiryForPackage(`${country.name} Holiday Package`, `Inquiring for ${country.name} package from ${country.price}.`)}
+                onClick={() => openInquiryForPackage(`${country.name} Holiday Package`, `Inquiring for ${country.name} package from ${formatPrice(country.price)}.`)}
                 className="group relative rounded-2xl overflow-hidden aspect-[3/4] shadow-md hover:shadow-2xl transition-all cursor-pointer"
               >
                 <img 
@@ -361,7 +364,7 @@ const Home: React.FC = () => {
                   <h3 className="font-bold text-base md:text-lg text-white mb-1">{country.name}</h3>
                   <div className="h-0.5 w-8 bg-cyan-500 mb-1.5 transition-all duration-300 group-hover:w-full"></div>
                   <p className="text-xs text-gray-200 flex justify-between items-center">
-                    <span>From {country.price}</span>
+                    <span>From {formatPrice(country.price)}</span>
                     <span className="text-[10px] font-bold text-cyan-300 bg-white/10 px-2 py-0.5 rounded">Book</span>
                   </p>
                 </div>
@@ -402,8 +405,11 @@ const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* 9. Latest Insights */}
-      <section className="py-20 bg-white border-t border-gray-200/60">
+      {/* 9. FAQ Section */}
+      <FAQSection />
+
+      {/* 10. Latest Insights */}
+      <section className="py-20 bg-gray-50 border-t border-gray-200/60">
         <div className="container mx-auto px-4 md:px-6">
           <div className="text-center mb-12">
             <span className="text-cyan-600 font-bold uppercase tracking-wider text-xs block mb-1">Travel Advisory</span>
@@ -412,7 +418,7 @@ const Home: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {LATEST_NEWS.map((news) => (
-              <article key={news.id} className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <article key={news.id} className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                 <div className="h-48 overflow-hidden relative">
                   <img 
                     src={news.image} 
