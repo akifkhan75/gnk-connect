@@ -28,8 +28,8 @@
       "@gnk/types": [
         "../../packages/types/src/index.ts"
       ],
-      "@gnk/supplier-adapters": [
-        "../../packages/supplier-adapters/src/index.ts"
+      "@gnk/suppliers": [
+        "../../packages/suppliers/src/index.ts"
       ]
     },
     "noEmit": true

@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useB2BAuth } from '../../context/B2BAuthContext';
 import { DemoUserSwitcher } from './DemoUserSwitcher';
 import { B2BNotificationDropdown } from './B2BNotificationDropdown';
-import { b2bStore } from '../../services/b2b/b2bStore';
+import { b2bStore } from '@gnk/api-client';
 import { 
   Shield, 
   LayoutDashboard, 

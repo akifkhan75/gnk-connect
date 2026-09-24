@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { AgentUser, Agency } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { AgentUser, Agency } from '@gnk/types';
 import { 
   Users, 
   Search, 

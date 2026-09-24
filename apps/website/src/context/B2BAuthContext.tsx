@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AgentUser, Agency, AdminRole } from '../types/b2b';
-import { b2bStore } from '../services/b2b/b2bStore';
-import { authApi, apiClient } from '../services/apiClient';
+import { AgentUser, Agency, AdminRole } from '@gnk/types';
+import { b2bStore } from '@gnk/api-client';
+import { authApi, apiClient } from '@gnk/api-client';
 
 interface B2BAuthContextType {
   currentUser: AgentUser | null;

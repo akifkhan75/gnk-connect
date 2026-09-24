@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { b2bStore } from '../../services/b2b/b2bStore';
+import { b2bStore } from '@gnk/api-client';
 import { 
   Shield, 
   Users, 

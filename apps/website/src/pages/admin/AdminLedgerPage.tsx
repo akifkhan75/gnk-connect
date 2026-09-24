@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { Agency, LedgerTransaction, StatementOfAccount, AdminFinancialSummary } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { Agency, LedgerTransaction, StatementOfAccount, AdminFinancialSummary } from '@gnk/types';
 import { 
   DollarSign, 
   TrendingUp, 

@@ -56,9 +56,33 @@ export interface StandardGroupProduct {
 // ---------------- Agent & Agency Schema ---------------- //
 
 export type AgentAccountType = 'AGENCY' | 'INDIVIDUAL';
-export type AgentRole = 'AGENCY_OWNER' | 'AGENCY_STAFF' | 'INDIVIDUAL_AGENT' | 'GNK_ADMIN';
+export type AgentRole = 'AGENCY_OWNER' | 'AGENCY_MANAGER' | 'AGENCY_STAFF' | 'INDIVIDUAL_AGENT' | 'GNK_ADMIN';
+export type AdminRole = 'SUPER_ADMIN' | 'OPS_ADMIN' | 'FINANCE_ADMIN' | 'AGENT_MANAGER';
 export type AgentApprovalStatus = 'PENDING_VERIFICATION' | 'ADMIN_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
-export type ApprovalStatus = AgentApprovalStatus;
+
+export interface AgencyTeamMember {
+  id: string;
+  agencyId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: 'AGENCY_OWNER' | 'AGENCY_MANAGER' | 'AGENCY_STAFF';
+  status: 'ACTIVE' | 'INVITED' | 'SUSPENDED';
+  joinedAt: string;
+  totalBookingsCount: number;
+  avatarUrl?: string;
+}
+
+export interface AdminUser {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: AdminRole;
+  status: 'ACTIVE' | 'SUSPENDED';
+  lastLoginAt: string;
+  avatarUrl?: string;
+}
 
 export interface AgentUser {
   id: string;
@@ -66,7 +90,8 @@ export interface AgentUser {
   fullName: string;
   phone: string;
   role: AgentRole;
-  agencyId?: string; // If part of an agency
+  adminRole?: AdminRole; // For GNK Admin staff
+  agencyId?: string;     // If part of an agency
   accountType: AgentAccountType;
   approvalStatus: AgentApprovalStatus;
   avatarUrl?: string;
@@ -380,52 +405,4 @@ export interface B2BVoucherData {
   issuedAt: string;
 }
 
-export interface SupplierAvailabilityCheck {
-  supplierProductId: string;
-  departureId: string;
-  requestedSeats: number;
-}
 
-export interface AvailabilityResult {
-  isAvailable: boolean;
-  availableSeats: number;
-  currentSupplierNetPricePKR: number;
-  currency: string;
-  departure: GroupDeparture;
-  message?: string;
-}
-
-export interface SupplierBookingRequest {
-  supplierProductId: string;
-  departureId: string;
-  seats: number;
-  passengers: Passenger[];
-  externalGnkBookingId: string;
-  contactPerson: {
-    fullName: string;
-    email: string;
-    phone: string;
-  };
-  specialRemarks?: string;
-}
-
-export interface SupplierBookingResponse {
-  success: boolean;
-  supplierBookingId: string;
-  supplierStatus: 'CONFIRMED' | 'PENDING' | 'WAITLISTED' | 'REJECTED';
-  supplierReferenceCode: string;
-  confirmedSeats: number;
-  totalSupplierCostPKR: number;
-  supplierPnrOrVoucher?: string;
-  errorMessage?: string;
-  rawSupplierResponse?: any;
-}
-
-export interface SupplierBookingStatusResponse {
-  supplierBookingId: string;
-  supplierStatus: 'CONFIRMED' | 'PENDING' | 'CANCELLED' | 'REJECTED';
-  ticketOrVoucherUrl?: string;
-  confirmedSeats?: number;
-  airlinePnr?: string;
-  message?: string;
-}

@@ -3,7 +3,7 @@ import {
   GroupDeparture, 
   Passenger, 
   ProductType 
-} from '../../types/b2b';
+} from '@gnk/types';
 
 export interface ProductFilter {
   destination?: string;
@@ -75,33 +75,10 @@ export interface ISupplierAdapter {
   readonly supplierName: string;
   readonly supportedTypes: ProductType[];
 
-  /**
-   * Fetch all active group products from the supplier
-   */
   getProducts(filter?: ProductFilter): Promise<StandardGroupProduct[]>;
-
-  /**
-   * Fetch detailed itinerary, departures and policies for a specific product
-   */
   getProductDetails(supplierProductId: string): Promise<StandardGroupProduct | null>;
-
-  /**
-   * Check real-time seat availability and supplier net price
-   */
   checkAvailability(check: SupplierAvailabilityCheck): Promise<AvailabilityResult>;
-
-  /**
-   * Transmit confirmed booking request to supplier API
-   */
   createBooking(request: SupplierBookingRequest): Promise<SupplierBookingResponse>;
-
-  /**
-   * Poll or fetch the latest status of a booking from supplier
-   */
   getBookingStatus(supplierBookingId: string): Promise<SupplierBookingStatusResponse>;
-
-  /**
-   * Request booking cancellation with the supplier
-   */
   cancelBooking(supplierBookingId: string, reason: string): Promise<CancellationResult>;
 }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, ChevronRight, Compass, Bookmark, Sparkles, Calendar, MapPin, Eye } from 'lucide-react';
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, SERVICES, TESTIMONIALS, LATEST_NEWS, BRAND_NAME } from '../constants';
-import { ServiceIconType } from '../types';
+import { ServiceIconType } from '@gnk/types';
 import FlightHotelSearch from '../components/FlightHotelSearch';
 import TravelCalculator from '../components/TravelCalculator';
 import PackageComparison from '../components/PackageComparison';
@@ -14,8 +14,8 @@ import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useWishlist } from '../context/WishlistContext';
-import { airDeskAdapter } from '../services/b2b/airdeskAdapter';
-import { StandardGroupProduct } from '../types/b2b';
+import { airDeskAdapter } from '@gnk/suppliers';
+import { StandardGroupProduct } from '@gnk/types';
 import { PublicGroupBookingModal } from '../components/PublicGroupBookingModal';
 
 const fadeInUp = {

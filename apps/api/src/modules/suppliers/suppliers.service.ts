@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ISupplierAdapter, airDeskAdapter } from '@gnk/supplier-adapters';
+import { ISupplierAdapter, airDeskAdapter } from '@gnk/suppliers';
 import { StandardGroupProduct } from '@gnk/types';
 import { AirDeskHttpClient } from './airdesk-http.client';
 import { InventorySyncCron } from './inventory-sync.cron';

@@ -15,7 +15,7 @@ import {
   FileText,
   BadgeCheck
 } from 'lucide-react';
-import { B2BVoucherData } from '../types/b2b';
+import { B2BVoucherData } from '@gnk/types';
 
 interface B2BVoucherModalProps {
   isOpen: boolean;

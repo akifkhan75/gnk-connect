@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import { AgentUser, Agency, AgentRole, AgentAccountType, ApprovalStatus } from '@gnk/types';
+import { AgentUser, Agency, AgentRole, AgentAccountType, AgentApprovalStatus } from '@gnk/types';
 import * as crypto from 'crypto';
 
 export interface JwtPayload {
@@ -9,7 +9,7 @@ export interface JwtPayload {
   role: AgentRole;
   agencyId?: string;
   accountType: AgentAccountType;
-  approvalStatus: ApprovalStatus;
+  approvalStatus: AgentApprovalStatus;
   iat?: number;
   exp?: number;
 }
@@ -160,7 +160,7 @@ export class AuthService {
       role: user.role,
       agencyId: user.agencyId,
       accountType: user.accountType,
-      approvalStatus: user.approvalStatus as ApprovalStatus
+      approvalStatus: user.approvalStatus as AgentApprovalStatus
     });
 
     // Remove hash from returned object

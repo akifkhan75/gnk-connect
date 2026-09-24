@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useB2BAuth } from '../../context/B2BAuthContext';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { AdminUser, AdminRole } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { AdminUser, AdminRole } from '@gnk/types';
 import { 
   Shield, 
   UserPlus, 

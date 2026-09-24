@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { airDeskAdapter } from '../../services/b2b/airdeskAdapter';
-import { StandardGroupProduct } from '../../types/b2b';
+import { airDeskAdapter } from '@gnk/suppliers';
+import { StandardGroupProduct } from '@gnk/types';
 import { 
   Radio, 
   RefreshCw, 

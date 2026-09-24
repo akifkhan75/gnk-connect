@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { B2BBooking, B2BVoucherData } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { B2BBooking, B2BVoucherData } from '@gnk/types';
 import { 
   FileCheck2, 
   Search, 

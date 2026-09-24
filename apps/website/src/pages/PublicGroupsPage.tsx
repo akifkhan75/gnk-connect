@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { airDeskAdapter } from '../services/b2b/airdeskAdapter';
-import { StandardGroupProduct } from '../types/b2b';
+import { airDeskAdapter } from '@gnk/suppliers';
+import { StandardGroupProduct } from '@gnk/types';
 import { 
   MapPin, 
   Check, 

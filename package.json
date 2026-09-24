@@ -12,7 +12,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "test:coverage": "npx -y c8 --all --src=services/b2b,packages/supplier-adapters,packages/types npm run test:unit",
+    "test:coverage": "npx -y c8 --all --src=services/b2b,packages/suppliers,packages/types npm run test:unit",
     "test:unit": "npx -y tsx scripts/test-unit-suite.ts",
     "test:integration": "npx -y tsx scripts/test-api-integration.ts",
     "test:e2e": "npx -y tsx scripts/test-e2e-lifecycle.ts",

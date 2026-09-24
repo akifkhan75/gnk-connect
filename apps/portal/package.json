@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@gnk/supplier-adapters": "*",
+    "@gnk/suppliers": "*",
     "@gnk/types": "*",
     "@tanstack/react-query": "^5.103.2",
     "framer-motion": "^12.23.24",

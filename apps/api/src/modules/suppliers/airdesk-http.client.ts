@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ISupplierAdapter, airDeskAdapter } from '@gnk/supplier-adapters';
+import { ISupplierAdapter, airDeskAdapter } from '@gnk/suppliers';
 import { 
-  StandardGroupProduct, 
+  StandardGroupProduct 
+} from '@gnk/types';
+import {
   AvailabilityResult, 
   SupplierBookingRequest, 
   SupplierBookingResponse, 
-  SupplierBookingStatusResponse 
-} from '@gnk/types';
+  SupplierBookingStatusResponse
+} from '@gnk/suppliers';
 
 export interface AirDeskConfig {
   baseUrl: string;

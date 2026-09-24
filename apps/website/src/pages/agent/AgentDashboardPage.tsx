@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useB2BAuth } from '../../context/B2BAuthContext';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { airDeskAdapter } from '../../services/b2b/airdeskAdapter';
-import { pricingEngine } from '../../services/b2b/pricingEngine';
-import { StandardGroupProduct, B2BBooking } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { airDeskAdapter } from '@gnk/suppliers';
+import { pricingEngine } from '@gnk/api-client';
+import { StandardGroupProduct, B2BBooking } from '@gnk/types';
 import { 
   Calendar, 
   Clock, 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { pricingEngine } from '../../services/b2b/pricingEngine';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { airDeskAdapter } from '../../services/b2b/airdeskAdapter';
-import { PricingRule, RulePriority, MarkupType, StandardGroupProduct, AgentUser, Agency } from '../../types/b2b';
+import { pricingEngine } from '@gnk/api-client';
+import { b2bStore } from '@gnk/api-client';
+import { airDeskAdapter } from '@gnk/suppliers';
+import { PricingRule, RulePriority, MarkupType, StandardGroupProduct, AgentUser, Agency } from '@gnk/types';
 import { 
   Percent, 
   Plus, 

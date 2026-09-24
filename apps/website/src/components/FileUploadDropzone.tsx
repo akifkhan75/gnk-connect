@@ -8,8 +8,8 @@ import {
   Eye, 
   FileCheck 
 } from 'lucide-react';
-import { uploadsApi } from '../services/apiClient';
-import { UploadCategory } from '../types/b2b';
+import { uploadsApi } from '@gnk/api-client';
+import { UploadCategory } from '@gnk/types';
 import { DocumentViewerModal } from './DocumentViewerModal';
 
 interface FileUploadDropzoneProps {

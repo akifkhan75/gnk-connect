@@ -10,7 +10,7 @@ import {
   Maximize2,
   Minimize2
 } from 'lucide-react';
-import { uploadsApi } from '../services/apiClient';
+import { uploadsApi } from '@gnk/api-client';
 
 interface DocumentViewerModalProps {
   isOpen: boolean;

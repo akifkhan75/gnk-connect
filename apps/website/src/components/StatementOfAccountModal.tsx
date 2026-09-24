@@ -10,7 +10,7 @@ import {
   Calendar, 
   ShieldCheck 
 } from 'lucide-react';
-import { StatementOfAccount } from '../types/b2b';
+import { StatementOfAccount } from '@gnk/types';
 
 interface StatementOfAccountModalProps {
   isOpen: boolean;

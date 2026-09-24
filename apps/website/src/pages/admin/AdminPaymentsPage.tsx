@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { PaymentTransaction, B2BBooking } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { PaymentTransaction, B2BBooking } from '@gnk/types';
 import { 
   Receipt, 
   CheckCircle2, 

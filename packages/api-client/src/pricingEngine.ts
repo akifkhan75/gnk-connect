@@ -1,7 +1,7 @@
 import { 
   PricingRule, 
   PriceCalculationResult 
-} from '../../types/b2b';
+} from '@gnk/types';
 
 export const DEFAULT_PRICING_RULES: PricingRule[] = [
   // 1. Agent + Product Override (Priority 1)

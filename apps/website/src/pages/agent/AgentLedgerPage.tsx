@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useB2BAuth } from '../../context/B2BAuthContext';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { LedgerTransaction, StatementOfAccount } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { LedgerTransaction, StatementOfAccount } from '@gnk/types';
 import { 
   Wallet, 
   TrendingUp, 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Calendar, Clock, User, ArrowRight, Search, X, Tag, Send, Compass } from 'lucide-react';
 import { LATEST_NEWS, BRAND_NAME } from '../constants';
-import { NewsItem } from '../types';
+import { NewsItem } from '@gnk/types';
 import InquiryModal from '../components/InquiryModal';
 import { useToast } from '../context/ToastContext';
 

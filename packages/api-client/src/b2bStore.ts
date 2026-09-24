@@ -15,8 +15,8 @@ import {
   AgencyTeamMember,
   AdminRole,
   AdminUser
-} from '../../types/b2b';
-import { airDeskAdapter } from './airdeskAdapter';
+} from '@gnk/types';
+import { airDeskAdapter } from '@gnk/suppliers';
 import { pricingEngine } from './pricingEngine';
 
 // Seed Initial Agencies

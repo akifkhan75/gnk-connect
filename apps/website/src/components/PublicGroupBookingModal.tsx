@@ -13,7 +13,7 @@ import {
   Sparkles,
   Share2
 } from 'lucide-react';
-import { StandardGroupProduct } from '../types/b2b';
+import { StandardGroupProduct } from '@gnk/types';
 import { useCurrency } from '../context/CurrencyContext';
 import { useToast } from '../context/ToastContext';
 

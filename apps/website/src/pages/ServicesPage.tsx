@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SERVICES, BRAND_NAME, CONTACT_INFO } from '../constants';
 import { CheckCircle, ArrowLeft, ArrowRight, Moon, FileCheck, Hotel, Plane, Map, ShieldCheck, Globe, Upload, Calendar, Users, Info, Check } from 'lucide-react';
-import { ServiceIconType, ServicePackage } from '../types';
+import { ServiceIconType, ServicePackage } from '@gnk/types';
 import InquiryModal from '../components/InquiryModal';
 import ItineraryTimeline from '../components/ItineraryTimeline';
 import PackageComparison from '../components/PackageComparison';

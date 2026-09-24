@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useB2BAuth } from '../../context/B2BAuthContext';
-import { airDeskAdapter } from '../../services/b2b/airdeskAdapter';
-import { pricingEngine } from '../../services/b2b/pricingEngine';
-import { StandardGroupProduct } from '../../types/b2b';
+import { airDeskAdapter } from '@gnk/suppliers';
+import { pricingEngine } from '@gnk/api-client';
+import { StandardGroupProduct } from '@gnk/types';
 import { 
   Search, 
   MapPin, 

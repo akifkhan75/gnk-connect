@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Phone, Mail, MapPin, Send, CheckCircle, Clock } from 'lucide-react';
 import { CONTACT_INFO, BRAND_NAME } from '../constants';
-import { ContactFormData } from '../types';
+import { ContactFormData } from '@gnk/types';
 import { useToast } from '../context/ToastContext';
 
 const ContactPage: React.FC = () => {

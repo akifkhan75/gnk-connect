@@ -8,8 +8,8 @@ import {
   Check 
 } from 'lucide-react';
 import { useB2BAuth } from '../../context/B2BAuthContext';
-import { b2bStore } from '../../services/b2b/b2bStore';
-import { B2BNotification } from '../../types/b2b';
+import { b2bStore } from '@gnk/api-client';
+import { B2BNotification } from '@gnk/types';
 
 export const B2BNotificationDropdown: React.FC = () => {
   const { currentUser } = useB2BAuth();

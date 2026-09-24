@@ -1,4 +1,4 @@
-import { Service, Destination, Testimonial, NewsItem } from './types';
+import { Service, Destination, Testimonial, NewsItem } from '@gnk/types';
 
 export const BRAND_NAME = "GNK Connect";
 export const BRAND_TAGLINE = "Crafting Journeys, Creating Memories";
