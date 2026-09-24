@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test": "jest"
   },
   "dependencies": {
-    "@gnk/types": "*",
     "@gnk/suppliers": "*",
+    "@gnk/types": "*",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
@@ -24,9 +25,34 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.2.6",
     "@types/express": "^5.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
+    "jest": "^30.5.2",
     "prisma": "^5.22.0",
+    "ts-jest": "^29.4.13",
+    "ts-node": "^10.9.2",
     "typescript": "~5.8.2"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }
