@@ -13,7 +13,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gnk_admin -d gnk_connect_db"]
+      test: ['CMD-SHELL', 'pg_isready -U gnk_admin -d gnk_connect_db']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -29,7 +29,7 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -52,7 +52,7 @@ services:
       AIRDESK_API_KEY: ${AIRDESK_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
     ports:
-      - "${API_PORT:-4010}:4000"
+      - '${API_PORT:-4010}:4000'
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,7 +69,7 @@ services:
     container_name: gnk_admin
     restart: always
     ports:
-      - "${ADMIN_PORT:-3012}:80"
+      - '${ADMIN_PORT:-3012}:80'
     environment:
       VITE_API_URL: http://localhost:4010/api/v1
     depends_on:
@@ -85,7 +85,7 @@ services:
     container_name: gnk_portal
     restart: always
     ports:
-      - "${PORTAL_PORT:-3011}:80"
+      - '${PORTAL_PORT:-3011}:80'
     environment:
       VITE_API_URL: http://localhost:4010/api/v1
     depends_on:
@@ -101,7 +101,7 @@ services:
     container_name: gnk_website
     restart: always
     ports:
-      - "${WEBSITE_PORT:-3010}:80"
+      - '${WEBSITE_PORT:-3010}:80'
     environment:
       VITE_API_URL: http://localhost:4010/api/v1
     depends_on:
@@ -109,10 +109,40 @@ services:
     networks:
       - gnk_network
 
+  # ---------------- MinIO Object Storage ---------------- #
+  minio:
+    image: minio/minio:latest
+    container_name: gnk_minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supersecret123}
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - gnk_network
+
+  # ---------------- Mailpit Email Testing ---------------- #
+  mailpit:
+    image: axllent/mailpit
+    container_name: gnk_mailpit
+    restart: always
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+    networks:
+      - gnk_network
+
 volumes:
   pgdata:
     driver: local
   redisdata:
+    driver: local
+  miniodata:
     driver: local
 
 networks:

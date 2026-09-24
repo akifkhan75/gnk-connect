@@ -16,10 +16,25 @@
     "test:unit": "npx -y tsx scripts/test-unit-suite.ts",
     "test:integration": "npx -y tsx scripts/test-api-integration.ts",
     "test:e2e": "npx -y tsx scripts/test-e2e-lifecycle.ts",
-    "test:mobile": "npx -y tsx scripts/test-mobile-app.ts"
+    "test:mobile": "npx -y tsx scripts/test-mobile-app.ts",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "generate": "turbo run generate",
+    "openapi": "turbo run openapi",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
+    "prettier": "^3.9.9",
     "turbo": "^2.4.4",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "typescript-eslint": "^8.70.1"
   }
 }

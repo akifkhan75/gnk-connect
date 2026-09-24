@@ -1,42 +1,37 @@
 FROM node:20-alpine AS builder
 
 RUN apk add --no-cache openssl openssl-dev libc6-compat
-
 WORKDIR /app
 
-# Install dependencies for monorepo
-COPY package.json package-lock.json* turbo.json* ./
-COPY packages ./packages
-COPY apps/api ./apps/api
+RUN npm install -g turbo
+COPY . .
+RUN turbo prune --scope=@gnk/api --docker
 
-RUN npm install
+FROM node:20-alpine AS installer
+RUN apk add --no-cache openssl openssl-dev libc6-compat
+WORKDIR /app
+COPY --from=builder /app/out/json/ .
+RUN npm ci
 
-# Build shared packages
-WORKDIR /app/packages/types
-RUN npx tsc -p tsconfig.json
-
-WORKDIR /app/packages/supplier-adapters
-RUN npx tsc -p tsconfig.json
-
-# Build API with Prisma Generation and TypeScript Compiler
-WORKDIR /app/apps/api
-RUN npx prisma generate
-RUN npx tsc -p tsconfig.json
+COPY --from=builder /app/out/full/ .
+RUN npx prisma generate --schema=apps/api/prisma/schema.prisma || true
+RUN npx turbo run build --filter=@gnk/api
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache openssl libc6-compat
+WORKDIR /app
 
-WORKDIR /app/apps/api
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+USER nestjs
 
 ENV NODE_ENV=production
 ENV PORT=4000
 
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/packages /app/packages
-COPY --from=builder /app/apps/api/package.json ./package.json
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/prisma ./prisma
-COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=installer --chown=nestjs:nodejs /app/apps/api/package.json .
+COPY --from=installer --chown=nestjs:nodejs /app/apps/api/dist ./dist
+COPY --from=installer --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=installer --chown=nestjs:nodejs /app/apps/api/prisma ./prisma || true
 
 EXPOSE 4000
 
