@@ -1,11 +1,28 @@
 {
-  "name": "gnk-connect",
+  "name": "gnk-elite-monorepo",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite",
+    "dev:all": "turbo run dev",
+    "dev:api": "npm --workspace=@gnk/api run dev",
+    "dev:admin": "npm --workspace=@gnk/admin run dev",
+    "dev:portal": "npm --workspace=@gnk/portal run dev",
+    "dev:website": "npm --workspace=@gnk/website run dev",
+    "dev:mobile": "npm --workspace=@gnk/mobile run start",
     "build": "tsc -b && vite build",
+    "build:turbo": "turbo run build",
+    "test": "npm run test:unit && npm run test:integration && npm run test:e2e && npm run test:mobile",
+    "test:coverage": "npx -y c8 --all --src=services/b2b,packages/supplier-adapters,packages/types npm run test:unit",
+    "test:unit": "npx -y tsx scripts/test-unit-suite.ts",
+    "test:integration": "npx -y tsx scripts/test-api-integration.ts",
+    "test:e2e": "npx -y tsx scripts/test-e2e-lifecycle.ts",
+    "test:mobile": "npx -y tsx scripts/test-mobile-app.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -23,6 +40,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "tailwindcss": "^4.0.0",
+    "turbo": "^2.4.4",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

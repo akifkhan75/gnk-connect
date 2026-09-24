@@ -167,6 +167,16 @@ const Navbar: React.FC = () => {
               </AnimatePresence>
             </div>
 
+            {/* Agent / B2B Portal Button */}
+            <Link
+              to="/agent/dashboard"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-xs font-black text-cyan-300 hover:bg-cyan-500 hover:text-slate-950 transition-all shadow-md shadow-cyan-500/10"
+              aria-label="Access B2B Partner Portal"
+            >
+              <Compass size={13} />
+              <span>Agent Portal</span>
+            </Link>
+
             {/* Wishlist Button */}
             <button
               type="button"
@@ -277,11 +287,18 @@ const Navbar: React.FC = () => {
                   )}
                 </div>
               ))}
+              <Link
+                to="/agent/dashboard"
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 py-3 rounded-xl font-black text-sm shadow-lg shadow-cyan-500/20"
+              >
+                <Compass className="h-4 w-4" />
+                Access B2B Agent Portal
+              </Link>
               <a
                 href={`tel:${CONTACT_INFO.phone}`}
-                className="flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-navy-900 py-3.5 rounded-xl font-bold mt-4 shadow-lg shadow-cyan-500/20"
+                className="flex items-center justify-center gap-2 bg-navy-800 border border-navy-700 hover:bg-navy-700 text-white py-3 rounded-xl font-bold text-sm"
               >
-                <Phone className="h-5 w-5" />
+                <Phone className="h-4 w-4 text-cyan-400" />
                 Call {CONTACT_INFO.displayPhone}
               </a>
             </div>

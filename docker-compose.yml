@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # ---------------- PostgreSQL Database ---------------- #
+  postgres:
+    image: postgres:16-alpine
+    container_name: gnk_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gnk_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gnk_secret_password}
+      POSTGRES_DB: ${POSTGRES_DB:-gnk_elite_db}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gnk_admin -d gnk_elite_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gnk_network
+
+  # ---------------- Redis In-Memory Cache ---------------- #
+  redis:
+    image: redis:7-alpine
+    container_name: gnk_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gnk_network
+
+  # ---------------- NestJS Enterprise Backend API ---------------- #
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: gnk_api
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gnk_admin}:${POSTGRES_PASSWORD:-gnk_secret_password}@postgres:5432/${POSTGRES_DB:-gnk_elite_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      AIRDESK_API_URL: ${AIRDESK_API_URL:-https://api.airdesk.travel/v2}
+      AIRDESK_API_KEY: ${AIRDESK_API_KEY:-mock_airdesk_key}
+      JWT_SECRET: ${JWT_SECRET:-gnk_jwt_super_secret_key_2026}
+    ports:
+      - "${API_PORT:-4010}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gnk_network
+
+  # ---------------- Admin Operations Center ---------------- #
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    container_name: gnk_admin
+    restart: always
+    ports:
+      - "${ADMIN_PORT:-3012}:80"
+    environment:
+      VITE_API_URL: http://localhost:4010/api/v1
+    depends_on:
+      - api
+    networks:
+      - gnk_network
+
+  # ---------------- B2B Agent Portal ---------------- #
+  portal:
+    build:
+      context: .
+      dockerfile: apps/portal/Dockerfile
+    container_name: gnk_portal
+    restart: always
+    ports:
+      - "${PORTAL_PORT:-3011}:80"
+    environment:
+      VITE_API_URL: http://localhost:4010/api/v1
+    depends_on:
+      - api
+    networks:
+      - gnk_network
+
+  # ---------------- Customer Travel Website ---------------- #
+  website:
+    build:
+      context: .
+      dockerfile: apps/website/Dockerfile
+    container_name: gnk_website
+    restart: always
+    ports:
+      - "${WEBSITE_PORT:-3010}:80"
+    environment:
+      VITE_API_URL: http://localhost:4010/api/v1
+    depends_on:
+      - api
+    networks:
+      - gnk_network
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  gnk_network:
+    driver: bridge

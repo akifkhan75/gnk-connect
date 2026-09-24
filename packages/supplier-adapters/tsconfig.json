@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2022",
+    "declaration": true,
+    "outDir": "./dist",
+    "strict": false,
+    "skipLibCheck": true,
+    "paths": {
+      "@gnk/types": ["../types/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

@@ -15,6 +15,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      '@gnk/types': path.resolve(__dirname, './packages/types/src/index.ts'),
+      '@gnk/supplier-adapters': path.resolve(__dirname, './packages/supplier-adapters/src/index.ts'),
     },
   },
   build: {

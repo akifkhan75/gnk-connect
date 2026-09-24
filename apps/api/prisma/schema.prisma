@@ -1,0 +1,335 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------- Agency & Multi-Tenant Agent Schema ---------------- //
+
+enum AgentAccountType {
+  AGENCY
+  INDIVIDUAL
+}
+
+enum AgentRole {
+  AGENCY_OWNER
+  AGENCY_STAFF
+  INDIVIDUAL_AGENT
+  GNK_ADMIN
+}
+
+enum ApprovalStatus {
+  PENDING_VERIFICATION
+  ADMIN_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Agency {
+  id                   String                 @id @default(uuid())
+  name                 String
+  tradeLicenseNumber   String?
+  ntnNumber            String?
+  city                 String
+  country              String                 @default("Pakistan")
+  officeAddress        String?
+  phone                String
+  officialEmail        String                 @unique
+  logoUrl              String?
+  approvalStatus       ApprovalStatus         @default(PENDING_VERIFICATION)
+  creditLimitPKR       Float                  @default(0)
+  walletBalancePKR     Float                  @default(0)
+  pricingProfileId     String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  users                AgentUser[]
+  documents            VerificationDocument[]
+  bookings             Booking[]
+  pricingRules         PricingRule[]
+
+  @@map("agencies")
+}
+
+model AgentUser {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  passwordHash   String?
+  fullName       String
+  phone          String
+  role           AgentRole        @default(INDIVIDUAL_AGENT)
+  accountType    AgentAccountType @default(INDIVIDUAL)
+  approvalStatus ApprovalStatus   @default(PENDING_VERIFICATION)
+  avatarUrl      String?
+  agencyId       String?
+  agency         Agency?          @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  bookings       Booking[]
+  payments       PaymentTransaction[]
+  pricingRules   PricingRule[]
+
+  @@map("agent_users")
+}
+
+model VerificationDocument {
+  id         String   @id @default(uuid())
+  agencyId   String
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  title      String
+  fileUrl    String
+  status     String   @default("SUBMITTED") // SUBMITTED, VERIFIED, REJECTED
+  uploadedAt DateTime @default(now())
+
+  @@map("verification_documents")
+}
+
+// ---------------- Suppliers & Inventory Schema ---------------- //
+
+enum SupplierType {
+  AIRDESK
+  HOTEL_BEDS
+  UMRAH_DIRECT
+  CUSTOM_API
+}
+
+enum SupplierStatus {
+  ACTIVE
+  MAINTENANCE
+  INACTIVE
+}
+
+enum ProductType {
+  GROUP_TOUR
+  HOTEL
+  UMRAH
+  ZIARAT
+  FLIGHT
+}
+
+model Supplier {
+  id                    String         @id @default(uuid())
+  code                  String         @unique // e.g. 'airdesk'
+  name                  String
+  type                  SupplierType   @default(AIRDESK)
+  status                SupplierStatus @default(ACTIVE)
+  apiVersion            String         @default("v2")
+  apiEndpoint           String?
+  apiKeyEncrypted       String?
+  syncIntervalMinutes   Int            @default(30)
+  lastSyncAt            DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  products              Product[]
+  pricingRules          PricingRule[]
+
+  @@map("suppliers")
+}
+
+model Product {
+  id                  String       @id @default(uuid())
+  supplierId          String
+  supplier            Supplier     @relation(fields: [supplierId], references: [id])
+  supplierProductId   String       // e.g. 'AD-DXB-7D-EXP'
+  supplierProductCode String?
+  productType         ProductType  @default(GROUP_TOUR)
+  title               String
+  destination         String
+  country             String
+  durationDays        Int
+  durationNights      Int
+  heroImage           String
+  galleryImages       String[]     @default([])
+  overview            String
+  inclusions          String[]     @default([])
+  exclusions          String[]     @default([])
+  itinerary           Json         // Array of { day, title, description, meals }
+  airline             String?
+  hotelRating         Int?
+  visaIncluded        Boolean      @default(false)
+  isFeatured          Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  departures          Departure[]
+  bookings            Booking[]
+
+  @@unique([supplierId, supplierProductId])
+  @@map("products")
+}
+
+model Departure {
+  id                  String   @id @default(uuid())
+  productId           String
+  product             Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  departureDate       DateTime
+  returnDate          DateTime
+  totalSeats          Int
+  availableSeats      Int
+  supplierNetPricePKR Float
+  status              String   @default("OPEN") // OPEN, FILLING_FAST, SOLD_OUT, CLOSED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  bookings            Booking[]
+
+  @@map("departures")
+}
+
+// ---------------- Hierarchical Pricing Rules Schema ---------------- //
+
+enum MarkupType {
+  FIXED
+  PERCENTAGE
+}
+
+model PricingRule {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  priority     Int          // 1: Agent+Product, 2: Agent, 3: Product, 4: Supplier, 5: Default
+  supplierId   String?
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id])
+  productType  ProductType?
+  productId    String?
+  agencyId     String?
+  agency       Agency?      @relation(fields: [agencyId], references: [id])
+  agentId      String?
+  agent        AgentUser?   @relation(fields: [agentId], references: [id])
+  markupType   MarkupType   @default(FIXED)
+  markupValue  Float
+  currency     String       @default("PKR")
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("pricing_rules")
+}
+
+// ---------------- Bookings & Dual ID Lifecycle Schema ---------------- //
+
+enum GNKBookingStatus {
+  PENDING_APPROVAL
+  APPROVED
+  SUBMITTED_TO_SUPPLIER
+  SUPPLIER_CONFIRMED
+  SUPPLIER_FAILED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAYMENT_SUBMITTED
+  PAYMENT_VERIFIED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH_DEPOSIT
+  CREDIT_WALLET
+  PAYMENT_GATEWAY
+}
+
+model Booking {
+  id                         String           @id // GNK Standard ID: e.g. 'GNK-2026-00481'
+  supplierBookingId          String?          // AirDesk Supplier ID: e.g. 'AD-849302'
+  supplierId                 String
+  productId                  String
+  product                    Product          @relation(fields: [productId], references: [id])
+  supplierProductId          String
+  departureId                String
+  departure                  Departure        @relation(fields: [departureId], references: [id])
+  
+  // Agent relations
+  agentId                    String
+  agent                      AgentUser        @relation(fields: [agentId], references: [id])
+  agencyId                   String?
+  agency                     Agency?          @relation(fields: [agencyId], references: [id])
+  
+  totalSeats                 Int
+  currency                   String           @default("PKR")
+  
+  // Financial Audit Ledger
+  supplierNetPricePerSeatPKR Float
+  totalSupplierNetPKR        Float
+  markupPerSeatPKR           Float
+  totalMarkupPKR             Float
+  sellingPricePerSeatPKR     Float
+  totalAgentSellingPricePKR  Float
+  pricingRuleSnapshot        Json             // Snapshot of applied rule name, ID, and margin
+  
+  // Status & Payment
+  status                     GNKBookingStatus @default(PENDING_APPROVAL)
+  paymentStatus              PaymentStatus    @default(UNPAID)
+  paymentMethod              PaymentMethod    @default(BANK_TRANSFER)
+  paymentReferenceNumber     String?
+  paymentProofUrl            String?
+  specialRequests            String?
+  
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+
+  passengers                 Passenger[]
+  payments                   PaymentTransaction[]
+  statusHistory              BookingStatusHistory[]
+
+  @@map("bookings")
+}
+
+model Passenger {
+  id             String   @id @default(uuid())
+  bookingId      String
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  title          String   // Mr, Mrs, Ms, Mstr
+  firstName      String
+  lastName       String
+  passportNumber String
+  passportExpiry String
+  dob            String
+  nationality    String   @default("Pakistani")
+  gender         String   // MALE, FEMALE
+  passengerType  String   @default("ADULT") // ADULT, CHILD, INFANT
+
+  @@map("passengers")
+}
+
+model PaymentTransaction {
+  id             String   @id @default(uuid())
+  bookingId      String
+  booking        Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  agentId        String
+  agent          AgentUser @relation(fields: [agentId], references: [id])
+  amountPKR      Float
+  method         PaymentMethod
+  referenceNumber String
+  bankName       String?
+  proofImageUrl  String?
+  notes          String?
+  status         String   @default("PENDING_VERIFICATION") // PENDING_VERIFICATION, VERIFIED, REJECTED
+  submittedAt    DateTime @default(now())
+  verifiedAt     DateTime?
+  verifiedBy     String?
+
+  @@map("payment_transactions")
+}
+
+model BookingStatusHistory {
+  id        String           @id @default(uuid())
+  bookingId String
+  booking   Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  status    GNKBookingStatus
+  changedBy String
+  notes     String?
+  createdAt DateTime         @default(now())
+
+  @@map("booking_status_history")
+}

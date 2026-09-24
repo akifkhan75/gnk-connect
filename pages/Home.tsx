@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, ChevronRight, Compass, Bookmark } from 'lucide-react';
+import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, ChevronRight, Compass, Bookmark, Sparkles, Calendar, MapPin, Eye } from 'lucide-react';
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, SERVICES, TESTIMONIALS, LATEST_NEWS, BRAND_NAME } from '../constants';
 import { ServiceIconType } from '../types';
 import FlightHotelSearch from '../components/FlightHotelSearch';
@@ -14,6 +14,9 @@ import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useWishlist } from '../context/WishlistContext';
+import { airDeskAdapter } from '../services/b2b/airdeskAdapter';
+import { StandardGroupProduct } from '../types/b2b';
+import { PublicGroupBookingModal } from '../components/PublicGroupBookingModal';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -40,10 +43,28 @@ const Home: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPackageName, setSelectedPackageName] = useState('Custom Travel Inquiry');
   const [customNotes, setCustomNotes] = useState('');
+  
+  // Group Departures state
+  const [groupProducts, setGroupProducts] = useState<StandardGroupProduct[]>([]);
+  const [selectedGroupProduct, setSelectedGroupProduct] = useState<StandardGroupProduct | null>(null);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+
   const { showToast } = useToast();
   const { formatPrice } = useCurrency();
   const { isSaved, toggleSave } = useWishlist();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const list = await airDeskAdapter.getProducts();
+        setGroupProducts(list);
+      } catch (err) {
+        console.warn('Unable to load group tours', err);
+      }
+    };
+    fetchGroups();
+  }, []);
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,6 +180,136 @@ const Home: React.FC = () => {
       <section className="container mx-auto px-4 md:px-6 pb-16">
         <FlightHotelSearch />
       </section>
+
+      {/* 2.6 Guaranteed AirDesk Group Departures Showcase */}
+      {groupProducts.length > 0 && (
+        <section className="py-20 bg-slate-950 text-white relative overflow-hidden">
+          {/* Ambient Glows */}
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="container mx-auto px-4 md:px-6 relative z-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-xs font-bold uppercase tracking-wider mb-2">
+                  <Sparkles size={13} /> Guaranteed Group Departures
+                </div>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight">
+                  Curated International <span className="text-cyan-400">Fixed Groups</span>
+                </h2>
+                <p className="text-slate-400 text-sm mt-1 max-w-xl">
+                  Fixed departure dates, guaranteed flight seats, 4 & 5-star hotels, and licensed tour coordinators.
+                </p>
+              </div>
+
+              <Link
+                to="/groups"
+                className="inline-flex items-center gap-2 text-xs font-black text-slate-950 bg-cyan-400 hover:bg-cyan-300 px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-cyan-400/20 whitespace-nowrap"
+              >
+                <span>Explore All Groups</span>
+                <ArrowRight size={14} />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {groupProducts.map((p) => {
+                const earliest = p.departures[0];
+                const retailPrice = earliest ? earliest.supplierNetPricePKR + 15000 : 200000;
+
+                return (
+                  <div
+                    key={p.id}
+                    className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden hover:border-cyan-500/50 transition-all flex flex-col justify-between group shadow-xl hover:shadow-cyan-500/10"
+                  >
+                    <div>
+                      <div className="relative h-48 overflow-hidden">
+                        <img
+                          src={p.heroImage}
+                          alt={p.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+                        <span className="absolute top-3 left-3 bg-slate-950/90 text-cyan-400 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-cyan-500/30">
+                          {p.productType.replace('_', ' ')}
+                        </span>
+                        <span className="absolute bottom-3 left-3 text-xs font-bold text-white flex items-center gap-1">
+                          <MapPin size={12} className="text-cyan-400" /> {p.destination}
+                        </span>
+                      </div>
+
+                      <div className="p-5 space-y-3">
+                        <h3 className="font-bold text-white text-base group-hover:text-cyan-400 transition-colors line-clamp-1">
+                          {p.title}
+                        </h3>
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{p.overview}</p>
+
+                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
+                          <span className="flex items-center gap-1 font-mono text-cyan-400">
+                            <Calendar size={12} /> {earliest?.departureDate}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold text-[10px]">
+                            {earliest?.availableSeats} Seats Left
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 pt-0 space-y-2">
+                      <div className="flex items-baseline justify-between pt-2 border-t border-slate-800/80">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">All-Inclusive</span>
+                          <div className="text-base font-black text-white">
+                            {formatPrice(retailPrice)}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedGroupProduct(p);
+                            setIsGroupModalOpen(true);
+                          }}
+                          className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 transition-all shadow-md shadow-cyan-500/20"
+                        >
+                          <Eye size={12} /> View & Book
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* B2B Partner Portal Banner */}
+            <div className="mt-12 bg-gradient-to-r from-slate-900 via-cyan-950/40 to-slate-900 border border-cyan-500/30 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+              <div className="space-y-1">
+                <span className="text-xs font-black uppercase tracking-wider text-cyan-400">
+                  Are you a Travel Agency or Tour Operator?
+                </span>
+                <h3 className="text-xl font-black text-white">Access Wholesale Net Rates on GNK Elite B2B Portal</h3>
+                <p className="text-xs text-slate-300 max-w-xl">
+                  Register your agency to book AirDesk series with 5-tier pricing rules, instant ledger debit, and automated passenger vouchers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/agent/login"
+                  className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs transition-all shadow-md shadow-cyan-500/20 whitespace-nowrap"
+                >
+                  Agent Login →
+                </Link>
+                <Link
+                  to="/agent/register"
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs border border-slate-700 whitespace-nowrap"
+                >
+                  Register Agency
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 3. Featured Destinations */}
       <section className="py-20 bg-white">
@@ -525,6 +676,13 @@ const Home: React.FC = () => {
         onClose={() => setModalOpen(false)}
         packageName={selectedPackageName}
         initialNotes={customNotes}
+      />
+
+      {/* Interactive Public Group Booking Modal */}
+      <PublicGroupBookingModal
+        isOpen={isGroupModalOpen}
+        onClose={() => setIsGroupModalOpen(false)}
+        product={selectedGroupProduct}
       />
     </div>
   );

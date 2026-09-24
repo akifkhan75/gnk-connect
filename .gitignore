@@ -8,13 +8,28 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.pnpm-store
+
+# Test & Coverage
+coverage
+.c8_output
+.nyc_output
+
+# Monorepo & Build Cache
+.turbo
 dist
 dist-ssr
-*.local
 *.tsbuildinfo
+
+# Uploads & Temp
+uploads/
+scratch/
+
+# Environment
 .env
 .env.local
 .env.*.local
+!.env.example
 
 # Editor directories and files
 .vscode/*
@@ -26,3 +41,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+

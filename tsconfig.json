@@ -23,9 +23,30 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@gnk/types": [
+        "./packages/types/src/index.ts"
+      ],
+      "@gnk/supplier-adapters": [
+        "./packages/supplier-adapters/src/index.ts"
       ]
     },
     "noEmit": true
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": [
+    "packages/**/*",
+    "pages/**/*",
+    "components/**/*",
+    "context/**/*",
+    "services/**/*",
+    "types/**/*",
+    "*.ts",
+    "*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "apps/api",
+    "apps/mobile"
+  ]
 }
