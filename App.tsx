@@ -6,6 +6,8 @@ import ChatWidget from './components/ChatWidget';
 import WhatsAppButton from './components/WhatsAppButton';
 import { ToastProvider } from './context/ToastContext';
 import { CurrencyProvider } from './context/CurrencyContext';
+import { WishlistProvider } from './context/WishlistContext';
+import WishlistDrawer from './components/WishlistDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy loaded page chunks for fast initial load
@@ -37,33 +39,36 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <CurrencyProvider>
-        <ToastProvider>
-          <Router>
-            <div className="flex flex-col min-h-screen font-sans bg-gray-50 text-navy-900 selection:bg-cyan-500 selection:text-white">
-              <ScrollToTop />
-              <Navbar />
-              <main className="flex-grow">
-                <Suspense fallback={<PageLoadingFallback />}>
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/services" element={<ServicesPage />} />
-                    <Route path="/services/:slug" element={<ServicesPage />} />
-                    <Route path="/destinations" element={<DestinationsPage />} />
-                    <Route path="/news" element={<NewsPage />} />
-                    <Route path="/news/:slug" element={<NewsPage />} />
-                    <Route path="/contact" element={<ContactPage />} />
-                    <Route path="/about" element={<AboutPage />} />
-                    {/* Fallback route */}
-                    <Route path="*" element={<Home />} />
-                  </Routes>
-                </Suspense>
-              </main>
-              <Footer />
-              <ChatWidget />
-              <WhatsAppButton />
-            </div>
-          </Router>
-        </ToastProvider>
+        <WishlistProvider>
+          <ToastProvider>
+            <Router>
+              <div className="flex flex-col min-h-screen font-sans bg-gray-50 text-navy-900 selection:bg-cyan-500 selection:text-white">
+                <ScrollToTop />
+                <Navbar />
+                <main className="flex-grow">
+                  <Suspense fallback={<PageLoadingFallback />}>
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/services" element={<ServicesPage />} />
+                      <Route path="/services/:slug" element={<ServicesPage />} />
+                      <Route path="/destinations" element={<DestinationsPage />} />
+                      <Route path="/news" element={<NewsPage />} />
+                      <Route path="/news/:slug" element={<NewsPage />} />
+                      <Route path="/contact" element={<ContactPage />} />
+                      <Route path="/about" element={<AboutPage />} />
+                      {/* Fallback route */}
+                      <Route path="*" element={<Home />} />
+                    </Routes>
+                  </Suspense>
+                </main>
+                <Footer />
+                <ChatWidget />
+                <WhatsAppButton />
+                <WishlistDrawer />
+              </div>
+            </Router>
+          </ToastProvider>
+        </WishlistProvider>
       </CurrencyProvider>
     </ErrorBoundary>
   );

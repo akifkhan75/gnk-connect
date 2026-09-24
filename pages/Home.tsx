@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, ChevronRight, Compass } from 'lucide-react';
+import { ArrowRight, CheckCircle, Star, Map, Moon, FileCheck, Hotel, Plane, ShieldCheck, Globe, ChevronRight, Compass, Bookmark } from 'lucide-react';
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, SERVICES, TESTIMONIALS, LATEST_NEWS, BRAND_NAME } from '../constants';
 import { ServiceIconType } from '../types';
+import FlightHotelSearch from '../components/FlightHotelSearch';
 import TravelCalculator from '../components/TravelCalculator';
+import PackageComparison from '../components/PackageComparison';
+import VisaChecker from '../components/VisaChecker';
+import NewsletterSubscription from '../components/NewsletterSubscription';
 import InquiryModal from '../components/InquiryModal';
 import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { useWishlist } from '../context/WishlistContext';
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -37,6 +42,7 @@ const Home: React.FC = () => {
   const [customNotes, setCustomNotes] = useState('');
   const { showToast } = useToast();
   const { formatPrice } = useCurrency();
+  const { isSaved, toggleSave } = useWishlist();
   const navigate = useNavigate();
 
   const handleHeroSearch = (e: React.FormEvent) => {
@@ -122,7 +128,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* 2. Key Services Floating Strip */}
-      <section className="relative z-30 -mt-16 pb-16">
+      <section className="relative z-30 -mt-16 pb-12">
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-wrap justify-center gap-3 md:gap-5">
             {SERVICES.map((service, idx) => (
@@ -147,6 +153,11 @@ const Home: React.FC = () => {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* 2.5 Multi-Service Booking & Search Engine */}
+      <section className="container mx-auto px-4 md:px-6 pb-16">
+        <FlightHotelSearch />
       </section>
 
       {/* 3. Featured Destinations */}
@@ -183,6 +194,27 @@ const Home: React.FC = () => {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-navy-900 via-navy-900/30 to-transparent opacity-90"></div>
                 
+                {/* Bookmark Toggle */}
+                <button
+                  type="button"
+                  onClick={() => toggleSave({
+                    id: dest.id,
+                    type: 'destination',
+                    title: dest.name,
+                    category: 'Domestic Tour',
+                    image: dest.image,
+                    price: formatPrice(dest.price),
+                  })}
+                  className={`absolute top-5 left-5 p-2.5 rounded-full backdrop-blur-md transition-all shadow-md ${
+                    isSaved(dest.id)
+                      ? 'bg-cyan-500 text-navy-900'
+                      : 'bg-navy-900/60 text-white hover:bg-navy-900'
+                  }`}
+                  aria-label={isSaved(dest.id) ? `Remove ${dest.name} from saved` : `Save ${dest.name}`}
+                >
+                  <Bookmark size={15} className={isSaved(dest.id) ? 'fill-navy-900' : ''} />
+                </button>
+
                 <div className="absolute top-5 right-5 bg-white/20 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-xs font-bold border border-white/30">
                   From {formatPrice(dest.price)}
                 </div>
@@ -404,6 +436,33 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* 8.5 Umrah Comparison Matrix */}
+      <section className="py-20 bg-white border-t border-gray-200/60">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="text-cyan-600 font-bold uppercase tracking-wider text-xs block mb-1">Package Matrix</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-navy-900 mb-3">Compare Umrah Tiers</h2>
+            <p className="text-gray-600 text-sm">Transparent inclusions, hotel ratings, and transport options across all packages.</p>
+          </div>
+          <PackageComparison onSelectPackage={(pkg) => openInquiryForPackage(pkg, `Selected via comparison matrix: ${pkg}`)} />
+        </div>
+      </section>
+
+      {/* 8.6 Visa Rules & Requirements Checker */}
+      <section className="py-20 bg-gray-50 border-t border-gray-200/60">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="text-cyan-600 font-bold uppercase tracking-wider text-xs block mb-1">Visa Intelligence</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-navy-900 mb-3">Visa Requirements &amp; Turnarounds</h2>
+            <p className="text-gray-600 text-sm">Select your target destination to view mandatory documents and embassy processing speeds.</p>
+          </div>
+          <VisaChecker onApply={(title, notes) => openInquiryForPackage(title, notes)} />
+        </div>
+      </section>
+
+      {/* 8.7 Price Drops & Advisory Newsletter */}
+      <NewsletterSubscription />
 
       {/* 9. FAQ Section */}
       <FAQSection />

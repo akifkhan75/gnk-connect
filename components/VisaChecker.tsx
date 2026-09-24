@@ -123,15 +123,17 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
   }
 };
 
-export const VisaChecker: React.FC<{ onApply: (visaTitle: string, notes: string) => void }> = ({ onApply }) => {
+export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string) => void }> = ({ onApply }) => {
   const [selectedCountry, setSelectedCountry] = useState<string>('uae');
   const visa = VISA_DATA[selectedCountry] || VISA_DATA['uae'];
 
   const handleApplyClick = () => {
-    onApply(
-      `${visa.destination} (${visa.type})`,
-      `Inquiring for ${visa.destination} visa. Type: ${visa.type}, Price: ${visa.price}, Processing: ${visa.processingTime}.`
-    );
+    if (onApply) {
+      onApply(
+        `${visa.destination} (${visa.type})`,
+        `Inquiring for ${visa.destination} visa. Type: ${visa.type}, Price: ${visa.price}, Processing: ${visa.processingTime}.`
+      );
+    }
   };
 
   return (

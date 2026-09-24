@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { MapPin, Calendar, Camera, Search, ArrowRight, Star } from 'lucide-react';
+import { MapPin, Calendar, Camera, Search, ArrowRight, Star, Bookmark } from 'lucide-react';
 import { FEATURED_DESTINATIONS, INTERNATIONAL_DESTINATIONS, BRAND_NAME } from '../constants';
 import { motion } from 'framer-motion';
 import InquiryModal from '../components/InquiryModal';
 import FAQSection from '../components/FAQSection';
 import { useCurrency } from '../context/CurrencyContext';
+import { useWishlist } from '../context/WishlistContext';
 
 const DestinationsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -16,6 +17,7 @@ const DestinationsPage: React.FC = () => {
   const [selectedDestName, setSelectedDestName] = useState('');
   const [modalNotes, setModalNotes] = useState('');
   const { formatPrice } = useCurrency();
+  const { isSaved, toggleSave } = useWishlist();
 
   useEffect(() => {
     const q = searchParams.get('q');
@@ -163,6 +165,31 @@ const DestinationsPage: React.FC = () => {
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
                     <div className="absolute inset-0 bg-navy-900/20 group-hover:bg-navy-900/10 transition-colors"></div>
+                    
+                    {/* Bookmark Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSave({
+                          id: dest.id,
+                          type: 'destination',
+                          title: dest.name,
+                          category: dest.type === 'international' ? 'International Tour' : 'Domestic Tour',
+                          image: dest.image,
+                          price: formatPrice(dest.price),
+                        });
+                      }}
+                      className={`absolute top-4 left-4 p-2 rounded-full backdrop-blur-md transition-all shadow-md ${
+                        isSaved(dest.id)
+                          ? 'bg-cyan-500 text-navy-900'
+                          : 'bg-navy-900/60 text-white hover:bg-navy-900'
+                      }`}
+                      aria-label={isSaved(dest.id) ? `Remove ${dest.name} from saved` : `Save ${dest.name}`}
+                    >
+                      <Bookmark size={14} className={isSaved(dest.id) ? 'fill-navy-900' : ''} />
+                    </button>
+
                     <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-navy-900 uppercase tracking-wider">
                       {dest.type === 'international' ? 'International' : 'Domestic'}
                     </div>

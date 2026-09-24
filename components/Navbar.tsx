@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Phone, ChevronDown, Compass, Globe } from 'lucide-react';
+import { Menu, X, Phone, ChevronDown, Compass, Globe, Bookmark } from 'lucide-react';
 import { NAV_LINKS, CONTACT_INFO, SERVICES, BRAND_NAME } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrency, CurrencyCode, CURRENCIES } from '../context/CurrencyContext';
+import { useWishlist } from '../context/WishlistContext';
 
 const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -11,6 +12,7 @@ const Navbar: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [currencyDropdown, setCurrencyDropdown] = useState<boolean>(false);
   const { currency, setCurrency } = useCurrency();
+  const { savedItems, setIsDrawerOpen } = useWishlist();
   const location = useLocation();
 
   useEffect(() => {
@@ -165,6 +167,21 @@ const Navbar: React.FC = () => {
               </AnimatePresence>
             </div>
 
+            {/* Wishlist Button */}
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="relative p-2 rounded-full bg-navy-800 border border-navy-700 text-gray-200 hover:text-white hover:border-cyan-400 transition-all"
+              aria-label="View saved travel wishlist"
+            >
+              <Bookmark size={16} className="text-cyan-400" />
+              {savedItems.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-cyan-400 text-navy-900 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                  {savedItems.length}
+                </span>
+              )}
+            </button>
+
             {/* Direct Telephone Helpline */}
             <a
               href={`tel:${CONTACT_INFO.phone}`}
@@ -176,16 +193,32 @@ const Navbar: React.FC = () => {
             </a>
           </div>
 
-          {/* Mobile Toggle */}
-          <button
-            type="button"
-            className="md:hidden p-2 text-white hover:text-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-label={isOpen ? "Close menu" : "Open navigation menu"}
-            aria-expanded={isOpen}
-          >
-            {isOpen ? <X size={26} /> : <Menu size={26} />}
-          </button>
+          {/* Mobile Right Actions */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="relative p-2 rounded-xl bg-navy-800 border border-navy-700 text-gray-200"
+              aria-label="View saved wishlist"
+            >
+              <Bookmark size={18} className="text-cyan-400" />
+              {savedItems.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-cyan-400 text-navy-900 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                  {savedItems.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className="p-2 text-white hover:text-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg"
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label={isOpen ? "Close menu" : "Open navigation menu"}
+              aria-expanded={isOpen}
+            >
+              {isOpen ? <X size={26} /> : <Menu size={26} />}
+            </button>
+          </div>
         </div>
       </div>
 
