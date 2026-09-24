@@ -1,5 +1,7 @@
-
 import { Service, Destination, Testimonial, NewsItem } from './types';
+
+export const BRAND_NAME = "GNK Connect";
+export const BRAND_TAGLINE = "Crafting Journeys, Creating Memories";
 
 export const NAV_LINKS = [
   { name: 'Home', path: '/' },
@@ -7,224 +9,226 @@ export const NAV_LINKS = [
   { name: 'Destinations', path: '/destinations' },
   { name: 'About Us', path: '/about' },
   { name: 'Contact', path: '/contact' },
-  { name: 'News', path: '/news' },
 ];
 
 export const SERVICES: Service[] = [
   {
     id: '1',
     title: 'Executive Umrah Packages',
-    description: 'Comprehensive spiritual journeys with 5-star accommodation, transport, and guidance.',
+    description: 'Comprehensive spiritual journeys with 5-star accommodation, VIP private transport, and personal guidance.',
     iconName: 'Moon',
     link: '/services/umrah',
-    image: 'https://picsum.photos/1200/600?random=201',
-    longDescription: 'Experience a spiritually uplifting journey with our Executive Umrah Packages. We prioritize your comfort and peace of mind, ensuring that every aspect of your pilgrimage is handled with the utmost care and professionalism. From luxury accommodation steps away from the Haram to VIP transport.',
+    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Experience a spiritually uplifting and seamless journey with GNK Connect Executive Umrah Packages. We prioritize your peace of mind and comfort, securing premium 5-star accommodations directly facing the Haram, VIP GMC ground transfers between Jeddah, Makkah, and Madinah, alongside personalized Ziarat arrangements.',
     benefits: [
-      '5-Star Hotel Accommodation (Walking distance to Haram)',
-      'VIP Private Transport (Jeddah - Makkah - Madinah)',
-      'Visa Processing & Travel Insurance Included',
-      'Guided Ziarat Tours in Makkah & Madinah',
-      '24/7 On-ground Support Staff',
-      'Complimentary Ihram & Travel Kits'
+      '5-Star Luxury Hotels (Steps from the Haram Courtyard)',
+      'VIP Private GMC Transport (Jeddah - Makkah - Madinah)',
+      'Express Umrah Visa & Comprehensive Insurance',
+      'Dedicated Multilingual Ziarat Tour Guides',
+      '24/7 On-ground Executive Support Staff',
+      'Complimentary Premium Ihram & Pilgrimage Travel Kits'
     ],
     packages: [
       {
         name: 'Economy Package',
         price: '$950',
         duration: '15 Days',
-        features: ['3-Star Hotels (500m)', 'Shared Transport', 'Visa Included', 'Direct Flights']
+        features: ['3-Star Hotels (350m to Courtyard)', 'Shared AC Transport', 'Visa & Medical Insurance', 'Direct Flights Assistance']
       },
       {
-        name: 'Executive Package',
+        name: 'Executive VIP Package',
         price: '$1,800',
         duration: '10 Days',
-        features: ['5-Star Hotels (Clock Tower)', 'Private GMC Transport', 'Visa & Insurance', 'Guided Tours']
+        features: ['5-Star Clock Tower Hotels (Haram View)', 'Private GMC Suburban Transfer', 'VIP Visa & Fast-Track Support', 'Exclusive Private Ziarat']
       },
       {
         name: 'Premium Group',
         price: '$1,200',
         duration: '21 Days',
-        features: ['4-Star Hotels (200m)', 'Luxury Bus Transport', 'Ziarat Included', 'Full Board Meals']
+        features: ['4-Star Hotels (150m)', 'Luxury Bus Transport', 'Complete Ziarat Itinerary', 'Full Board Buffet Meals']
       }
     ],
     ctaText: 'Book Your Umrah'
   },
   {
     id: '2',
-    title: 'Visit Visas',
-    description: 'Hassle-free sticker visa processing for major destinations globally.',
+    title: 'Visit Visas & Sticker Visas',
+    description: 'Hassle-free sticker visa processing and expert file preparation for major global destinations.',
     iconName: 'FileCheck',
     link: '/services/visas',
-    image: 'https://picsum.photos/1200/600?random=202',
-    longDescription: 'Navigate the complex world of international travel documentation with ease. Our dedicated visa consultants provide end-to-end assistance for visit visas, specifically specializing in sticker visas for countries with strict requirements.',
+    image: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Navigate the complex documentation requirements of worldwide embassies effortlessly. Our certified visa consultants provide end-to-end guidance for sticker and electronic visas, covering GCC, UK, USA, Schengen, and Southeast Asia.',
     benefits: [
-      'Expert Document Assessment',
-      'Appointment Scheduling Assistance',
-      'Cover Letter & Itinerary Drafting',
-      'Interview Preparation Mock Sessions',
-      'High Success Rate'
+      'Thorough Embassy Document Assessment & Audit',
+      'Expedited Appointment Scheduling Assistance',
+      'Professional Cover Letter & Detailed Itinerary Drafting',
+      'Embassy Interview Preparation & Mock Sessions',
+      'Consistently High Visa Success Rate'
     ],
     processSteps: [
-      { title: 'Consultation', desc: 'We assess your profile and travel history to recommend the best approach.' },
-      { title: 'Documentation', desc: 'Collection and verification of all required financial and personal documents.' },
-      { title: 'Submission', desc: 'Filing the application with the respective embassy or visa center.' },
-      { title: 'Collection', desc: 'Passport collection and delivery to your doorstep upon approval.' }
+      { title: 'Profile Consultation', desc: 'We review your travel history and financial profile to structure the strongest application.' },
+      { title: 'File Preparation', desc: 'Collection, verification, and translation of all mandatory personal, tax, and banking documents.' },
+      { title: 'Submission & Biometrics', desc: 'Filing with the official embassy portal or VFS/Gerrys submission center.' },
+      { title: 'Passport Delivery', desc: 'Real-time tracking with secure passport dispatch upon visa issuance.' }
     ],
     packages: [
-        {
-            name: 'Dubai (UAE) Visa',
-            price: '$150',
-            duration: '30 Days',
-            features: ['E-Visa', 'Insurance Included', '3-4 Working Days', 'Single Entry']
-        },
-        {
-            name: 'Thailand Sticker Visa',
-            price: '$80',
-            duration: '60 Days',
-            features: ['Sticker Visa', 'Documents Review', 'Appointment Booking', 'Single Entry']
-        },
-        {
-            name: 'Schengen Consultation',
-            price: '$200',
-            features: ['Complete File Preparation', 'Interview Mock', 'Itinerary Planning', 'Hotel Reservations']
-        }
+      {
+        name: 'Dubai (UAE) E-Visa',
+        price: '$150',
+        duration: '30 Days',
+        features: ['30/60 Days Single Entry', 'Mandatory COVID/Medical Insurance', '3-4 Working Days Processing', 'Zero Embassy Visit']
+      },
+      {
+        name: 'Thailand Sticker Visa',
+        price: '$80',
+        duration: '60 Days',
+        features: ['Official Sticker Visa', 'Document Scrutiny & VFS Booking', 'Cover Letter & Flight Voucher', 'Single / Multiple Entry Options']
+      },
+      {
+        name: 'Schengen File Consultation',
+        price: '$200',
+        duration: '15-20 Days',
+        features: ['Complete Dossier Preparation', 'Verifiable Flight & Hotel Vouchers', 'Mock Interview Coaching', 'Cover Letter Tailoring']
+      }
     ],
     ctaText: 'Apply For Visa'
   },
   {
     id: '3',
     title: 'Hotel Bookings',
-    description: 'Best rates for domestic and international hotels, from luxury to budget.',
+    description: 'Exclusive corporate & partner rates for domestic and international luxury resorts and boutique hotels.',
     iconName: 'Hotel',
     link: '/services/hotels',
-    image: 'https://picsum.photos/1200/600?random=203',
-    longDescription: 'Whether you need a cozy guesthouse in Naran or a luxury suite in Dubai, we have direct partnerships with thousands of properties worldwide to get you the best rates unavailable to the general public.',
+    image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Whether reserving a private villa in Bali, a 5-star suite in Downtown Dubai, or a scenic wooden chalet in Hunza, GNK Connect unlocks negotiated B2B rates unavailable on consumer booking platforms.',
     benefits: [
-      'Exclusive Corporate Rates',
-      'Free Cancellation Options',
-      'Breakfast & Meal Plan Inclusions',
-      'Group Booking Discounts',
-      '24/7 Check-in Support'
+      'Direct Wholesale Partner Pricing',
+      'Flexible Cancellation & Rebooking Terms',
+      'Complimentary Room Upgrades & Breakfast Inclusions',
+      'Corporate & Extended Stay Discounts',
+      '24/7 Dedicated Concierge & Check-in Support'
     ],
     ctaText: 'Find A Hotel'
   },
   {
     id: '4',
     title: 'Airline Tickets',
-    description: 'Domestic & International flight bookings with competitive pricing.',
+    description: 'Domestic & international flight reservations with competitive pricing and 24/7 rescheduling support.',
     iconName: 'Plane',
     link: '/services/tickets',
-    image: 'https://picsum.photos/1200/600?random=204',
-    longDescription: 'Fly to any corner of the world with ExperienceTravel. We offer ticketing services for all major domestic and international airlines. Our team finds the best connections and prices for your schedule.',
+    image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Fly anywhere worldwide with GNK Connect. We secure seats on leading domestic and international carriers (Emirates, Qatar Airways, Saudia, PIA, Turkish Airlines, Flydubai) with optimized layovers and luggage allowances.',
     benefits: [
-      'Competitive Market Fares',
-      'Seat Selection Assistance',
-      'Meal Preference Management',
-      'Date Change & Refund Assistance',
-      'Emergency Booking Services'
+      'Direct GDS Airline Rates with Zero Hidden Fees',
+      'Complimentary Seat & Special Meal Selection',
+      'Instant Date Changes & Refund Handling',
+      'Group & Corporate Bulk Booking Fares',
+      'Emergency Re-routing Support'
     ],
     ctaText: 'Book Flight'
   },
   {
     id: '5',
     title: 'Domestic Tours',
-    description: 'Explore the breathtaking landscapes of Northern Pakistan.',
+    description: 'Explore the majestic peaks, alpine lakes, and cold deserts of Northern Pakistan.',
     iconName: 'Map',
     link: '/services/domestic-tours',
-    image: 'https://picsum.photos/1200/600?random=205',
-    longDescription: 'Pakistan is home to some of the world’s most beautiful landscapes. Our domestic tours take you to the heart of the north, from the lakes of Naran to the cold deserts of Skardu and the fairy meadows of Gilgit-Baltistan.',
+    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Pakistan is home to the world’s most dramatic landscapes. GNK Connect curates luxury domestic tours across Gilgit-Baltistan, Hunza, Skardu, Fairy Meadows, and Naran Kaghan with experienced local guides and modern 4x4 vehicles.',
     benefits: [
-      'Luxury Pradox/Land Cruiser Transport',
-      'Experienced Local Drivers & Guides',
-      'Verified Family Hotels',
-      'Bonfire & BBQ Nights',
-      'Jeep Safari Arrangements'
+      'Late-Model Prado / Land Cruiser 4x4 Vehicles',
+      'Experienced Mountain Drivers & Licensed Guides',
+      'Verified Family-Friendly Scenic Hotels & Resorts',
+      'Campfire, BBQ & Cultural Evenings Included',
+      'Private Jeep Safari to Deosai & Attabad Lake Boating'
     ],
     packages: [
-        {
-            name: 'Naran & Babusar (Couple)',
-            price: '$545',
-            duration: '5 Days',
-            features: ['Private Corolla Car', 'Standard Hotels', 'Breakfast', 'Jeep to Saiful Malook']
-        },
-        {
-            name: 'Skardu Adventure (Group)',
-            price: '$650',
-            duration: '7 Days',
-            features: ['Luxury Coaster', 'Bonfire Night', 'Shangrila Resort', 'Deosai Jeep Safari']
-        },
-        {
-            name: 'Hunza Valley Executive',
-            price: '$800',
-            duration: '6 Days',
-            features: ['Prado Transport', 'Luxus Hunza Stay', 'Attabad Lake Boating', 'Cultural Dinner']
-        }
+      {
+        name: 'Naran & Babusar Top',
+        price: '$545',
+        duration: '5 Days',
+        features: ['Private Sedan / GLI Transport', 'Deluxe Lake View Hotels', 'Daily Breakfast & Dinner', 'Saiful Malook Jeep Safari']
+      },
+      {
+        name: 'Skardu Valley Adventure',
+        price: '$650',
+        duration: '7 Days',
+        features: ['Executive Coaster Transport', 'Shangrila Resort Visit', 'Cold Desert Safari & Bonfire', 'Deosai Plains 4x4 Excursion']
+      },
+      {
+        name: 'Hunza Valley VIP Executive',
+        price: '$800',
+        duration: '6 Days',
+        features: ['Private 4x4 Prado Transport', 'Luxus Hunza / Serena Stay', 'Attabad Lake Cruise', 'Baltit & Altit Fort Tours']
+      }
     ],
     ctaText: 'Plan Local Trip'
   },
   {
     id: '6',
-    title: 'Intl Tours & Sightseeing',
-    description: 'Curated holiday packages for families, couples, and solo travelers.',
+    title: 'International Tours & Sightseeing',
+    description: 'Handcrafted holiday packages for families, couples, and corporate groups across Asia, Europe & the Middle East.',
     iconName: 'Globe',
     link: '/services/international-tours',
-    image: 'https://picsum.photos/1200/600?random=206',
-    longDescription: 'Discover the world with our curated international tour packages. Popular destinations include Vietnam, Singapore, Malaysia, Thailand, UAE, and more. We handle the logistics so you can enjoy the sights.',
+    image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Discover the world with our curated international holiday packages. From the futuristic skyline of Dubai and Singapore to the tropical paradises of Bali, Thailand, and Vietnam, we orchestrate every detail seamlessly.',
     benefits: [
-      'Complete Itinerary Planning',
-      'Airport Transfers',
-      'City Tours & Attraction Tickets',
-      'Halal Food Options (where available)',
-      'English Speaking Guides'
+      'Turnkey Custom Itineraries with Zero Hassle',
+      'Private Airport Pickups & Intercity Transfers',
+      'Pre-booked Fast-Track Attraction Tickets',
+      'Certified English-Speaking Tour Guides',
+      'Halal Food Guidance & Family Friendly Options'
     ],
     packages: [
-        {
-            name: 'Best of Dubai',
-            price: '$800',
-            duration: '5 Days',
-            features: ['3-Star Hotel', 'Desert Safari', 'Dhow Cruise Dinner', 'City Tour']
-        },
-        {
-            name: 'Malaysia & Singapore',
-            price: '$1,500',
-            duration: '7 Days',
-            features: ['Flights Included', 'Sentosa Island', 'Genting Highlands', 'Visa Processing']
-        },
-        {
-            name: 'Amazing Thailand',
-            price: '$900',
-            duration: '6 Days',
-            features: ['Phuket & Bangkok', 'Island Hopping', 'Coral Island Lunch', '4-Star Hotels']
-        }
+      {
+        name: 'Dubai Luxury Getaway',
+        price: '$800',
+        duration: '5 Days',
+        features: ['4-Star Downtown Hotel', 'VIP Desert Safari with BBQ', 'Marina Dhow Cruise Dinner', 'Burj Khalifa 124th Floor Ticket']
+      },
+      {
+        name: 'Malaysia & Singapore Twin City',
+        price: '$1,500',
+        duration: '7 Days',
+        features: ['Connecting Flights & Visa', 'Sentosa Island Cable Car', 'Genting Highlands Day Trip', 'Marina Bay Sands Sightseeing']
+      },
+      {
+        name: 'Amazing Thailand Escape',
+        price: '$900',
+        duration: '6 Days',
+        features: ['Bangkok & Phuket 4-Star Stays', 'Phi Phi Islands Speedboat Tour', 'Coral Island Buffet Lunch', 'Private Airport Transfers']
+      }
     ],
     ctaText: 'Explore World'
   },
   {
     id: '7',
     title: 'Travel Insurance',
-    description: 'Comprehensive coverage for peace of mind during your travels.',
+    description: 'Comprehensive global insurance coverage for medical emergencies, delays, and visa requirements.',
     iconName: 'ShieldCheck',
     link: '/services/insurance',
-    image: 'https://picsum.photos/1200/600?random=207',
-    longDescription: 'Travel with confidence knowing you are protected against the unexpected. Our travel insurance plans cover medical emergencies, flight cancellations, lost luggage, and more.',
+    image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1200&auto=format&fit=crop',
+    longDescription: 'Travel with absolute confidence. Our international travel insurance plans provide emergency hospitalization cover, flight delay compensations, lost baggage reimbursement, and meet all mandatory Schengen visa criteria.',
     benefits: [
-      'Medical Expense Coverage',
-      'Emergency Evacuation',
-      'Trip Cancellation/Interruption',
-      'Baggage Delay/Loss',
-      'Mandatory for Schengen Visas'
+      'Up to €50,000 / $100,000 Medical Cover',
+      'Mandatory Schengen & UK Visa Compliance',
+      'Emergency Medical Evacuation & Repatriation',
+      'Baggage Loss & Flight Cancellation Claims',
+      'Instant Digital Policy Delivery'
     ],
     packages: [
-        {
-            name: 'Basic Schengen',
-            price: '$30',
-            features: ['30,000 Euro Coverage', 'Medical Emergency', 'Repatriation', 'Approved for Visa']
-        },
-        {
-            name: 'Worldwide Premium',
-            price: '$80',
-            features: ['100,000 USD Coverage', 'Flight Delay', 'Baggage Loss', 'COVID-19 Cover']
-        }
+      {
+        name: 'Basic Schengen Compliant',
+        price: '$30',
+        duration: 'Up to 30 Days',
+        features: ['€30,000 Medical Emergency Coverage', 'Approved for All European Embassies', 'Repatriation of Remains', 'Instant PDF Policy Delivery']
+      },
+      {
+        name: 'Worldwide Platinum Protection',
+        price: '$80',
+        duration: 'Up to 60 Days',
+        features: ['$100,000 Global Medical Cover', 'Trip Cancellation Protection', 'Lost Passport & Baggage Delay', '24/7 International Helpline']
+      }
     ],
     ctaText: 'Get Insured'
   },
@@ -233,10 +237,10 @@ export const SERVICES: Service[] = [
 export const FEATURED_DESTINATIONS: Destination[] = [
   {
     id: 'naran',
-    name: 'Naran & Kaghan',
-    image: 'https://picsum.photos/800/600?random=1',
+    name: 'Naran & Kaghan Valley',
+    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=800&auto=format&fit=crop',
     price: '$545',
-    duration: '1 Week',
+    duration: '5 Days',
     activities: 10,
     places: 12,
     rating: 4.8,
@@ -244,8 +248,8 @@ export const FEATURED_DESTINATIONS: Destination[] = [
   },
   {
     id: 'babusar',
-    name: 'Babusar Top',
-    image: 'https://picsum.photos/800/600?random=101',
+    name: 'Babusar Top & Lulusar',
+    image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=800&auto=format&fit=crop',
     price: '$450',
     duration: '4 Days',
     activities: 5,
@@ -255,10 +259,10 @@ export const FEATURED_DESTINATIONS: Destination[] = [
   },
   {
     id: 'skardu',
-    name: 'Skardu Valley',
-    image: 'https://picsum.photos/800/600?random=2',
+    name: 'Skardu & Deosai Plains',
+    image: 'https://images.unsplash.com/photo-1586348943529-beaae6c28db9?q=80&w=800&auto=format&fit=crop',
     price: '$650',
-    duration: '5 Days',
+    duration: '7 Days',
     activities: 8,
     places: 6,
     rating: 4.9,
@@ -267,70 +271,72 @@ export const FEATURED_DESTINATIONS: Destination[] = [
 ];
 
 export const INTERNATIONAL_DESTINATIONS: Destination[] = [
-  { id: 'vietnam', name: 'Vietnam', image: 'https://picsum.photos/800/600?random=3', price: '$1200', duration: '10 Days', activities: 15, places: 4, rating: 4.7, type: 'international' },
-  { id: 'singapore', name: 'Singapore', image: 'https://picsum.photos/800/600?random=4', price: '$1500', duration: '5 Days', activities: 10, places: 5, rating: 4.8, type: 'international' },
-  { id: 'malaysia', name: 'Malaysia', image: 'https://picsum.photos/800/600?random=5', price: '$950', duration: '6 Days', activities: 12, places: 3, rating: 4.6, type: 'international' },
-  { id: 'uae', name: 'UAE (Dubai)', image: 'https://picsum.photos/800/600?random=6', price: '$800', duration: '5 Days', activities: 20, places: 5, rating: 4.9, type: 'international' },
-  { id: 'thailand', name: 'Thailand', image: 'https://picsum.photos/800/600?random=7', price: '$900', duration: '7 Days', activities: 14, places: 6, rating: 4.7, type: 'international' },
-  { id: 'indonesia', name: 'Indonesia', image: 'https://picsum.photos/800/600?random=8', price: '$1100', duration: '8 Days', activities: 10, places: 4, rating: 4.8, type: 'international' },
-  { id: 'egypt', name: 'Egypt', image: 'https://picsum.photos/800/600?random=9', price: '$1300', duration: '8 Days', activities: 12, places: 5, rating: 4.6, type: 'international' },
-  { id: 'srilanka', name: 'Sri Lanka', image: 'https://picsum.photos/800/600?random=10', price: '$850', duration: '6 Days', activities: 8, places: 4, rating: 4.5, type: 'international' },
-  { id: 'china', name: 'China', image: 'https://picsum.photos/800/600?random=11', price: '$1600', duration: '12 Days', activities: 18, places: 8, rating: 4.7, type: 'international' },
+  { id: 'uae', name: 'Dubai & Abu Dhabi (UAE)', image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=800&auto=format&fit=crop', price: '$800', duration: '5 Days', activities: 20, places: 5, rating: 4.9, type: 'international' },
+  { id: 'vietnam', name: 'Vietnam (Hanoi & Da Nang)', image: 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800&auto=format&fit=crop', price: '$1200', duration: '10 Days', activities: 15, places: 4, rating: 4.7, type: 'international' },
+  { id: 'singapore', name: 'Singapore City & Sentosa', image: 'https://images.unsplash.com/photo-1565967511849-76a60a516170?q=80&w=800&auto=format&fit=crop', price: '$1500', duration: '5 Days', activities: 10, places: 5, rating: 4.8, type: 'international' },
+  { id: 'malaysia', name: 'Kuala Lumpur & Langkawi', image: 'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?q=80&w=800&auto=format&fit=crop', price: '$950', duration: '6 Days', activities: 12, places: 3, rating: 4.6, type: 'international' },
+  { id: 'thailand', name: 'Bangkok & Phuket (Thailand)', image: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?q=80&w=800&auto=format&fit=crop', price: '$900', duration: '7 Days', activities: 14, places: 6, rating: 4.7, type: 'international' },
+  { id: 'indonesia', name: 'Bali & Nusa Penida', image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800&auto=format&fit=crop', price: '$1100', duration: '8 Days', activities: 10, places: 4, rating: 4.8, type: 'international' },
+  { id: 'egypt', name: 'Cairo & Nile Cruise (Egypt)', image: 'https://images.unsplash.com/photo-1503177119275-0aa32b3a9368?q=80&w=800&auto=format&fit=crop', price: '$1300', duration: '8 Days', activities: 12, places: 5, rating: 4.6, type: 'international' },
+  { id: 'srilanka', name: 'Colombo & Kandy (Sri Lanka)', image: 'https://images.unsplash.com/photo-1546708973-b339540b5162?q=80&w=800&auto=format&fit=crop', price: '$850', duration: '6 Days', activities: 8, places: 4, rating: 4.5, type: 'international' },
+  { id: 'china', name: 'Beijing & Shanghai (China)', image: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=800&auto=format&fit=crop', price: '$1600', duration: '12 Days', activities: 18, places: 8, rating: 4.7, type: 'international' },
 ];
 
 export const TESTIMONIALS: Testimonial[] = [
   {
     id: '1',
     name: 'Sarah Ahmad',
-    role: 'Family Traveler',
-    comment: 'ExperienceTravel made our Umrah trip absolutely seamless. The executive package was worth every penny.',
-    avatar: 'https://picsum.photos/100/100?random=12'
+    role: 'Executive Umrah Pilgrim',
+    comment: 'GNK Connect made our family Umrah trip seamless. The 5-star hotel in the Clock Tower and VIP transport exceeded all our expectations.',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop'
   },
   {
     id: '2',
     name: 'John Smith',
-    role: 'Adventure Seeker',
-    comment: 'The Skardu tour was organized perfectly. Great hotels, experienced guide, and unforgettable memories.',
-    avatar: 'https://picsum.photos/100/100?random=13'
+    role: 'Corporate Traveler',
+    comment: 'The Skardu Valley tour was flawlessly executed. Exceptional hotels, a knowledgeable guide, and luxury 4x4 transport throughout.',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150&auto=format&fit=crop'
   },
   {
     id: '3',
     name: 'Fatima Ali',
-    role: 'Business Traveler',
-    comment: 'My go-to for visa processing and urgent ticketing. Their support team is truly 24/7.',
-    avatar: 'https://picsum.photos/100/100?random=14'
+    role: 'Frequent Flyer',
+    comment: 'My trusted agency for sticker visa processing and urgent ticketing. Their team is genuinely available 24/7 with immediate answers.',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=150&auto=format&fit=crop'
   }
 ];
 
 export const LATEST_NEWS: NewsItem[] = [
   {
     id: '1',
-    title: 'Top 10 Places to Visit in Northern Pakistan',
-    excerpt: 'Discover the hidden gems of the north, from fairy meadows to the cold deserts of Skardu.',
-    date: 'June 6, 2016',
-    author: 'John Smith',
-    image: 'https://picsum.photos/800/600?random=15'
+    title: 'Top 10 Breathtaking Destinations in Northern Pakistan for 2025',
+    excerpt: 'Discover high-altitude wonderlands from the cold deserts of Skardu to the turquoise waters of Attabad Lake.',
+    date: 'February 2025',
+    author: 'GNK Editorial',
+    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=800&auto=format&fit=crop'
   },
   {
     id: '2',
-    title: 'A Guide to Umrah: Preparation and Tips',
-    excerpt: 'Everything you need to know before embarking on your spiritual journey to the holy land.',
-    date: 'May 20, 2016',
-    author: 'Admin',
-    image: 'https://picsum.photos/800/600?random=16'
+    title: 'Essential Guide to Executive Umrah: Preparation, Visas & Packing',
+    excerpt: 'A comprehensive walkthrough for pilgrims seeking comfort, proximity to Haram, and structured spiritual guidance.',
+    date: 'January 2025',
+    author: 'GNK Spiritual Advisory',
+    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?q=80&w=800&auto=format&fit=crop'
   },
   {
     id: '3',
-    title: 'Visa Policies Updated for Southeast Asia',
-    excerpt: 'New visa-on-arrival policies for Pakistani tourists in Malaysia and Thailand.',
-    date: 'April 15, 2016',
-    author: 'Sarah Khan',
-    image: 'https://picsum.photos/800/600?random=17'
+    title: 'Updated Global Visa Guidelines for GCC, Schengen and Southeast Asia',
+    excerpt: 'Key policy updates on e-visas, sticker requirements, and financial documentation for Pakistani tourists.',
+    date: 'March 2025',
+    author: 'GNK Visa Desk',
+    image: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=800&auto=format&fit=crop'
   }
 ];
 
 export const CONTACT_INFO = {
   phone: '0516137232',
-  email: 'info@explorexperiencetravels.com',
-  address: 'Office #2, Mezzanine floor, Junaid plaza, Islamabad',
+  displayPhone: '+92 51 6137232',
+  email: 'info@gnkconnect.com',
+  address: 'Office #2, Mezzanine floor, Junaid plaza, Islamabad, Pakistan',
+  officeHours: 'Mon–Sat: 9:00 AM – 6:00 PM',
 };

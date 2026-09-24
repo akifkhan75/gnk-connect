@@ -1,6 +1,6 @@
 {
-  "name": "ExperienceTravel v2",
-  "description": "A premium travel and tours application offering Umrah packages, visas, hotel bookings, and curated international tours.",
+  "name": "GNK Connect",
+  "description": "A premium travel and tours platform by GNK Connect offering executive Umrah packages, sticker visas, hotel bookings, and curated domestic & international tours.",
   "requestFramePermissions": [
     "geolocation"
   ]

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Facebook, Twitter, Instagram, Mail, MapPin, Phone } from 'lucide-react';
-import { CONTACT_INFO, NAV_LINKS } from '../constants';
+import { Facebook, Twitter, Instagram, Mail, MapPin, Phone, Compass, ArrowUpRight } from 'lucide-react';
+import { CONTACT_INFO, NAV_LINKS, BRAND_NAME, BRAND_TAGLINE, SERVICES } from '../constants';
 
 const Footer: React.FC = () => {
   return (
@@ -10,24 +10,50 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-16">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2 mb-6">
-                <img 
-                    src="https://storage.googleapis.com/aistudio-cms-uploads/media/generation/part/image/media_8c20347e-01f7-4881-b531-0d65965e7438.jpeg" 
-                    alt="Experience Travel" 
-                    className="h-16 w-auto rounded-lg"
-                />
-            </div>
-            <p className="text-navy-100 mb-8 leading-relaxed opacity-80">
-              Crafting Journeys, Creating Memories. Your premium partner for Umrah, Visa services, and Luxury Tours since 2012.
+            <Link to="/" className="flex items-center gap-2.5 mb-6 group inline-flex">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/25">
+                <Compass className="w-6 h-6" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xl font-extrabold tracking-tight text-white group-hover:text-cyan-400 transition-colors">
+                  GNK <span className="text-cyan-400">CONNECT</span>
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-300/80 -mt-1">
+                  Travel & Tourism
+                </span>
+              </div>
+            </Link>
+            
+            <p className="text-gray-300 mb-6 leading-relaxed text-sm">
+              {BRAND_TAGLINE}. Your premier partner for Executive Umrah packages, worldwide sticker visas, and bespoke international holidays.
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="w-10 h-10 rounded-full bg-navy-800 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 transition-all duration-300">
+            
+            <div className="flex space-x-3">
+              <a 
+                href="https://facebook.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="GNK Connect Facebook" 
+                className="w-10 h-10 rounded-xl bg-navy-800 border border-navy-700/60 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 hover:border-cyan-500 transition-all duration-300"
+              >
                 <Facebook size={18} />
               </a>
-              <a href="#" className="w-10 h-10 rounded-full bg-navy-800 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 transition-all duration-300">
+              <a 
+                href="https://twitter.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="GNK Connect Twitter" 
+                className="w-10 h-10 rounded-xl bg-navy-800 border border-navy-700/60 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 hover:border-cyan-500 transition-all duration-300"
+              >
                 <Twitter size={18} />
               </a>
-              <a href="#" className="w-10 h-10 rounded-full bg-navy-800 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 transition-all duration-300">
+              <a 
+                href="https://instagram.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                aria-label="GNK Connect Instagram" 
+                className="w-10 h-10 rounded-xl bg-navy-800 border border-navy-700/60 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 hover:border-cyan-500 transition-all duration-300"
+              >
                 <Instagram size={18} />
               </a>
             </div>
@@ -35,12 +61,13 @@ const Footer: React.FC = () => {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-lg font-bold mb-6 text-white">Quick Links</h4>
+            <h4 className="text-base font-bold mb-6 text-white uppercase tracking-wider text-xs">Navigation</h4>
             <ul className="space-y-3">
               {NAV_LINKS.map(link => (
                 <li key={link.name}>
-                  <Link to={link.path} className="text-navy-100 hover:text-cyan-400 transition-colors text-sm">
-                    {link.name}
+                  <Link to={link.path} className="text-gray-300 hover:text-cyan-400 transition-colors text-sm flex items-center gap-1 group">
+                    <span>{link.name}</span>
+                    <ArrowUpRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-cyan-400" />
                   </Link>
                 </li>
               ))}
@@ -49,48 +76,56 @@ const Footer: React.FC = () => {
 
           {/* Services */}
           <div>
-            <h4 className="text-lg font-bold mb-6 text-white">Featured Services</h4>
+            <h4 className="text-base font-bold mb-6 text-white uppercase tracking-wider text-xs">Featured Services</h4>
             <ul className="space-y-3">
-              <li><Link to="/services/umrah" className="text-navy-100 hover:text-cyan-400 text-sm transition-colors">Executive Umrah</Link></li>
-              <li><Link to="/services/visas" className="text-navy-100 hover:text-cyan-400 text-sm transition-colors">Sticker Visas</Link></li>
-              <li><Link to="/services/international-tours" className="text-navy-100 hover:text-cyan-400 text-sm transition-colors">International Tours</Link></li>
-              <li><Link to="/services/domestic-tours" className="text-navy-100 hover:text-cyan-400 text-sm transition-colors">Domestic Trips</Link></li>
+              {SERVICES.slice(0, 5).map(service => (
+                <li key={service.id}>
+                  <Link to={service.link} className="text-gray-300 hover:text-cyan-400 text-sm transition-colors block">
+                    {service.title}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           {/* Contact */}
           <div>
-            <h4 className="text-lg font-bold mb-6 text-white">Contact Us</h4>
+            <h4 className="text-base font-bold mb-6 text-white uppercase tracking-wider text-xs">Contact Desk</h4>
             <ul className="space-y-4">
-              <li className="flex items-start gap-4 group">
-                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 group-hover:bg-cyan-500 group-hover:text-navy-900 transition-colors">
-                    <MapPin size={18} />
+              <li className="flex items-start gap-3.5">
+                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 shrink-0 mt-0.5">
+                  <MapPin size={16} />
                 </div>
-                <span className="text-navy-100 text-sm opacity-80 pt-1">{CONTACT_INFO.address}</span>
+                <span className="text-gray-300 text-sm leading-relaxed">{CONTACT_INFO.address}</span>
               </li>
-              <li className="flex items-center gap-4 group">
-                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 group-hover:bg-cyan-500 group-hover:text-navy-900 transition-colors">
-                    <Phone size={18} />
+              <li className="flex items-center gap-3.5">
+                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 shrink-0">
+                  <Phone size={16} />
                 </div>
-                <span className="text-navy-100 text-sm opacity-80">{CONTACT_INFO.phone}</span>
+                <a href={`tel:${CONTACT_INFO.phone}`} className="text-gray-300 hover:text-cyan-400 text-sm transition-colors">
+                  {CONTACT_INFO.displayPhone}
+                </a>
               </li>
-              <li className="flex items-center gap-4 group">
-                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 group-hover:bg-cyan-500 group-hover:text-navy-900 transition-colors">
-                    <Mail size={18} />
+              <li className="flex items-center gap-3.5">
+                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 shrink-0">
+                  <Mail size={16} />
                 </div>
-                <span className="text-navy-100 text-sm opacity-80">{CONTACT_INFO.email}</span>
+                <a href={`mailto:${CONTACT_INFO.email}`} className="text-gray-300 hover:text-cyan-400 text-sm transition-colors">
+                  {CONTACT_INFO.email}
+                </a>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-navy-800 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-navy-200 text-sm opacity-60">
-            &copy; {new Date().getFullYear()} ExperienceTravel. All rights reserved.
+        <div className="border-t border-navy-800 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
+          <p>
+            &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved. Licensed Travel & Tourism Agency.
           </p>
           <div className="flex gap-6 mt-4 md:mt-0">
-              <a href="#" className="text-navy-200 text-sm hover:text-cyan-400 opacity-60 hover:opacity-100">Privacy Policy</a>
-              <a href="#" className="text-navy-200 text-sm hover:text-cyan-400 opacity-60 hover:opacity-100">Terms of Service</a>
+            <Link to="/about" className="hover:text-cyan-400 transition-colors">About Us</Link>
+            <Link to="/contact" className="hover:text-cyan-400 transition-colors">Support</Link>
+            <Link to="/services" className="hover:text-cyan-400 transition-colors">All Packages</Link>
           </div>
         </div>
       </div>

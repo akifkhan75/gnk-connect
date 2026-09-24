@@ -1,3 +1,11 @@
+export type ServiceIconType = 
+  | 'Moon' 
+  | 'FileCheck' 
+  | 'Hotel' 
+  | 'Plane' 
+  | 'Map' 
+  | 'ShieldCheck' 
+  | 'Globe';
 
 export interface ServicePackage {
   name: string;
@@ -6,17 +14,21 @@ export interface ServicePackage {
   features: string[];
 }
 
+export interface ServiceProcessStep {
+  title: string;
+  desc: string;
+}
+
 export interface Service {
   id: string;
   title: string;
   description: string;
-  iconName: string;
+  iconName: ServiceIconType;
   link: string;
-  // Detailed Page Content
   image?: string;
   longDescription?: string;
   benefits?: string[];
-  processSteps?: { title: string; desc: string }[];
+  processSteps?: ServiceProcessStep[];
   ctaText?: string;
   packages?: ServicePackage[];
 }
@@ -55,4 +67,28 @@ export interface NewsItem {
   date: string;
   author: string;
   image: string;
+}
+
+export interface ContactFormData {
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+}
+
+export interface BookingFormData {
+  name: string;
+  package: string;
+  travelDate: string;
+  adults: number;
+  children: number;
+  phone: string;
+}
+
+export interface VisaFormData {
+  name: string;
+  phone: string;
+  passportFileName?: string;
+  bankStatementFileName?: string;
 }
