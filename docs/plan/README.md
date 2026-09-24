@@ -2,7 +2,7 @@
 
 > Status: **Draft for review** · Created 2026-09-24 · Branch baseline: `feat/b2b-wholesale-monorepo-airdesk` @ `15bbf19`
 >
-> Product name is **GNK Connect** (not "GNK Elite"). Every "GNK Elite" string, package name, DB name, container name and email domain is renamed as part of Phase 1.
+> Product name is **GNK Connect** (not "GNK Connect"). Every "GNK Connect" string, package name, DB name, container name and email domain is renamed as part of Phase 1.
 
 ## What this plan covers
 

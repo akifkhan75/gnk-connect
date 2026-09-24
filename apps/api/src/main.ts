@@ -7,6 +7,6 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
   const port = process.env.PORT || 4000;
   await app.listen(port);
-  console.log(`🚀 GNK Elite Enterprise B2B API running on: http://localhost:${port}/api/v1`);
+  console.log(`🚀 GNK Connect Enterprise B2B API running on: http://localhost:${port}/api/v1`);
 }
 bootstrap();

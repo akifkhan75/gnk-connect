@@ -1,5 +1,5 @@
 /**
- * GNK Elite B2B Partner Mobile App - Automated Test Suite
+ * GNK Connect B2B Partner Mobile App - Automated Test Suite
  * 
  * Verifies mobile app data model parity, booking operations,
  * wallet debiting, E-Voucher QR authorization, and ledger synchronization.
@@ -39,7 +39,7 @@ function section(title: string) {
 
 async function runMobileTestSuite() {
   const startTime = Date.now();
-  console.log(`\n${colors.yellow}${colors.bright}📱 STARTING GNK ELITE PARTNER MOBILE APP VERIFICATION SUITE${colors.reset}`);
+  console.log(`\n${colors.yellow}${colors.bright}📱 STARTING GNK CONNECT PARTNER MOBILE APP VERIFICATION SUITE${colors.reset}`);
   console.log(`Target: apps/mobile (React Native / Expo B2B Partner Client)\n`);
 
   // STEP 1: Mobile Catalog Synchronization with AirDesk Supplier Adapter

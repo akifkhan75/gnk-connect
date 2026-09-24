@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 
-// Standard Mock Data matching AirDesk Supplier Adapter & GNK Elite B2B Store
+// Standard Mock Data matching AirDesk Supplier Adapter & GNK Connect B2B Store
 const INITIAL_PRODUCTS = [
   {
     id: 'gnk-prod-dxb-01',
@@ -796,7 +796,7 @@ export default function App() {
             <View style={styles.bankDetailCard}>
               <Text style={styles.bankName}>Habib Bank Limited (HBL)</Text>
               <Text style={styles.bankIban}>IBAN: PK36HABB0004279820182301</Text>
-              <Text style={styles.bankTitle}>Account: GNK Elite Global Travel (Pvt) Ltd</Text>
+              <Text style={styles.bankTitle}>Account: GNK Connect Global Travel (Pvt) Ltd</Text>
             </View>
 
             <TouchableOpacity 

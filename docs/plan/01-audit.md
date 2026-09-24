@@ -20,13 +20,13 @@ Scope: the whole repo at `15bbf19` plus uncommitted working-tree changes (2026-0
 | ARC-10 | P2 | The mobile app (`apps/mobile`) is a standalone mock that embeds its own product data, including supplier net prices. It has no API integration. | `apps/mobile/App.tsx:16-30` |
 | ARC-11 | P2 | Public website, portal and admin share one router and one bundle. Admin code ships to public visitors. | `App.tsx` |
 | ARC-12 | P2 | `HashRouter` produces `/#/agent/...` URLs. This hurts SEO on the website and is unconventional for apps. | `App.tsx:2` |
-| ARC-13 | P2 | Naming is inconsistent: "GNK Elite" appears in 32 files (package name `gnk-elite-monorepo`, DB `gnk_elite_db`, `admin@gnkelite.com`, log strings). | `grep -rl "GNK Elite"` |
+| ARC-13 | P2 | Naming is inconsistent: "GNK Connect" appears in 32 files (package name `gnk-connect-monorepo`, DB `gnk_connect_db`, `admin@gnkconnect.pk`, log strings). | `grep -rl "GNK Connect"` |
 
 ## 2. Authentication
 
 | ID | Sev | Finding | Evidence |
 |----|-----|---------|----------|
-| AUTH-01 | **P0** | **Password check is skipped when `password` is omitted.** `POST /auth/login {"email":"admin@gnkelite.com"}` returns an admin JWT. | `auth.service.ts:142` |
+| AUTH-01 | **P0** | **Password check is skipped when `password` is omitted.** `POST /auth/login {"email":"admin@gnkconnect.pk"}` returns an admin JWT. | `auth.service.ts:142` |
 | AUTH-02 | **P0** | **Frontend login falls back to local users by email only**, with no password. Anyone can log in as admin when the API is down or rejects the credentials. | `B2BAuthContext.tsx:74-81` |
 | AUTH-03 | **P0** | **A demo user switcher ships in production layouts** and lets any visitor impersonate any user or admin. The app also auto-logs visitors in as `user-abc-owner`. | `AgentLayout.tsx:60`, `AdminLayout.tsx:108`, `B2BAuthContext.tsx:51-56` |
 | AUTH-04 | **P0** | **The JWT secret has a hard-coded fallback** (`gnk_jwt_super_secret_key_2026`), which is also committed in `.env.example` and `docker-compose.yml`. Anyone can forge tokens. | `auth.service.ts:19`, `docker-compose.yml` |

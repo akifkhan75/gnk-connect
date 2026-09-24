@@ -13,7 +13,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gnk_admin -d gnk_elite_db"]
+      test: ["CMD-SHELL", "pg_isready -U gnk_admin -d gnk_connect_db"]
       interval: 5s
       timeout: 5s
       retries: 5

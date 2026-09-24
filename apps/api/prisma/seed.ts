@@ -4,12 +4,12 @@ import * as crypto from 'crypto';
 const prisma = new PrismaClient();
 
 function hashPassword(password: string): string {
-  const salt = 'gnk_elite_static_salt_v1';
+  const salt = 'gnk_connect_static_salt_v1';
   return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
 }
 
 async function main() {
-  console.log('🌱 Starting GNK Elite database seed...');
+  console.log('🌱 Starting GNK Connect database seed...');
 
   // 1. Seed Supplier: AirDesk Groups API
   const airdeskSupplier = await prisma.supplier.upsert({
@@ -127,11 +127,11 @@ async function main() {
   });
 
   await prisma.agentUser.upsert({
-    where: { email: 'admin@gnkelite.com' },
+    where: { email: 'admin@gnkconnect.pk' },
     update: {},
     create: {
       id: 'user-gnk-admin',
-      email: 'admin@gnkelite.com',
+      email: 'admin@gnkconnect.pk',
       passwordHash: hashPassword('admin123'),
       fullName: 'GNK Operations Admin',
       phone: '+92 300 0000001',
@@ -302,7 +302,7 @@ async function main() {
     update: {},
     create: {
       id: 'rule-default-07',
-      name: 'GNK Elite Global Default Markup',
+      name: 'GNK Connect Global Default Markup',
       priority: 5,
       markupType: MarkupType.FIXED,
       markupValue: 10000,

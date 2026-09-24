@@ -32,7 +32,7 @@ export class PricingService {
     },
     {
       id: 'rule-default-07',
-      name: 'GNK Elite Global Default Markup',
+      name: 'GNK Connect Global Default Markup',
       priority: 5,
       markupType: 'FIXED',
       markupValue: 10000,

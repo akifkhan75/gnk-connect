@@ -58,7 +58,7 @@ export class AuthService {
     },
     {
       id: 'user-gnk-admin',
-      email: 'admin@gnkelite.com',
+      email: 'admin@gnkconnect.pk',
       passwordHash: this.hashPassword('admin123'),
       fullName: 'GNK Operations Admin',
       phone: '+92 300 0000001',
@@ -93,7 +93,7 @@ export class AuthService {
 
   // Password Hashing using PBKDF2
   public hashPassword(password: string): string {
-    const salt = 'gnk_elite_static_salt_v1';
+    const salt = 'gnk_connect_static_salt_v1';
     return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
   }
 

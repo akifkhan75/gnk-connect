@@ -1,5 +1,5 @@
 /**
- * GNK Elite B2B Platform - Automated End-to-End (E2E) Lifecycle Test Suite
+ * GNK Connect B2B Platform - Automated End-to-End (E2E) Lifecycle Test Suite
  * 
  * Verifies the complete 10-step B2B reseller lifecycle:
  * 1. Agent Registration (Agency + Owner)
@@ -56,7 +56,7 @@ function section(title: string) {
 async function runE2ETestSuite() {
   const startTime = Date.now();
 
-  console.log(`\n${colors.yellow}${colors.bright}🚀 STARTING GNK ELITE B2B END-TO-END AUTOMATED TEST SUITE${colors.reset}`);
+  console.log(`\n${colors.yellow}${colors.bright}🚀 STARTING GNK CONNECT B2B END-TO-END AUTOMATED TEST SUITE${colors.reset}`);
   console.log(`Target Architecture: AirDesk Group Supplier + GNK Wholesale Reseller Platform`);
   console.log(`Date: ${new Date().toISOString()}\n`);
 
@@ -106,13 +106,13 @@ async function runE2ETestSuite() {
   try {
     const mockDtsDoc = {
       title: 'DTS Tourism License 2026',
-      fileUrl: 'https://gnkelite.com/uploads/documents/dts_license_falcon_2026.pdf',
+      fileUrl: 'https://gnkconnect.pk/uploads/documents/dts_license_falcon_2026.pdf',
       uploadedAt: new Date().toISOString(),
       status: 'VERIFIED' as const,
     };
     const mockNtnDoc = {
       title: 'FBR NTN Tax Certificate',
-      fileUrl: 'https://gnkelite.com/uploads/documents/ntn_cert_falcon.pdf',
+      fileUrl: 'https://gnkconnect.pk/uploads/documents/ntn_cert_falcon.pdf',
       uploadedAt: new Date().toISOString(),
       status: 'VERIFIED' as const,
     };
@@ -277,7 +277,7 @@ async function runE2ETestSuite() {
       passengers,
       paymentMethod: 'BANK_TRANSFER',
       paymentReferenceNumber: 'HBL-FT-991024',
-      paymentProofUrl: 'https://gnkelite.com/uploads/payment-slips/deposit_slip_991024.jpg',
+      paymentProofUrl: 'https://gnkconnect.pk/uploads/payment-slips/deposit_slip_991024.jpg',
       specialRequests: 'Adjacent airline seats and double bed room requested',
     });
 

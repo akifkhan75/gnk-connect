@@ -1,5 +1,5 @@
 /**
- * GNK Elite B2B Platform - Unit Test Suite
+ * GNK Connect B2B Platform - Unit Test Suite
  * 
  * Comprehensive Unit Tests covering core domain logic:
  * 1. 5-Tier Pricing Precedence Engine (Priorities 1, 2, 3, 4, 5)
@@ -42,7 +42,7 @@ function section(title: string) {
 }
 
 async function runUnitTests() {
-  console.log(`\n${colors.yellow}${colors.bright}🧪 RUNNING GNK ELITE UNIT TEST SUITE${colors.reset}`);
+  console.log(`\n${colors.yellow}${colors.bright}🧪 RUNNING GNK CONNECT UNIT TEST SUITE${colors.reset}`);
   console.log(`Scope: Pricing Engine, Supplier Adapters, Financial Ledger Math, Utility Functions\n`);
 
   // Reset pricing rules to known default state

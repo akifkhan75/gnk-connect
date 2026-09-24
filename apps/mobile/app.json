@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "GNK Elite Partner",
-    "slug": "gnk-elite-mobile",
+    "name": "GNK Connect Partner",
+    "slug": "gnk-connect-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

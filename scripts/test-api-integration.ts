@@ -1,5 +1,5 @@
 /**
- * GNK Elite B2B Platform - API Integration Test Suite
+ * GNK Connect B2B Platform - API Integration Test Suite
  * 
  * Verifies live containerized API integration:
  * 1. Health & Static Upload Endpoint Integration
@@ -41,7 +41,7 @@ function section(title: string) {
 }
 
 async function runApiIntegrationTests() {
-  console.log(`\n${colors.yellow}${colors.bright}🌐 RUNNING GNK ELITE API INTEGRATION TEST SUITE${colors.reset}`);
+  console.log(`\n${colors.yellow}${colors.bright}🌐 RUNNING GNK CONNECT API INTEGRATION TEST SUITE${colors.reset}`);
   console.log(`Target URL: ${API_BASE}\n`);
 
   // ==========================================
@@ -85,7 +85,7 @@ async function runApiIntegrationTests() {
     const badLoginRes = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@gnkelite.com', password: 'wrongpassword' }),
+      body: JSON.stringify({ email: 'admin@gnkconnect.pk', password: 'wrongpassword' }),
     });
     assert(badLoginRes.status === 401, 'Invalid credentials rejected with 401 Unauthorized');
 
@@ -93,7 +93,7 @@ async function runApiIntegrationTests() {
     const loginRes = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@gnkelite.com', password: 'admin123' }),
+      body: JSON.stringify({ email: 'admin@gnkconnect.pk', password: 'admin123' }),
     });
     const loginData = await loginRes.json();
     assert(loginRes.status === 201 || loginRes.status === 200, `Admin login successful (${loginRes.status})`);

@@ -20,7 +20,7 @@ export class NotificationsService {
       recipientName: 'Tariq Mansoor',
       type: 'AGENT_APPROVED',
       channel: 'EMAIL',
-      title: 'GNK Elite Partner Account Approved & Activated',
+      title: 'GNK Connect Partner Account Approved & Activated',
       body: 'Your agency ABC Travels & Tours has been verified by GNK Operations. You now have full access to wholesale group departures and instant AirDesk allocations.',
       metadata: { agencyId: 'agency-abc-travels' },
       status: 'SENT',
@@ -80,7 +80,7 @@ export class NotificationsService {
       agent.fullName,
       'AGENT_WELCOME',
       'EMAIL',
-      'Welcome to GNK Elite B2B Reseller Network',
+      'Welcome to GNK Connect B2B Reseller Network',
       `Dear ${agent.fullName}, your registration for ${agency?.name || 'your agency'} has been received. Our compliance team is verifying your DTS tourism license and tax certificates.`,
       { agentId: agent.id, agencyId: agency?.id }
     );
@@ -92,7 +92,7 @@ export class NotificationsService {
       agent.fullName,
       'AGENT_APPROVED',
       'EMAIL',
-      'Your GNK Elite Wholesale Account is Approved! 🎉',
+      'Your GNK Connect Wholesale Account is Approved! 🎉',
       `Dear ${agent.fullName}, congratulations! Your agency ${agency?.name || ''} has been approved. You can now book wholesale group departures directly on the partner portal.`,
       { agentId: agent.id, agencyId: agency?.id }
     );
