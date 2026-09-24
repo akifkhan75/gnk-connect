@@ -409,9 +409,19 @@ const Home: React.FC = () => {
       {/* 8. Testimonials */}
       <section className="py-20 bg-gray-50 border-t border-gray-200/60">
         <div className="container mx-auto px-4 md:px-6">
-          <div className="text-center mb-12">
-            <span className="text-cyan-600 font-bold uppercase tracking-wider text-xs block mb-1">Client Reviews</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-navy-900">What Travelers Say</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-end mb-12 gap-4">
+            <div>
+              <span className="text-cyan-600 font-bold uppercase tracking-wider text-xs block mb-1">Client Reviews</span>
+              <h2 className="text-3xl md:text-4xl font-bold text-navy-900">What Travelers Say</h2>
+              <div className="h-1 w-20 bg-cyan-500 rounded-full mt-3"></div>
+            </div>
+            <Link
+              to="/reviews"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-navy-900 hover:text-cyan-600 transition-colors bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm"
+            >
+              <span>View All 1,200+ Reviews</span>
+              <ArrowRight size={14} />
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
