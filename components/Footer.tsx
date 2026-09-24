@@ -125,6 +125,7 @@ const Footer: React.FC = () => {
           <div className="flex flex-wrap gap-4 sm:gap-6 mt-4 md:mt-0">
             <Link to="/about" className="hover:text-cyan-400 transition-colors">About Us</Link>
             <Link to="/corporate" className="hover:text-cyan-400 transition-colors">Corporate &amp; MICE</Link>
+            <Link to="/checklist" className="hover:text-cyan-400 transition-colors">Packing Kit</Link>
             <Link to="/reviews" className="hover:text-cyan-400 transition-colors">Reviews</Link>
             <Link to="/planner" className="hover:text-cyan-400 transition-colors">Trip Planner</Link>
             <Link to="/tracking" className="hover:text-cyan-400 transition-colors">Visa Tracker</Link>
