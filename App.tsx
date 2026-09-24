@@ -33,6 +33,7 @@ import { AgentGroupDetailsPage } from './pages/agent/AgentGroupDetailsPage';
 import { AgentBookingsPage } from './pages/agent/AgentBookingsPage';
 import { AgentProfilePage } from './pages/agent/AgentProfilePage';
 import { AgentLedgerPage } from './pages/agent/AgentLedgerPage';
+import { AgentTeamPage } from './pages/agent/AgentTeamPage';
 import { AgentLoginPage } from './pages/agent/AgentLoginPage';
 import { AgentRegisterPage } from './pages/agent/AgentRegisterPage';
 
@@ -45,6 +46,7 @@ import { AdminBookingsPage } from './pages/admin/AdminBookingsPage';
 import { AdminPaymentsPage } from './pages/admin/AdminPaymentsPage';
 import { AdminSuppliersPage } from './pages/admin/AdminSuppliersPage';
 import { AdminLedgerPage } from './pages/admin/AdminLedgerPage';
+import { AdminTeamPage } from './pages/admin/AdminTeamPage';
 
 // Scroll to top on route change
 const ScrollToTop: React.FC = () => {
@@ -104,6 +106,7 @@ const AppContent: React.FC = () => {
               <Route path="groups/:id" element={<AgentGroupDetailsPage />} />
               <Route path="bookings" element={<AgentBookingsPage />} />
               <Route path="ledger" element={<AgentLedgerPage />} />
+              <Route path="team" element={<AgentTeamPage />} />
               <Route path="profile" element={<AgentProfilePage />} />
             </Route>
 
@@ -116,6 +119,7 @@ const AppContent: React.FC = () => {
               <Route path="payments" element={<AdminPaymentsPage />} />
               <Route path="ledger" element={<AdminLedgerPage />} />
               <Route path="suppliers" element={<AdminSuppliersPage />} />
+              <Route path="team" element={<AdminTeamPage />} />
             </Route>
 
             {/* Fallback route */}

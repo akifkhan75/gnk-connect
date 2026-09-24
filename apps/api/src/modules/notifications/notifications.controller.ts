@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
@@ -15,7 +16,6 @@ export class NotificationsController {
 
   @Post('broadcast')
   @Roles('GNK_ADMIN')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   sendBroadcast(
     @Body('recipientEmail') recipientEmail: string,
     @Body('recipientName') recipientName: string,

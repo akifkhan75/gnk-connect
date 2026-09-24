@@ -16,8 +16,16 @@ export interface JwtPayload {
 
 @Injectable()
 export class AuthService {
-  private readonly jwtSecret = process.env.JWT_SECRET || 'gnk_jwt_super_secret_key_2026';
+  private readonly jwtSecret: string;
   private readonly tokenExpiryHours = 24;
+
+  constructor() {
+    const secret = process.env.JWT_SECRET;
+    if (!secret || secret.length < 32) {
+      throw new Error('FATAL: JWT_SECRET environment variable is missing or less than 32 bytes.');
+    }
+    this.jwtSecret = secret;
+  }
 
   // In-memory / initial seed users
   private users: (AgentUser & { passwordHash: string })[] = [
@@ -139,7 +147,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (credentials.password && !this.verifyPassword(credentials.password, user.passwordHash)) {
+    if (!credentials.password || !this.verifyPassword(credentials.password, user.passwordHash)) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -177,6 +185,10 @@ export class AuthService {
     ntnNumber?: string;
     tradeLicenseNumber?: string;
   }): Promise<{ accessToken: string; user: AgentUser; agency?: Agency }> {
+    if (!data.password) {
+      throw new BadRequestException('Password is required');
+    }
+
     const existing = this.users.find(u => u.email.toLowerCase() === data.email.toLowerCase().trim());
     if (existing) {
       throw new BadRequestException('An account with this email address already exists');
@@ -211,7 +223,7 @@ export class AuthService {
     const newUser = {
       id: userId,
       email: data.email,
-      passwordHash: this.hashPassword(data.password || 'partner123'),
+      passwordHash: this.hashPassword(data.password),
       fullName: data.fullName,
       phone: data.phone,
       role: data.accountType === 'AGENCY' ? ('AGENCY_OWNER' as const) : ('INDIVIDUAL_AGENT' as const),

@@ -58,6 +58,9 @@ export class AirDeskHttpClient {
         return this.mapAirDeskResponseToStandard(data);
       }
     } catch (err: any) {
+      if (process.env.AIRDESK_LIVE_ENABLED === 'true') {
+        throw err;
+      }
       this.logger.warn(`AirDesk Live HTTP call failed or offline (${err.message}). Using local AirDesk adapter.`);
     }
 
@@ -109,9 +112,14 @@ export class AirDeskHttpClient {
             totalSupplierCostPKR: data.total_amount_pkr,
             supplierPnrOrVoucher: data.pnr
           };
+        } else {
+          throw new Error(`AirDesk API returned ${response.status}`);
         }
       }
     } catch (err: any) {
+      if (process.env.AIRDESK_LIVE_ENABLED === 'true') {
+        throw err;
+      }
       this.logger.warn(`AirDesk live booking failed (${err.message}). Falling back to AirDesk adapter.`);
     }
 
@@ -122,6 +130,9 @@ export class AirDeskHttpClient {
    * Poll latest status from AirDesk API
    */
   async fetchBookingStatus(supplierBookingId: string): Promise<SupplierBookingStatusResponse> {
+    if (process.env.AIRDESK_LIVE_ENABLED === 'true') {
+      throw new Error('Live status polling not yet implemented');
+    }
     return airDeskAdapter.getBookingStatus(supplierBookingId);
   }
 

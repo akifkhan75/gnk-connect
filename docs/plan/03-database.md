@@ -1,0 +1,562 @@
+# 03 — Database Design (Prisma schema v2)
+
+Principles:
+- **Money = `Decimal @db.Decimal(14,2)`**, currency explicit, never `Float`.
+- **Enums, not strings**, for every status.
+- **Dates are `DateTime`/`@db.Date`**, stored in UTC and displayed in `Asia/Karachi`.
+- **Append-only** where money or state history is involved (ledger, status history, audit log).
+- **FKs everywhere** with explicit `onDelete`.
+- **Soft delete** (`deletedAt`) for accounts, users, products and rules. Never hard-delete financial rows.
+- **Optimistic locking** (`version Int`) on `Booking`, `PartnerAccount` and `PricingRule`.
+- **Indexes** on every foreign key and on list filters.
+- UUIDv7 primary keys (time-sortable) plus a human-readable reference where users see one (`GNK-2026-000124`).
+
+## 1. Identity and access
+
+```prisma
+// ---------- Partner (agent) realm ----------
+enum PartnerAccountType   { AGENCY INDIVIDUAL }
+enum PartnerAccountStatus { DRAFT SUBMITTED UNDER_REVIEW MORE_INFO_REQUIRED APPROVED REJECTED SUSPENDED CLOSED }
+enum PartnerRole          { OWNER MANAGER STAFF ACCOUNTANT }   // basic portal RBAC
+enum UserStatus           { INVITED ACTIVE LOCKED DISABLED }
+
+model PartnerAccount {
+  id                String               @id @default(uuid(7)) @db.Uuid
+  code              String               @unique            // AGT-000123 (shown to agent)
+  type              PartnerAccountType
+  status            PartnerAccountStatus @default(DRAFT)
+  legalName         String                                   // agency name or person's full name
+  tradeName         String?
+  dtsLicenseNo      String?                                  // Dept. of Tourist Services
+  iataCode          String?
+  ntn               String?                                  // 7-digit + check digit
+  cnic              String?                                  // individuals: 13 digits, encrypted
+  city              String
+  country           String               @default("PK")
+  address           String?
+  phone             String                                   // E.164 +92…
+  email             String               @db.Citext
+  logoFileId        String?              @db.Uuid
+  pricingTierId     String?              @db.Uuid
+  creditLimit       Decimal              @default(0) @db.Decimal(14,2)
+  currency          String               @default("PKR") @db.Char(3)
+  reviewedById      String?              @db.Uuid              // StaffUser
+  reviewedAt        DateTime?
+  rejectionReason   String?
+  approvedAt        DateTime?
+  suspendedReason   String?
+  version           Int                  @default(0)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime?
+
+  members           PartnerMember[]
+  documents         KycDocument[]
+  bookings          Booking[]
+  ledgerAccount     LedgerAccount?
+  pricingRules      PricingRule[]
+  @@index([status, createdAt])
+}
+
+model PartnerUser {
+  id               String      @id @default(uuid(7)) @db.Uuid
+  email            String      @unique @db.Citext
+  emailVerifiedAt  DateTime?
+  passwordHash     String?                                  // argon2id; null while INVITED
+  fullName         String
+  phone            String
+  status           UserStatus  @default(ACTIVE)
+  failedLoginCount Int         @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  themePreference  ThemePref   @default(SYSTEM)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  deletedAt        DateTime?
+  memberships      PartnerMember[]
+  sessions         Session[]   @relation("PartnerSessions")
+}
+
+model PartnerMember {                 // user ↔ account with role (supports multi-user agencies)
+  id          String       @id @default(uuid(7)) @db.Uuid
+  accountId   String       @db.Uuid
+  userId      String       @db.Uuid
+  role        PartnerRole
+  invitedById String?      @db.Uuid
+  createdAt   DateTime     @default(now())
+  account     PartnerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user        PartnerUser    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([accountId, userId])
+  @@index([userId])
+}
+
+model PartnerInvite {
+  id         String      @id @default(uuid(7)) @db.Uuid
+  accountId  String      @db.Uuid
+  email      String      @db.Citext
+  role       PartnerRole
+  tokenHash  String      @unique
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdById String     @db.Uuid
+  @@index([accountId])
+}
+
+// ---------- Staff (GNK admin) realm ----------
+model StaffUser {
+  id               String     @id @default(uuid(7)) @db.Uuid
+  email            String     @unique @db.Citext
+  passwordHash     String
+  fullName         String
+  status           UserStatus @default(ACTIVE)
+  totpSecretEnc    String?                                  // AES-GCM encrypted
+  totpEnabledAt    DateTime?
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  themePreference  ThemePref  @default(SYSTEM)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+  roles            StaffUserRole[]
+  sessions         Session[]  @relation("StaffSessions")
+}
+
+model Role {                 // staff roles; seeded, editable by SUPER_ADMIN later
+  id          String  @id @default(uuid(7)) @db.Uuid
+  key         String  @unique            // SUPER_ADMIN, OPERATIONS, FINANCE, PARTNER_MANAGER, PRICING_MANAGER, SUPPORT
+  name        String
+  isSystem    Boolean @default(true)
+  permissions RolePermission[]
+  users       StaffUserRole[]
+}
+model Permission     { id String @id @default(uuid(7)) @db.Uuid  key String @unique  description String  roles RolePermission[] }
+model RolePermission { roleId String @db.Uuid  permissionId String @db.Uuid  role Role @relation(fields:[roleId],references:[id],onDelete:Cascade)  permission Permission @relation(fields:[permissionId],references:[id],onDelete:Cascade)  @@id([roleId, permissionId]) }
+model StaffUserRole  { userId String @db.Uuid  roleId String @db.Uuid  user StaffUser @relation(fields:[userId],references:[id],onDelete:Cascade)  role Role @relation(fields:[roleId],references:[id])  @@id([userId, roleId]) }
+
+// ---------- Sessions & tokens (both realms) ----------
+enum Realm { PARTNER STAFF }
+enum ThemePref { LIGHT DARK SYSTEM }
+
+model Session {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  realm           Realm
+  partnerUserId   String?   @db.Uuid
+  staffUserId     String?   @db.Uuid
+  refreshHash     String    @unique          // sha256 of current refresh token
+  familyId        String    @db.Uuid         // rotation family; reuse ⇒ revoke family
+  userAgent       String?
+  ipAddress       String?   @db.Inet
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime  @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  revokedReason   String?
+  partnerUser     PartnerUser? @relation("PartnerSessions", fields: [partnerUserId], references: [id], onDelete: Cascade)
+  staffUser       StaffUser?   @relation("StaffSessions",   fields: [staffUserId],   references: [id], onDelete: Cascade)
+  @@index([partnerUserId]) @@index([staffUserId]) @@index([familyId])
+}
+
+enum OneTimeTokenPurpose { EMAIL_VERIFY PASSWORD_RESET }
+model OneTimeToken {
+  id        String              @id @default(uuid(7)) @db.Uuid
+  realm     Realm
+  userId    String              @db.Uuid
+  purpose   OneTimeTokenPurpose
+  tokenHash String              @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  @@index([userId, purpose])
+}
+```
+
+## 2. KYC and files
+
+```prisma
+enum KycDocType   { DTS_LICENSE NTN_CERTIFICATE CNIC_FRONT CNIC_BACK IATA_CERTIFICATE BANK_LETTER OTHER }
+enum KycDocStatus { SUBMITTED VERIFIED REJECTED }
+enum FilePurpose  { KYC PAYMENT_PROOF LOGO INVOICE PASSPORT_COPY }
+
+model StoredFile {
+  id           String      @id @default(uuid(7)) @db.Uuid
+  purpose      FilePurpose
+  bucketKey    String      @unique           // private object key; never a public URL
+  originalName String
+  mimeType     String                         // sniffed from magic bytes
+  sizeBytes    Int
+  sha256       String
+  ownerRealm   Realm
+  ownerUserId  String      @db.Uuid
+  accountId    String?     @db.Uuid           // tenant scope for access checks
+  scanStatus   String      @default("PENDING") // PENDING/CLEAN/INFECTED (if AV enabled)
+  createdAt    DateTime    @default(now())
+  @@index([accountId, purpose])
+}
+
+model KycDocument {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  accountId   String       @db.Uuid
+  type        KycDocType
+  fileId      String       @db.Uuid
+  status      KycDocStatus @default(SUBMITTED)
+  reviewNote  String?
+  reviewedById String?     @db.Uuid
+  reviewedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  account     PartnerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  @@index([accountId, status])
+}
+```
+
+## 3. Suppliers and catalog
+
+```prisma
+enum SupplierStatus { ACTIVE MAINTENANCE INACTIVE }
+enum ProductType    { GROUP HOTEL UMRAH ZIARAT FLIGHT TRANSFER VISA OTHER }
+enum DepartureStatus{ OPEN FILLING_FAST SOLD_OUT CLOSED CANCELLED }
+
+model Supplier {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  code               String         @unique            // 'airdesk'
+  name               String
+  adapterKey         String                              // which adapter implementation
+  status             SupplierStatus @default(ACTIVE)
+  baseUrl            String?
+  credentialsEnc     String?                             // AES-256-GCM JSON blob
+  settings           Json           @default("{}")       // timeouts, sync interval, feature flags
+  lastSyncAt         DateTime?
+  lastSyncStatus     String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  products           Product[]
+}
+
+model Product {
+  id                 String       @id @default(uuid(7)) @db.Uuid
+  supplierId         String       @db.Uuid
+  supplierProductId  String                               // AD-GROUP-12345
+  type               ProductType
+  title              String
+  sector             String?                              // e.g. LHE-JED (group tickets)
+  airline            String?
+  destination        String
+  country            String       @db.Char(2)
+  durationDays       Int?
+  content            Json                                 // overview, inclusions, itinerary, images
+  isPublished        Boolean      @default(false)          // GNK controls visibility
+  isFeatured         Boolean      @default(false)
+  rawSnapshot        Json?                                // last supplier payload (admin-only)
+  syncedAt           DateTime
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  deletedAt          DateTime?
+  supplier           Supplier     @relation(fields: [supplierId], references: [id])
+  departures         Departure[]
+  @@unique([supplierId, supplierProductId])
+  @@index([type, isPublished])
+}
+
+model Departure {
+  id                    String          @id @default(uuid(7)) @db.Uuid
+  productId             String          @db.Uuid
+  supplierDepartureId   String
+  departureDate         DateTime        @db.Date
+  returnDate            DateTime?       @db.Date
+  totalSeats            Int
+  supplierAvailable     Int                                  // as reported by supplier
+  heldSeats             Int             @default(0)          // GNK-side holds for pending bookings
+  supplierNet           Decimal         @db.Decimal(14,2)    // NEVER exposed to partner realm
+  currency              String          @default("PKR") @db.Char(3)
+  baggage               String?
+  status                DepartureStatus @default(OPEN)
+  syncedAt              DateTime
+  version               Int             @default(0)
+  product               Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([productId, supplierDepartureId])
+  @@index([departureDate, status])
+}
+```
+
+## 4. Pricing engine (doc §4, §12)
+
+```prisma
+enum PricingScope { DEFAULT SUPPLIER PRODUCT_TYPE PRODUCT DEPARTURE TIER PARTNER PARTNER_PRODUCT }
+enum MarkupType   { FIXED PERCENTAGE }
+enum RoundingMode { NONE NEAREST_10 NEAREST_100 NEAREST_500 NEAREST_1000 CEIL_100 CEIL_500 CEIL_1000 }
+
+model PricingRule {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  name          String
+  scope         PricingScope                         // determines precedence, see 07-admin-console.md §4
+  supplierId    String?      @db.Uuid
+  productType   ProductType?
+  productId     String?      @db.Uuid
+  departureId   String?      @db.Uuid
+  accountId     String?      @db.Uuid
+  pricingTierId String?      @db.Uuid                // group partners into tiers (Gold/Silver)
+  markupType    MarkupType
+  markupValue   Decimal      @db.Decimal(12,4)       // PKR or percent
+  minMarkup     Decimal?     @db.Decimal(14,2)       // floor for % rules
+  maxMarkup     Decimal?     @db.Decimal(14,2)
+  stackable     Boolean      @default(false)          // add on top of lower-precedence result?
+  priority      Int          @default(0)             // tie-breaker within same scope
+  rounding      RoundingMode @default(NONE)
+  validFrom     DateTime?
+  validTo       DateTime?
+  isActive      Boolean      @default(true)
+  version       Int          @default(0)
+  createdById   String       @db.Uuid
+  updatedById   String?      @db.Uuid
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+  @@index([isActive, scope])
+  @@index([accountId]) @@index([productId]) @@index([supplierId])
+}
+
+model PricingTier { id String @id @default(uuid(7)) @db.Uuid  name String @unique  description String? }
+
+model PriceQuote {                    // server-issued, short-lived; booking must reference one
+  id            String   @id @default(uuid(7)) @db.Uuid
+  accountId     String   @db.Uuid
+  departureId   String   @db.Uuid
+  seats         Int
+  supplierNet   Decimal  @db.Decimal(14,2)
+  markup        Decimal  @db.Decimal(14,2)
+  unitPrice     Decimal  @db.Decimal(14,2)
+  totalPrice    Decimal  @db.Decimal(14,2)
+  breakdown     Json                             // rules evaluated, which applied, why
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  createdAt     DateTime @default(now())
+  @@index([accountId, expiresAt])
+}
+```
+
+## 5. Bookings (doc §5–7)
+
+```prisma
+enum BookingStatus {
+  DRAFT PENDING_APPROVAL APPROVED REJECTED
+  SUBMITTED_TO_SUPPLIER SUPPLIER_PENDING CONFIRMED SUPPLIER_FAILED
+  CANCELLATION_REQUESTED CANCELLED COMPLETED EXPIRED
+}
+enum PaymentState { UNPAID PARTIALLY_PAID PAID REFUND_PENDING REFUNDED }
+enum PaxType      { ADULT CHILD INFANT }
+enum Gender       { MALE FEMALE }
+enum Title        { MR MRS MS MISS MSTR }
+
+model BookingSequence { year Int @id  last Int @default(0) }   // atomic GNK-YYYY-###### via UPDATE … RETURNING
+
+model Booking {
+  id                  String        @id @default(uuid(7)) @db.Uuid
+  reference           String        @unique                   // GNK-2026-000124 (agent-visible)
+  accountId           String        @db.Uuid
+  createdByUserId     String        @db.Uuid
+  supplierId          String        @db.Uuid
+  productId           String        @db.Uuid
+  departureId         String        @db.Uuid
+  supplierBookingRef  String?                                  // AD-849302 (staff-only)
+  supplierPnr         String?
+  seats               Int
+  currency            String        @default("PKR") @db.Char(3)
+  supplierNetUnit     Decimal       @db.Decimal(14,2)          // staff-only
+  markupUnit          Decimal       @db.Decimal(14,2)          // staff-only
+  unitPrice           Decimal       @db.Decimal(14,2)
+  totalPrice          Decimal       @db.Decimal(14,2)
+  amountPaid          Decimal       @default(0) @db.Decimal(14,2)
+  pricingSnapshot     Json                                     // copy of PriceQuote.breakdown
+  quoteId             String        @unique @db.Uuid
+  status              BookingStatus @default(PENDING_APPROVAL)
+  paymentState        PaymentState  @default(UNPAID)
+  holdExpiresAt       DateTime?
+  agentNotes          String?
+  internalNotes       String?                                  // staff-only
+  rejectionReason     String?
+  idempotencyKey      String
+  version             Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  passengers          Passenger[]
+  statusHistory       BookingStatusEvent[]
+  payments            Payment[]
+  supplierCalls       SupplierCallLog[]
+  account             PartnerAccount @relation(fields: [accountId], references: [id])
+  @@unique([accountId, idempotencyKey])
+  @@index([accountId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([departureId])
+}
+
+model Passenger {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  bookingId         String   @db.Uuid
+  type              PaxType
+  title             Title
+  firstName         String
+  lastName          String
+  gender            Gender
+  dateOfBirth       DateTime @db.Date
+  nationality       String   @db.Char(2)
+  passportNumberEnc String                                  // encrypted; last4 stored for search
+  passportLast4     String   @db.Char(4)
+  passportExpiry    DateTime @db.Date
+  cnicEnc           String?
+  booking           Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  @@index([bookingId])
+}
+
+model BookingStatusEvent {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  bookingId   String        @db.Uuid
+  from        BookingStatus?
+  to          BookingStatus
+  actorRealm  Realm?                                        // null = system/worker
+  actorId     String?       @db.Uuid
+  reason      String?
+  supplierRaw String?                                       // raw supplier status that caused it
+  createdAt   DateTime      @default(now())
+  booking     Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  @@index([bookingId, createdAt])
+}
+
+model SupplierCallLog {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  supplierId    String   @db.Uuid
+  bookingId     String?  @db.Uuid
+  operation     String                                      // LIST, AVAIL, CREATE, STATUS, CANCEL
+  idempotencyKey String?
+  requestBody   Json                                        // redacted (no passport numbers)
+  responseCode  Int?
+  responseBody  Json?
+  durationMs    Int
+  errorKind     String?
+  createdAt     DateTime @default(now())
+  @@index([bookingId]) @@index([supplierId, createdAt])
+}
+```
+
+## 6. Payments and ledger (doc §8–9)
+
+```prisma
+enum PaymentMethod { BANK_TRANSFER CASH CARD GATEWAY CREDIT }
+enum PaymentStatus { PENDING SUBMITTED VERIFIED FAILED REJECTED REFUNDED }
+
+model PaymentMethodConfig {        // turn methods on/off without code changes
+  method    PaymentMethod @id
+  enabled   Boolean       @default(false)
+  settings  Json          @default("{}")   // bank accounts, gateway keys ref, etc.
+}
+
+model Payment {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  reference       String        @unique                 // PAY-2026-000031
+  accountId       String        @db.Uuid
+  bookingId       String?       @db.Uuid                // null = wallet top-up
+  method          PaymentMethod
+  status          PaymentStatus @default(SUBMITTED)
+  amount          Decimal       @db.Decimal(14,2)
+  currency        String        @default("PKR") @db.Char(3)
+  bankName        String?
+  transactionRef  String?                               // bank txn / cheque no.
+  paidAt          DateTime?
+  proofFileId     String?       @db.Uuid
+  submittedById   String        @db.Uuid
+  verifiedById    String?       @db.Uuid
+  verifiedAt      DateTime?
+  rejectionReason String?
+  gatewayPayload  Json?
+  createdAt       DateTime      @default(now())
+  @@index([accountId, status]) @@index([bookingId]) @@index([status, createdAt])
+  @@unique([method, transactionRef])                    // prevent same bank ref used twice
+}
+
+// Double-entry ledger — balances are derived, never stored as mutable totals
+enum LedgerAccountType { PARTNER_RECEIVABLE GNK_REVENUE SUPPLIER_PAYABLE BANK CASH }
+model LedgerAccount { id String @id @default(uuid(7)) @db.Uuid  type LedgerAccountType  accountId String? @unique @db.Uuid  name String }
+model LedgerTransaction {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  reference   String   @unique
+  description String
+  bookingId   String?  @db.Uuid
+  paymentId   String?  @db.Uuid
+  createdById String?  @db.Uuid
+  postedAt    DateTime @default(now())
+  entries     LedgerEntry[]
+}
+model LedgerEntry {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  transactionId String   @db.Uuid
+  ledgerAccountId String @db.Uuid
+  debit         Decimal  @default(0) @db.Decimal(14,2)
+  credit        Decimal  @default(0) @db.Decimal(14,2)
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id])
+  @@index([ledgerAccountId, transactionId])
+}
+// Invariant (enforced in service + DB CHECK via raw migration): Σdebit = Σcredit per transaction.
+
+model Invoice {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  number     String   @unique                    // INV-2026-000210
+  accountId  String   @db.Uuid
+  bookingId  String   @unique @db.Uuid
+  total      Decimal  @db.Decimal(14,2)
+  fileId     String?  @db.Uuid                   // generated PDF
+  issuedAt   DateTime @default(now())
+}
+```
+
+## 7. Notifications, audit, settings
+
+```prisma
+model Notification {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  realm     Realm
+  userId    String   @db.Uuid
+  type      String                                // BOOKING_CONFIRMED, KYC_APPROVED…
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  @@index([realm, userId, readAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  actorRealm Realm?
+  actorId    String?  @db.Uuid
+  action     String                               // partner.approve, pricing_rule.update, booking.push …
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ip         String?  @db.Inet
+  userAgent  String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+  @@index([entityType, entityId]) @@index([actorId, createdAt]) @@index([action, createdAt])
+}
+
+model Setting { key String @id  value Json  updatedById String? @db.Uuid  updatedAt DateTime @updatedAt }
+```
+
+## 8. Data protection
+
+| Data | Treatment |
+|------|-----------|
+| Passwords | argon2id (m=19 MiB, t=2, p=1 — OWASP baseline) |
+| Passport no., CNIC | AES-256-GCM application-level encryption (`PII_ENCRYPTION_KEY`, versioned key id prefix), with `last4` for search |
+| TOTP secrets, supplier credentials | AES-256-GCM, separate key |
+| Refresh / reset / invite tokens | Store only SHA-256 hashes |
+| Files | Private bucket, served through 5-minute presigned URLs after an authz check |
+| Retention | Passenger PII purged or anonymised 24 months after travel (configurable). Audit and ledger kept 7 years. |
+
+## 9. Migration strategy
+
+1. Start `prisma migrate` fresh (`0001_init`). There is no production data to migrate: the current data lives in localStorage and memory.
+2. Add raw-SQL migrations for: `citext` extension, the ledger balance CHECK trigger, `BookingSequence` increment function, and partial indexes (`WHERE deletedAt IS NULL`).
+3. Split the seed script by environment:
+   - `seed:base` covers roles, permissions, the default pricing rule, payment methods and the AirDesk supplier row.
+   - `seed:demo` (local and staging only) adds demo partners and staff with random passwords printed once.
+4. Run `prisma migrate deploy` in CI/CD as a pre-deploy job.

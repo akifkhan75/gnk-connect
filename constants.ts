@@ -373,6 +373,7 @@ export const LATEST_NEWS: NewsItem[] = [
 export const CONTACT_INFO = {
   phone: '0516137232',
   displayPhone: '+92 51 6137232',
+  whatsapp: '923001234567',
   email: 'info@gnkconnect.com',
   address: 'Office #2, Mezzanine floor, Junaid plaza, Islamabad, Pakistan',
   officeHours: 'Mon–Sat: 9:00 AM – 6:00 PM',

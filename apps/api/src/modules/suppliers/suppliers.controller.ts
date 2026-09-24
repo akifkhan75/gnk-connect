@@ -1,6 +1,10 @@
-import { Controller, Get, Post, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
@@ -10,6 +14,7 @@ export class SuppliersController {
     return this.suppliersService.getConnectedSuppliers();
   }
 
+  @Roles('GNK_ADMIN')
   @Post('sync')
   triggerSync() {
     return this.suppliersService.triggerManualSync();

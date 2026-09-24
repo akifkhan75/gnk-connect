@@ -11,7 +11,10 @@ import {
   B2BNotification,
   B2BVoucherData,
   NotificationType,
-  NotificationChannel
+  NotificationChannel,
+  AgencyTeamMember,
+  AdminRole,
+  AdminUser
 } from '../../types/b2b';
 import { airDeskAdapter } from './airdeskAdapter';
 import { pricingEngine } from './pricingEngine';
@@ -60,8 +63,9 @@ const SEED_AGENCIES: Agency[] = [
   }
 ];
 
-// Seed Users
+// Seed Users with full RBAC roles
 const SEED_USERS: AgentUser[] = [
+  // Agency Owner
   {
     id: 'user-abc-owner',
     email: 'agent@abctravels.com',
@@ -75,6 +79,35 @@ const SEED_USERS: AgentUser[] = [
     createdAt: '2026-08-15T09:00:00Z',
     updatedAt: '2026-08-15T09:00:00Z'
   },
+  // Agency Manager
+  {
+    id: 'user-abc-manager',
+    email: 'farhan@abctravels.com',
+    fullName: 'Farhan Zaidi',
+    phone: '+92 300 7654321',
+    role: 'AGENCY_MANAGER',
+    agencyId: 'agency-abc-travels',
+    accountType: 'AGENCY',
+    approvalStatus: 'APPROVED',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
+    createdAt: '2026-08-20T09:00:00Z',
+    updatedAt: '2026-08-20T09:00:00Z'
+  },
+  // Agency Staff (Ticketing Agent)
+  {
+    id: 'user-abc-staff',
+    email: 'sara@abctravels.com',
+    fullName: 'Sara Khan',
+    phone: '+92 321 4455667',
+    role: 'AGENCY_STAFF',
+    agencyId: 'agency-abc-travels',
+    accountType: 'AGENCY',
+    approvalStatus: 'APPROVED',
+    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop',
+    createdAt: '2026-08-25T10:00:00Z',
+    updatedAt: '2026-08-25T10:00:00Z'
+  },
+  // Second Agency Owner
   {
     id: 'user-alharam-owner',
     email: 'tours@alharam.com',
@@ -84,10 +117,11 @@ const SEED_USERS: AgentUser[] = [
     agencyId: 'agency-al-haram',
     accountType: 'AGENCY',
     approvalStatus: 'APPROVED',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop',
     createdAt: '2026-08-20T11:00:00Z',
     updatedAt: '2026-08-20T11:00:00Z'
   },
+  // Pending Individual Agent
   {
     id: 'user-muhammad-ali',
     email: 'muhammad.ali.travels@gmail.com',
@@ -95,22 +129,175 @@ const SEED_USERS: AgentUser[] = [
     phone: '+92 333 5551234',
     role: 'INDIVIDUAL_AGENT',
     accountType: 'INDIVIDUAL',
-    approvalStatus: 'PENDING_VERIFICATION', // Pending review demonstration
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop',
+    approvalStatus: 'PENDING_VERIFICATION',
+    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=200&auto=format&fit=crop',
     createdAt: '2026-09-22T14:30:00Z',
     updatedAt: '2026-09-22T14:30:00Z'
   },
+  // Approved Solo Freelance Agent
+  {
+    id: 'user-solo-consultant',
+    email: 'zubair.travels@gmail.com',
+    fullName: 'Zubair Qureshi',
+    phone: '+92 345 8899001',
+    role: 'INDIVIDUAL_AGENT',
+    accountType: 'INDIVIDUAL',
+    approvalStatus: 'APPROVED',
+    avatarUrl: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200&auto=format&fit=crop',
+    createdAt: '2026-09-01T10:00:00Z',
+    updatedAt: '2026-09-01T10:00:00Z'
+  },
+  // GNK Admin - Super Admin
   {
     id: 'user-gnk-admin',
     email: 'admin@gnkelite.com',
-    fullName: 'GNK Operations Admin',
+    fullName: 'GNK Super Admin',
     phone: '+92 300 0000001',
     role: 'GNK_ADMIN',
+    adminRole: 'SUPER_ADMIN',
     accountType: 'AGENCY',
     approvalStatus: 'APPROVED',
     avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z'
+  },
+  // GNK Admin - Operations
+  {
+    id: 'user-gnk-ops-admin',
+    email: 'ops@gnkelite.com',
+    fullName: 'Zainab Bukhari (Ops Admin)',
+    phone: '+92 300 0000002',
+    role: 'GNK_ADMIN',
+    adminRole: 'OPS_ADMIN',
+    accountType: 'AGENCY',
+    approvalStatus: 'APPROVED',
+    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=200&auto=format&fit=crop',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z'
+  },
+  // GNK Admin - Finance
+  {
+    id: 'user-gnk-finance-admin',
+    email: 'finance@gnkelite.com',
+    fullName: 'Mustafa Kamal (Finance Admin)',
+    phone: '+92 300 0000003',
+    role: 'GNK_ADMIN',
+    adminRole: 'FINANCE_ADMIN',
+    accountType: 'AGENCY',
+    approvalStatus: 'APPROVED',
+    avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?q=80&w=200&auto=format&fit=crop',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z'
+  },
+  // GNK Admin - Agent Relationship Manager
+  {
+    id: 'user-gnk-agent-mgr',
+    email: 'relations@gnkelite.com',
+    fullName: 'Ayesha Malik (Agent Manager)',
+    phone: '+92 300 0000004',
+    role: 'GNK_ADMIN',
+    adminRole: 'AGENT_MANAGER',
+    accountType: 'AGENCY',
+    approvalStatus: 'APPROVED',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z'
+  }
+];
+
+// Seed Agency Team Members
+const SEED_TEAM_MEMBERS: AgencyTeamMember[] = [
+  {
+    id: 'tm-1',
+    agencyId: 'agency-abc-travels',
+    fullName: 'Tariq Mansoor',
+    email: 'agent@abctravels.com',
+    phone: '+92 300 1234567',
+    role: 'AGENCY_OWNER',
+    status: 'ACTIVE',
+    joinedAt: '2026-08-15T09:00:00Z',
+    totalBookingsCount: 14,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: 'tm-2',
+    agencyId: 'agency-abc-travels',
+    fullName: 'Farhan Zaidi',
+    email: 'farhan@abctravels.com',
+    phone: '+92 300 7654321',
+    role: 'AGENCY_MANAGER',
+    status: 'ACTIVE',
+    joinedAt: '2026-08-20T09:00:00Z',
+    totalBookingsCount: 8,
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: 'tm-3',
+    agencyId: 'agency-abc-travels',
+    fullName: 'Sara Khan',
+    email: 'sara@abctravels.com',
+    phone: '+92 321 4455667',
+    role: 'AGENCY_STAFF',
+    status: 'ACTIVE',
+    joinedAt: '2026-08-25T10:00:00Z',
+    totalBookingsCount: 5,
+    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: 'tm-4',
+    agencyId: 'agency-abc-travels',
+    fullName: 'Bilal Hassan',
+    email: 'bilal.hassan@abctravels.com',
+    phone: '+92 333 1122334',
+    role: 'AGENCY_STAFF',
+    status: 'INVITED',
+    joinedAt: '2026-09-20T11:00:00Z',
+    totalBookingsCount: 0,
+    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop'
+  }
+];
+
+// Seed Admin Users
+const SEED_ADMIN_USERS: AdminUser[] = [
+  {
+    id: 'user-gnk-admin',
+    fullName: 'GNK Super Admin',
+    email: 'admin@gnkelite.com',
+    phone: '+92 300 0000001',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    lastLoginAt: '2026-09-24T22:30:00Z',
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: 'user-gnk-ops-admin',
+    fullName: 'Zainab Bukhari',
+    email: 'ops@gnkelite.com',
+    phone: '+92 300 0000002',
+    role: 'OPS_ADMIN',
+    status: 'ACTIVE',
+    lastLoginAt: '2026-09-24T21:15:00Z',
+    avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: 'user-gnk-finance-admin',
+    fullName: 'Mustafa Kamal',
+    email: 'finance@gnkelite.com',
+    phone: '+92 300 0000003',
+    role: 'FINANCE_ADMIN',
+    status: 'ACTIVE',
+    lastLoginAt: '2026-09-24T20:00:00Z',
+    avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?q=80&w=200&auto=format&fit=crop'
+  },
+  {
+    id: 'user-gnk-agent-mgr',
+    fullName: 'Ayesha Malik',
+    email: 'relations@gnkelite.com',
+    phone: '+92 300 0000004',
+    role: 'AGENT_MANAGER',
+    status: 'ACTIVE',
+    lastLoginAt: '2026-09-24T18:45:00Z',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop'
   }
 ];
 
@@ -358,6 +545,8 @@ const SEED_NOTIFICATIONS: B2BNotification[] = [
 class B2BStore {
   private agencies: Agency[] = [];
   private users: AgentUser[] = [];
+  private teamMembers: AgencyTeamMember[] = [];
+  private adminUsers: AdminUser[] = [];
   private bookings: B2BBooking[] = [];
   private payments: PaymentTransaction[] = [];
   private ledgerTransactions: LedgerTransaction[] = [];
@@ -377,6 +566,12 @@ class B2BStore {
         const storedUsers = localStorage.getItem('gnk_b2b_users');
         this.users = storedUsers ? JSON.parse(storedUsers) : [...SEED_USERS];
 
+        const storedTeamMembers = localStorage.getItem('gnk_b2b_team_members');
+        this.teamMembers = storedTeamMembers ? JSON.parse(storedTeamMembers) : [...SEED_TEAM_MEMBERS];
+
+        const storedAdminUsers = localStorage.getItem('gnk_b2b_admin_users');
+        this.adminUsers = storedAdminUsers ? JSON.parse(storedAdminUsers) : [...SEED_ADMIN_USERS];
+
         const storedBookings = localStorage.getItem('gnk_b2b_bookings');
         this.bookings = storedBookings ? JSON.parse(storedBookings) : [...SEED_BOOKINGS];
 
@@ -392,6 +587,8 @@ class B2BStore {
         console.warn('Error loading B2B store state', e);
         this.agencies = [...SEED_AGENCIES];
         this.users = [...SEED_USERS];
+        this.teamMembers = [...SEED_TEAM_MEMBERS];
+        this.adminUsers = [...SEED_ADMIN_USERS];
         this.bookings = [...SEED_BOOKINGS];
         this.payments = [];
         this.ledgerTransactions = [...SEED_LEDGER_TRANSACTIONS];
@@ -400,6 +597,8 @@ class B2BStore {
     } else {
       this.agencies = [...SEED_AGENCIES];
       this.users = [...SEED_USERS];
+      this.teamMembers = [...SEED_TEAM_MEMBERS];
+      this.adminUsers = [...SEED_ADMIN_USERS];
       this.bookings = [...SEED_BOOKINGS];
       this.payments = [];
       this.ledgerTransactions = [...SEED_LEDGER_TRANSACTIONS];
@@ -412,6 +611,8 @@ class B2BStore {
       try {
         localStorage.setItem('gnk_b2b_agencies', JSON.stringify(this.agencies));
         localStorage.setItem('gnk_b2b_users', JSON.stringify(this.users));
+        localStorage.setItem('gnk_b2b_team_members', JSON.stringify(this.teamMembers));
+        localStorage.setItem('gnk_b2b_admin_users', JSON.stringify(this.adminUsers));
         localStorage.setItem('gnk_b2b_bookings', JSON.stringify(this.bookings));
         localStorage.setItem('gnk_b2b_payments', JSON.stringify(this.payments));
         localStorage.setItem('gnk_b2b_ledger', JSON.stringify(this.ledgerTransactions));
@@ -451,6 +652,140 @@ class B2BStore {
     return this.agencies.find(a => a.id === id);
   }
 
+  // --- Team Management (RBAC) ---
+  public getTeamMembers(agencyId: string): AgencyTeamMember[] {
+    return this.teamMembers.filter(tm => tm.agencyId === agencyId);
+  }
+
+  public inviteTeamMember(agencyId: string, member: { fullName: string; email: string; phone: string; role: 'AGENCY_OWNER' | 'AGENCY_MANAGER' | 'AGENCY_STAFF' }): AgencyTeamMember {
+    const id = `tm-${Date.now()}`;
+    const newMember: AgencyTeamMember = {
+      id,
+      agencyId,
+      fullName: member.fullName,
+      email: member.email,
+      phone: member.phone,
+      role: member.role,
+      status: 'INVITED',
+      joinedAt: new Date().toISOString(),
+      totalBookingsCount: 0,
+      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(member.fullName)}`
+    };
+    this.teamMembers.push(newMember);
+
+    // Also register as AgentUser so they can log in
+    const userId = `user-${Date.now()}`;
+    const newUser: AgentUser = {
+      id: userId,
+      email: member.email,
+      fullName: member.fullName,
+      phone: member.phone,
+      role: member.role,
+      agencyId,
+      accountType: 'AGENCY',
+      approvalStatus: 'APPROVED',
+      avatarUrl: newMember.avatarUrl,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    this.users.push(newUser);
+
+    this.saveState();
+    return newMember;
+  }
+
+  public updateTeamMemberRole(memberId: string, role: 'AGENCY_OWNER' | 'AGENCY_MANAGER' | 'AGENCY_STAFF'): AgencyTeamMember | undefined {
+    const member = this.teamMembers.find(m => m.id === memberId);
+    if (member) {
+      member.role = role;
+      const user = this.users.find(u => u.email.toLowerCase() === member.email.toLowerCase());
+      if (user) {
+        user.role = role;
+      }
+      this.saveState();
+    }
+    return member;
+  }
+
+  public toggleTeamMemberStatus(memberId: string): AgencyTeamMember | undefined {
+    const member = this.teamMembers.find(m => m.id === memberId);
+    if (member) {
+      member.status = member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+      this.saveState();
+    }
+    return member;
+  }
+
+  public removeTeamMember(memberId: string): boolean {
+    const idx = this.teamMembers.findIndex(m => m.id === memberId);
+    if (idx !== -1) {
+      this.teamMembers.splice(idx, 1);
+      this.saveState();
+      return true;
+    }
+    return false;
+  }
+
+  // --- Admin Staff Management (RBAC) ---
+  public getAdminUsers(): AdminUser[] {
+    return [...this.adminUsers];
+  }
+
+  public inviteAdminUser(data: { fullName: string; email: string; phone: string; role: AdminRole }): AdminUser {
+    const id = `user-gnk-${Date.now()}`;
+    const newAdmin: AdminUser = {
+      id,
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone,
+      role: data.role,
+      status: 'ACTIVE',
+      lastLoginAt: 'Never',
+      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.fullName)}`
+    };
+    this.adminUsers.push(newAdmin);
+
+    const newAgentUser: AgentUser = {
+      id,
+      email: data.email,
+      fullName: data.fullName,
+      phone: data.phone,
+      role: 'GNK_ADMIN',
+      adminRole: data.role,
+      accountType: 'AGENCY',
+      approvalStatus: 'APPROVED',
+      avatarUrl: newAdmin.avatarUrl,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    this.users.push(newAgentUser);
+
+    this.saveState();
+    return newAdmin;
+  }
+
+  public updateAdminUserRole(adminId: string, role: AdminRole): AdminUser | undefined {
+    const admin = this.adminUsers.find(a => a.id === adminId);
+    if (admin) {
+      admin.role = role;
+      const user = this.users.find(u => u.id === adminId || u.email.toLowerCase() === admin.email.toLowerCase());
+      if (user) {
+        user.adminRole = role;
+      }
+      this.saveState();
+    }
+    return admin;
+  }
+
+  public toggleAdminUserStatus(adminId: string): AdminUser | undefined {
+    const admin = this.adminUsers.find(a => a.id === adminId);
+    if (admin) {
+      admin.status = admin.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+      this.saveState();
+    }
+    return admin;
+  }
+
   public registerAgent(data: {
     fullName: string;
     email: string;
@@ -485,6 +820,21 @@ class B2BStore {
         createdAt: new Date().toISOString()
       };
       this.agencies.push(newAgency);
+
+      // Add to team members
+      const newMember: AgencyTeamMember = {
+        id: `tm-${Date.now()}`,
+        agencyId,
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone,
+        role: 'AGENCY_OWNER',
+        status: 'ACTIVE',
+        joinedAt: new Date().toISOString(),
+        totalBookingsCount: 0,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.fullName)}`
+      };
+      this.teamMembers.push(newMember);
     }
 
     const newUser: AgentUser = {
@@ -522,14 +872,20 @@ class B2BStore {
     }
   }
 
-  // --- Bookings ---
+  // --- Bookings (RBAC Scoped) ---
   public getBookings(agentId?: string): B2BBooking[] {
     if (agentId) {
       const user = this.getUserById(agentId);
       if (user?.role === 'GNK_ADMIN') {
         return [...this.bookings].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
-      // If agency owner/staff, show all agency bookings
+      // If agency staff, only show their own bookings!
+      if (user?.role === 'AGENCY_STAFF') {
+        return this.bookings
+          .filter(b => b.agentId === agentId || b.agentEmail.toLowerCase() === user.email.toLowerCase())
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+      // If agency owner / manager, show all agency bookings
       if (user?.agencyId) {
         return this.bookings
           .filter(b => b.agencyId === user.agencyId || b.agentId === agentId)

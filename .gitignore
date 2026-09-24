@@ -22,7 +22,8 @@ dist-ssr
 *.tsbuildinfo
 
 # Uploads & Temp
-uploads/
+/uploads/
+/apps/api/uploads/
 scratch/
 
 # Environment

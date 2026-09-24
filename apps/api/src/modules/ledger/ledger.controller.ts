@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('ledger')
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
@@ -24,14 +25,12 @@ export class LedgerController {
 
   @Get('admin/summary')
   @Roles('GNK_ADMIN')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   getAdminSummary() {
     return this.ledgerService.getAdminFinancialSummary();
   }
 
   @Post('topup')
   @Roles('GNK_ADMIN')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   topUpAgencyWallet(
     @Body('agencyId') agencyId: string,
     @Body('amountPKR') amountPKR: number,

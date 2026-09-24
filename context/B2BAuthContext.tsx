@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AgentUser, Agency } from '../types/b2b';
+import { AgentUser, Agency, AdminRole } from '../types/b2b';
 import { b2bStore } from '../services/b2b/b2bStore';
 import { authApi, apiClient } from '../services/apiClient';
 
@@ -7,8 +7,19 @@ interface B2BAuthContextType {
   currentUser: AgentUser | null;
   currentAgency: Agency | null;
   isAdmin: boolean;
+  adminRole: AdminRole | null;
   isApprovedAgent: boolean;
   isPendingAgent: boolean;
+  isAgencyOwner: boolean;
+  isAgencyManager: boolean;
+  isAgencyStaff: boolean;
+  isIndividualAgent: boolean;
+  canManageTeam: boolean;
+  canViewFinances: boolean;
+  canBook: boolean;
+  canVerifyPayments: boolean;
+  canPushToAirDesk: boolean;
+  canApproveAgents: boolean;
   login: (email: string, password?: string) => Promise<boolean>;
   register: (data: any) => Promise<AgentUser>;
   logout: () => void;
@@ -36,11 +47,13 @@ export const B2BAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
           return;
         }
       }
-      // Default to ABC Travels Approved Agency
-      const defaultUser = users.find(u => u.id === 'user-abc-owner') || users[0] || null;
-      if (defaultUser) {
-        setCurrentUser(defaultUser);
-        localStorage.setItem('gnk_b2b_current_user_id', defaultUser.id);
+      // Default to ABC Travels Approved Agency Owner (DEV only)
+      if (import.meta.env.DEV) {
+        const defaultUser = users.find(u => u.id === 'user-abc-owner') || users[0] || null;
+        if (defaultUser) {
+          setCurrentUser(defaultUser);
+          localStorage.setItem('gnk_b2b_current_user_id', defaultUser.id);
+        }
       }
     };
 
@@ -51,24 +64,26 @@ export const B2BAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
   const login = async (email: string, password?: string): Promise<boolean> => {
     try {
       // 1. Try real NestJS Auth API first
-      const res = await authApi.login({ email, password: password || 'partner123' });
+      const res = await authApi.login({ email, password });
       if (res && res.accessToken) {
         apiClient.setToken(res.accessToken);
         setCurrentUser(res.user);
         localStorage.setItem('gnk_b2b_current_user_id', res.user.id);
         return true;
       }
-    } catch {
-      // Offline fallback: Use local mock user store
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        const users = b2bStore.getUsers();
+        const user = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
+        if (user) {
+          setCurrentUser(user);
+          localStorage.setItem('gnk_b2b_current_user_id', user.id);
+          return true;
+        }
+      }
+      throw e;
     }
 
-    const users = b2bStore.getUsers();
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem('gnk_b2b_current_user_id', user.id);
-      return true;
-    }
     return false;
   };
 
@@ -82,14 +97,17 @@ export const B2BAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         localStorage.setItem('gnk_b2b_current_user_id', res.user.id);
         return res.user;
       }
-    } catch {
-      // Offline fallback: Register in local store
+    } catch (e) {
+      if (import.meta.env.DEV) {
+        const newUser = b2bStore.registerAgent(data);
+        setCurrentUser(newUser);
+        localStorage.setItem('gnk_b2b_current_user_id', newUser.id);
+        return newUser;
+      }
+      throw e;
     }
 
-    const newUser = b2bStore.registerAgent(data);
-    setCurrentUser(newUser);
-    localStorage.setItem('gnk_b2b_current_user_id', newUser.id);
-    return newUser;
+    throw new Error('Registration failed');
   };
 
   const logout = () => {
@@ -112,8 +130,22 @@ export const B2BAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
     : null;
 
   const isAdmin = currentUser?.role === 'GNK_ADMIN';
+  const adminRole: AdminRole | null = isAdmin ? (currentUser?.adminRole || 'SUPER_ADMIN') : null;
   const isApprovedAgent = currentUser?.approvalStatus === 'APPROVED';
   const isPendingAgent = currentUser?.approvalStatus === 'PENDING_VERIFICATION' || currentUser?.approvalStatus === 'ADMIN_REVIEW';
+
+  const isAgencyOwner = currentUser?.role === 'AGENCY_OWNER';
+  const isAgencyManager = currentUser?.role === 'AGENCY_MANAGER';
+  const isAgencyStaff = currentUser?.role === 'AGENCY_STAFF';
+  const isIndividualAgent = currentUser?.role === 'INDIVIDUAL_AGENT';
+
+  // Permissions RBAC
+  const canManageTeam = isAgencyOwner || (isAdmin && adminRole === 'SUPER_ADMIN');
+  const canViewFinances = isAgencyOwner || isAgencyManager || isIndividualAgent || isAdmin;
+  const canBook = isApprovedAgent;
+  const canVerifyPayments = isAdmin && (adminRole === 'SUPER_ADMIN' || adminRole === 'FINANCE_ADMIN');
+  const canPushToAirDesk = isAdmin && (adminRole === 'SUPER_ADMIN' || adminRole === 'OPS_ADMIN');
+  const canApproveAgents = isAdmin && (adminRole === 'SUPER_ADMIN' || adminRole === 'AGENT_MANAGER');
 
   return (
     <B2BAuthContext.Provider
@@ -121,8 +153,19 @@ export const B2BAuthProvider: React.FC<{ children: ReactNode }> = ({ children })
         currentUser,
         currentAgency,
         isAdmin,
+        adminRole,
         isApprovedAgent,
         isPendingAgent,
+        isAgencyOwner,
+        isAgencyManager,
+        isAgencyStaff,
+        isIndividualAgent,
+        canManageTeam,
+        canViewFinances,
+        canBook,
+        canVerifyPayments,
+        canPushToAirDesk,
+        canApproveAgents,
         login,
         register,
         logout,
