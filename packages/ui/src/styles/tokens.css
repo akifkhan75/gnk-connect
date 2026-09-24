@@ -1,0 +1,52 @@
+/* packages/ui/src/styles/tokens.css */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 84% 9%;
+  --surface: 210 40% 98%;
+  --surface-raised: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 42%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 197 100% 44%;
+  --primary: 218 100% 18%;
+  --primary-foreground: 0 0% 100%; /* navy */
+  --accent: 197 100% 44%;
+  --accent-foreground: 0 0% 100%; /* cyan */
+  --highlight: 38 92% 50%;
+  --highlight-foreground: 222 84% 9%; /* gold */
+  --success: 142 71% 35%;
+  --warning: 38 92% 45%;
+  --danger: 0 72% 50%;
+  --info: 199 89% 45%;
+  --sidebar: 218 100% 18%;
+  --sidebar-foreground: 210 40% 96%;
+  --sidebar-active: 197 100% 44%;
+  --radius: 0.625rem;
+  --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.06), 0 1px 3px hsl(222 47% 11% / 0.08);
+}
+.dark {
+  --background: 222 47% 6%;
+  --foreground: 210 40% 96%;
+  --surface: 222 40% 9%;
+  --surface-raised: 222 35% 12%;
+  --muted: 217 33% 15%;
+  --muted-foreground: 215 20% 65%;
+  --border: 217 30% 20%;
+  --input: 217 30% 22%;
+  --ring: 197 100% 55%;
+  --primary: 197 100% 50%;
+  --primary-foreground: 222 84% 9%; /* cyan becomes primary on dark */
+  --accent: 197 90% 60%;
+  --accent-foreground: 222 84% 9%;
+  --highlight: 38 92% 55%;
+  --highlight-foreground: 222 84% 9%;
+  --success: 142 60% 45%;
+  --warning: 38 92% 55%;
+  --danger: 0 80% 62%;
+  --info: 199 89% 60%;
+  --sidebar: 222 47% 8%;
+  --sidebar-foreground: 210 40% 90%;
+  --sidebar-active: 197 100% 55%;
+  --shadow-card: 0 0 0 1px hsl(217 30% 20%);
+}
