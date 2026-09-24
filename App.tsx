@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChatWidget from './components/ChatWidget';
 import { ToastProvider } from './context/ToastContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy loaded page chunks for fast initial load
 const Home = lazy(() => import('./pages/Home'));
@@ -31,30 +32,32 @@ const PageLoadingFallback: React.FC = () => (
 
 const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <Router>
-        <div className="flex flex-col min-h-screen font-sans bg-gray-50 text-navy-900 selection:bg-cyan-500 selection:text-white">
-          <ScrollToTop />
-          <Navbar />
-          <main className="flex-grow">
-            <Suspense fallback={<PageLoadingFallback />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/services" element={<ServicesPage />} />
-                <Route path="/services/:slug" element={<ServicesPage />} />
-                <Route path="/destinations" element={<DestinationsPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/about" element={<AboutPage />} />
-                {/* Fallback route */}
-                <Route path="*" element={<Home />} />
-              </Routes>
-            </Suspense>
-          </main>
-          <Footer />
-          <ChatWidget />
-        </div>
-      </Router>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <Router>
+          <div className="flex flex-col min-h-screen font-sans bg-gray-50 text-navy-900 selection:bg-cyan-500 selection:text-white">
+            <ScrollToTop />
+            <Navbar />
+            <main className="flex-grow">
+              <Suspense fallback={<PageLoadingFallback />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/services" element={<ServicesPage />} />
+                  <Route path="/services/:slug" element={<ServicesPage />} />
+                  <Route path="/destinations" element={<DestinationsPage />} />
+                  <Route path="/contact" element={<ContactPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  {/* Fallback route */}
+                  <Route path="*" element={<Home />} />
+                </Routes>
+              </Suspense>
+            </main>
+            <Footer />
+            <ChatWidget />
+          </div>
+        </Router>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 };
 
