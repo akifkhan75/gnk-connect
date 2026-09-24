@@ -62,11 +62,16 @@ export interface ChatMessage {
 
 export interface NewsItem {
   id: string;
+  slug: string;
   title: string;
   excerpt: string;
+  content: string[];
   date: string;
   author: string;
+  readTime: string;
+  category: 'Umrah' | 'Visas' | 'Tours' | 'Travel Tips';
   image: string;
+  tags: string[];
 }
 
 export interface ContactFormData {

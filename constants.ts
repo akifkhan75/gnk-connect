@@ -7,6 +7,7 @@ export const NAV_LINKS = [
   { name: 'Home', path: '/' },
   { name: 'Services', path: '/services' },
   { name: 'Destinations', path: '/destinations' },
+  { name: 'Guides & Insights', path: '/news' },
   { name: 'About Us', path: '/about' },
   { name: 'Contact', path: '/contact' },
 ];
@@ -309,27 +310,60 @@ export const TESTIMONIALS: Testimonial[] = [
 export const LATEST_NEWS: NewsItem[] = [
   {
     id: '1',
+    slug: 'top-10-destinations-northern-pakistan-2025',
     title: 'Top 10 Breathtaking Destinations in Northern Pakistan for 2025',
-    excerpt: 'Discover high-altitude wonderlands from the cold deserts of Skardu to the turquoise waters of Attabad Lake.',
+    excerpt: 'Discover high-altitude wonderlands from the cold deserts of Skardu to the turquoise waters of Attabad Lake and Fairy Meadows.',
+    content: [
+      'Northern Pakistan represents one of the world’s most pristine and dramatic alpine ecosystems. Home to three of the world’s greatest mountain ranges—the Himalayas, the Karakoram, and the Hindu Kush—it offers travelers unprecedented vistas, rich cultural hospitality, and luxury eco-resorts.',
+      '1. Skardu Valley & Deosai Plains: Known as the Land of Giants, Deosai is the second highest plateau on Earth, carpeted with alpine wildflowers in summer. Skardu also features the Katpana Cold Desert and Shangrila Resort.',
+      '2. Hunza Valley & Passu Cones: The legendary Karakoram Highway leads to Karimabad, Baltit Fort, and the jagged cathedral peaks of Passu Cones. Boating across the turquoise waters of Attabad Lake is an unforgettable highlight.',
+      '3. Fairy Meadows & Nanga Parbat Base Camp: For adventure seekers, Fairy Meadows offers a direct panoramic amphitheater view of the colossal 8,126m Killer Mountain.',
+      'At GNK Connect, our Northern Pakistan domestic expeditions provide late-model 4x4 Prado transport, experienced mountain drivers, and reservations in the region’s premier verified family hotels.'
+    ],
     date: 'February 2025',
-    author: 'GNK Editorial',
-    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=800&auto=format&fit=crop'
+    author: 'GNK Travel Advisory',
+    readTime: '5 min read',
+    category: 'Tours',
+    image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=800&auto=format&fit=crop',
+    tags: ['Pakistan', 'Skardu', 'Hunza', 'Domestic Travel', 'Mountains']
   },
   {
     id: '2',
+    slug: 'executive-umrah-complete-guide-preparation-packing',
     title: 'Essential Guide to Executive Umrah: Preparation, Visas & Packing',
-    excerpt: 'A comprehensive walkthrough for pilgrims seeking comfort, proximity to Haram, and structured spiritual guidance.',
+    excerpt: 'A comprehensive walkthrough for pilgrims seeking comfort, proximity to Haram, private GMC transport, and structured spiritual guidance.',
+    content: [
+      'Performing Umrah is a transformative spiritual milestone. Preparing ahead for documentation, flight connections, and hotel selection ensures your entire focus remains dedicated to devotion and worship.',
+      '1. Choosing the Right Package: Proximity to the Haram is critical, especially when traveling with elderly family members or young children. GNK Connect Executive VIP packages secure accommodations directly in the Clock Tower complex (steps from King Abdulaziz Gate).',
+      '2. Private Ground Transfers: Navigating airport queues and intercity transfers between Jeddah, Makkah, and Madinah is seamless with private GMC Yukon / Suburban transfers and Haramain High-Speed train tickets.',
+      '3. Packing Checklist: High-quality non-stitched Ihram (for men), comfortable prayer slippers for marble courtyards, unscented toiletries, portable power banks, and personal prescribed medications.',
+      'Our dedicated scholar guides accompany pilgrims for historical Ziarat tours across Cave Hira, Jabal Thawr, Mount Arafat, Masjid Quba, and Mount Uhud.'
+    ],
     date: 'January 2025',
-    author: 'GNK Spiritual Advisory',
-    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?q=80&w=800&auto=format&fit=crop'
+    author: 'GNK Spiritual Desk',
+    readTime: '7 min read',
+    category: 'Umrah',
+    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?q=80&w=800&auto=format&fit=crop',
+    tags: ['Umrah', 'Makkah', 'Madinah', 'Pilgrimage', 'Spiritual']
   },
   {
     id: '3',
+    slug: 'updated-global-visa-guidelines-gcc-schengen-southeast-asia',
     title: 'Updated Global Visa Guidelines for GCC, Schengen and Southeast Asia',
-    excerpt: 'Key policy updates on e-visas, sticker requirements, and financial documentation for Pakistani tourists.',
+    excerpt: 'Key policy updates on e-visas, sticker requirements, appointment booking, and financial documentation for tourists in 2025.',
+    content: [
+      'International travel documentation has evolved significantly with electronic portals, biometric tracking, and stricter financial verification rules across global embassies.',
+      '1. UAE E-Visa Updates: Dubai and Abu Dhabi continue to offer streamlined 30 and 60-day e-visas with 3–4 working day turnaround. Ensure your passport has at least 6 months of validity and no spelling discrepancies.',
+      '2. Schengen Visa Dossier Requirements: European embassies emphasize verified 6-month banking statements, tax returns (NTN/FBR), confirmed hotel vouchers, and mandatory €30,000 travel insurance.',
+      '3. Southeast Asia E-Visas: Malaysia and Vietnam have transitioned almost entirely to paperless electronic visa portals. Thailand continues to offer single and multiple entry sticker visas via official embassy submission.',
+      'GNK Connect’s certified visa specialists conduct pre-submission file audits and mock interview sessions to ensure the highest approval rates.'
+    ],
     date: 'March 2025',
     author: 'GNK Visa Desk',
-    image: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=800&auto=format&fit=crop'
+    readTime: '6 min read',
+    category: 'Visas',
+    image: 'https://images.unsplash.com/photo-1569154941061-e231b4725ef1?q=80&w=800&auto=format&fit=crop',
+    tags: ['Visas', 'Dubai', 'Schengen', 'Documentation', 'Passport']
   }
 ];
 
