@@ -3,6 +3,9 @@ import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from './core/pipes/zod-validation.pipe';
 import { ProblemDetailsFilter } from './core/filters/problem-details.filter';
 import { RealmAuthGuard } from './modules/auth/guards/realm-auth.guard';
+import { PermissionsGuard } from './modules/auth/guards/permissions.guard';
+import { PartnerRolesGuard } from './modules/auth/guards/partner-roles.guard';
+import { ApprovalGuard } from './modules/auth/guards/approval.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PricingModule } from './modules/pricing/pricing.module';
@@ -97,6 +100,18 @@ import { createClient } from 'redis';
     {
       provide: APP_GUARD,
       useClass: RealmAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PartnerRolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ApprovalGuard,
     },
   ],
 })

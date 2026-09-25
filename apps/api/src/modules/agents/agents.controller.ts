@@ -1,9 +1,6 @@
 import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
 import { AgentsService } from './agents.service';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(RolesGuard)
 @Controller('agents')
 export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
@@ -18,7 +15,6 @@ export class AgentsController {
     return this.agentsService.getAgencies();
   }
 
-  @Roles('GNK_ADMIN')
   @Patch(':id/status')
   updateStatus(
     @Param('id') id: string,

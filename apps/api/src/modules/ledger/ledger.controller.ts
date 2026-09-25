@@ -1,9 +1,6 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { LedgerService } from './ledger.service';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(RolesGuard)
 @Controller('ledger')
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
@@ -23,13 +20,11 @@ export class LedgerController {
   }
 
   @Get('admin/summary')
-  @Roles('GNK_ADMIN')
   getAdminSummary() {
     return this.ledgerService.getAdminFinancialSummary();
   }
 
   @Post('topup')
-  @Roles('GNK_ADMIN')
   topUpAgencyWallet(
     @Body('agencyId') agencyId: string,
     @Body('amountPKR') amountPKR: number,

@@ -1,7 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { RolesGuard } from './guards/roles.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
+import { PartnerRolesGuard } from './guards/partner-roles.guard';
 import { ApprovalGuard } from './guards/approval.guard';
 
 import { JwtModule } from '@nestjs/jwt';
@@ -19,7 +20,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, RolesGuard, ApprovalGuard],
-  exports: [AuthService, RolesGuard, ApprovalGuard, JwtModule],
+  providers: [AuthService, PermissionsGuard, PartnerRolesGuard, ApprovalGuard],
+  exports: [AuthService, PermissionsGuard, PartnerRolesGuard, ApprovalGuard, JwtModule],
 })
 export class AuthModule {}

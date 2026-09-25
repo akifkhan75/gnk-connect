@@ -15,10 +15,7 @@ import type { Response } from 'express';
 import * as fs from 'fs';
 import { UploadsService } from './uploads.service';
 import { UploadCategory, UploadResponseDto } from '@gnk/types';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(RolesGuard)
 @Controller('uploads')
 export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}

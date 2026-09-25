@@ -1,9 +1,6 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(RolesGuard)
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
@@ -14,7 +11,6 @@ export class NotificationsController {
   }
 
   @Post('broadcast')
-  @Roles('GNK_ADMIN')
   sendBroadcast(
     @Body('recipientEmail') recipientEmail: string,
     @Body('recipientName') recipientName: string,

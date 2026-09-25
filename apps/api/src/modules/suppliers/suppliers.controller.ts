@@ -1,9 +1,6 @@
 import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(RolesGuard)
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}
@@ -13,7 +10,6 @@ export class SuppliersController {
     return this.suppliersService.getConnectedSuppliers();
   }
 
-  @Roles('GNK_ADMIN')
   @Post('sync')
   triggerSync() {
     return this.suppliersService.triggerManualSync();
