@@ -5,7 +5,11 @@
     "moduleResolution": "bundler",
     "strict": true,
     "declaration": true,
-    "outDir": "dist"
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "src"
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

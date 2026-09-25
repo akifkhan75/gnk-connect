@@ -1,37 +1,81 @@
+import * as React from 'react';
 import { DataTable, StatusBadge, Button } from '@gnk/ui';
 import { Search } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { adminPartnersApi } from '@gnk/api-client';
 
 export function AdminPartnersPage() {
-  const partners = [
-    {
-      id: 'acc-1',
-      name: 'ABC Travels',
-      type: 'AGENCY',
-      city: 'Karachi',
-      status: 'PENDING_APPROVAL',
-      submittedAt: '2023-10-24T10:00:00Z',
-    },
-    {
-      id: 'acc-2',
-      name: 'XYZ Tours',
-      type: 'AGENCY',
-      city: 'Lahore',
-      status: 'APPROVED',
-      submittedAt: '2023-10-20T10:00:00Z',
+  const queryClient = useQueryClient();
+
+  const { data: partners = [], isLoading } = useQuery({
+    queryKey: ['adminPartners'],
+    queryFn: () => adminPartnersApi.getAllPartners(),
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status, reason }: { id: string; status: 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'MORE_INFO_REQUIRED'; reason?: string }) => 
+      adminPartnersApi.updateStatus(id, status, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminPartners'] });
     }
-  ];
+  });
 
   const columns = [
-    { key: 'name', title: 'Agency Name' },
-    { key: 'city', title: 'City' },
+    { key: 'name', title: 'Agency Name', render: (row: any) => row.agencyName || row.name },
+    { key: 'city', title: 'City', render: (row: any) => row.city || 'N/A' },
     { key: 'status', title: 'Status', render: (row: any) => <StatusBadge status={row.status} className="text-xs" /> },
-    { key: 'submittedAt', title: 'Submitted', render: (row: any) => new Date(row.submittedAt).toLocaleDateString() },
+    { key: 'createdAt', title: 'Submitted', render: (row: any) => new Date(row.createdAt).toLocaleDateString() },
     { 
       key: 'actions', 
       title: '', 
       align: 'right' as const, 
       render: (row: any) => (
-        <Button variant="outline" size="sm">Review</Button>
+        <div className="flex gap-2 justify-end">
+          {row.status === 'PENDING_APPROVAL' && (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                onClick={() => {
+                  if (window.confirm(`Approve ${row.agencyName}?`)) {
+                    updateStatusMutation.mutate({ id: row.id, status: 'APPROVED' });
+                  }
+                }}
+              >
+                Approve
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => {
+                  const reason = window.prompt(`Reason for rejecting ${row.agencyName}?`);
+                  if (reason !== null) {
+                    updateStatusMutation.mutate({ id: row.id, status: 'REJECTED', reason });
+                  }
+                }}
+              >
+                Reject
+              </Button>
+            </>
+          )}
+          {row.status === 'APPROVED' && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              onClick={() => {
+                const reason = window.prompt(`Reason for suspending ${row.agencyName}?`);
+                if (reason !== null) {
+                  updateStatusMutation.mutate({ id: row.id, status: 'SUSPENDED', reason });
+                }
+              }}
+            >
+              Suspend
+            </Button>
+          )}
+        </div>
       )
     },
   ];
@@ -59,6 +103,7 @@ export function AdminPartnersPage() {
         <DataTable
           data={partners}
           columns={columns}
+          isLoading={isLoading}
           keyExtractor={(row) => row.id}
           className="border-0 rounded-none"
         />

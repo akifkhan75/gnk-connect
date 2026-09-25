@@ -29,7 +29,7 @@ export class CatalogService {
       include: {
         departures: {
           where: {
-            status: { in: ['OPEN', 'WAITLIST'] },
+            status: { in: ['OPEN', 'FILLING_FAST'] },
             departureDate: { gte: new Date() },
           },
           orderBy: { departureDate: 'asc' },

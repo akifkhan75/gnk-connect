@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AuthLayout, Stepper, Button, Input, Label } from '@gnk/ui';
+import { authApi, uploadsApi } from '@gnk/api-client';
 
 export function RegisterPage() {
   const [step, setStep] = useState(0);
@@ -121,19 +122,31 @@ export function RegisterPage() {
               onClick={async () => {
                 setIsUploading(true);
                 try {
-                  // In reality, this posts to API
-                  const dtsData = new FormData();
-                  dtsData.append('file', dtsFile!);
-                  dtsData.append('category', 'DTS_LICENSE');
+                  const emailInput = document.getElementById('email') as HTMLInputElement;
+                  const passwordInput = document.getElementById('password') as HTMLInputElement;
+                  const agencyInput = document.getElementById('agencyName') as HTMLInputElement;
+                  const licenseInput = document.getElementById('license') as HTMLInputElement;
+                  const cityInput = document.getElementById('city') as HTMLInputElement;
                   
-                  const cnicData = new FormData();
-                  cnicData.append('file', cnicFile!);
-                  cnicData.append('category', 'CNIC_FRONT');
+                  const dtsRes = await uploadsApi.uploadDocument(dtsFile!, 'DTS_LICENSE');
+                  const cnicRes = await uploadsApi.uploadDocument(cnicFile!, 'CNIC_FRONT');
                   
-                  // Mock wait to simulate upload
-                  await new Promise(r => setTimeout(r, 1000));
+                  await authApi.register({
+                    accountType: 'AGENCY',
+                    email: emailInput.value,
+                    password: passwordInput.value,
+                    fullName: agencyInput.value, // using agency name as full name for owner placeholder
+                    legalName: agencyInput.value,
+                    dtsLicenseNo: licenseInput.value,
+                    city: cityInput.value,
+                    dtsFileId: dtsRes.file.id,
+                    cnicFileId: cnicRes.file.id,
+                  });
                   
                   alert('Application Submitted successfully! Your files have been uploaded.');
+                  window.location.href = '/login';
+                } catch (e: any) {
+                  alert(e.message || 'Failed to submit application');
                 } finally {
                   setIsUploading(false);
                 }

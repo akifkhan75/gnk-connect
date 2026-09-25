@@ -5,10 +5,14 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PartnersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService
+  ) {}
 
   // --- Admin Methods ---
 
@@ -31,19 +35,27 @@ export class PartnersService {
   ) {
     const account = await this.prisma.partnerAccount.findUnique({
       where: { id: accountId },
+      include: { members: { where: { role: 'OWNER' } } },
     });
 
     if (!account) {
       throw new NotFoundException('Partner account not found');
     }
 
-    return this.prisma.partnerAccount.update({
+    const updated = await this.prisma.partnerAccount.update({
       where: { id: accountId },
       data: {
         status,
         // Optional: save reason in an audit log or a dedicated column
       },
     });
+
+    if (status === 'APPROVED' && account.members.length > 0) {
+      // Notify the owner
+      await this.notifications.notifyAgencyApproval(account.members[0].userId, account.legalName);
+    }
+
+    return updated;
   }
 
   // --- Partner Portal Methods ---

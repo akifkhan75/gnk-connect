@@ -1,9 +1,8 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Calendar, Clock, Star, CheckCircle2, Plane, Hotel } from 'lucide-react';
 import { Button, StatusBadge } from '@gnk/ui';
 
 export function GroupDetailPage() {
-  const { id } = useParams();
   const navigate = useNavigate();
 
   // In reality, fetch from API. Using mock data matching AirDesk payload.

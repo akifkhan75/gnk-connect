@@ -1,6 +1,6 @@
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AppShell, ThemeProvider, ThemeToggle } from '@gnk/ui';
+import { AppShell, ThemeProvider, ThemeToggle, NotificationBell } from '@gnk/ui';
 import { LayoutDashboard, Users, CreditCard, FileText, Settings, BookOpen } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -9,41 +9,13 @@ import { TeamPage } from './pages/TeamPage';
 import { GroupsPage } from './pages/GroupsPage';
 import { GroupDetailPage } from './pages/GroupDetailPage';
 import { NewBookingPage } from './pages/NewBookingPage';
+import { WalletPage } from './pages/WalletPage';
+import { VoucherPage } from './pages/VoucherPage';
+import { BookingDetailPage } from './pages/BookingDetailPage';
 
 const queryClient = new QueryClient();
 
-function PortalLayout() {
-  const navItems = [
-    { title: 'Dashboard', href: '/', icon: LayoutDashboard, isActive: true },
-    { title: 'Catalog & Groups', href: '/groups', icon: BookOpen },
-    { title: 'My Bookings', href: '/bookings', icon: FileText },
-    { title: 'Ledger & Payments', href: '/payments', icon: CreditCard },
-    { title: 'Team', href: '/team', icon: Users },
-  ];
-
-  const user = {
-    name: 'Tariq Mansoor',
-    email: 'agent@abctravels.com',
-  };
-
-  return (
-    <AppShell
-      navItems={navItems}
-      user={user}
-      logo={<div className="font-bold text-xl text-primary">GNK Connect</div>}
-      sidebarFooter={
-        <div className="flex items-center justify-between">
-          <ThemeToggle />
-          <button className="p-2 hover:bg-muted rounded-full">
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      }
-    >
-      <Outlet />
-    </AppShell>
-  );
-}
+import { PortalLayout } from './components/PortalLayout';
 
 const router = createBrowserRouter([
   {
@@ -77,6 +49,18 @@ const router = createBrowserRouter([
       {
         path: 'bookings',
         element: <div className="p-4">Bookings Placeholder</div>,
+      },
+      {
+        path: 'bookings/:id',
+        element: <BookingDetailPage />,
+      },
+      {
+        path: 'bookings/:id/voucher',
+        element: <VoucherPage />,
+      },
+      {
+        path: 'payments',
+        element: <WalletPage />,
       },
       {
         path: 'team',

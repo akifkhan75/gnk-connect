@@ -218,6 +218,15 @@ export class AuthService {
       },
     });
 
+    if (data.dtsFileId || data.cnicFileId) {
+      await this.prisma.kycDocument.createMany({
+        data: [
+          ...(data.dtsFileId ? [{ accountId: account.id, type: 'DTS_LICENSE' as any, fileId: data.dtsFileId }] : []),
+          ...(data.cnicFileId ? [{ accountId: account.id, type: 'CNIC_FRONT' as any, fileId: data.cnicFileId }] : [])
+        ]
+      });
+    }
+
     const user = account.members[0].user;
 
     // Create email verification token

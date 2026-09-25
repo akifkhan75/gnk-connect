@@ -25,4 +25,9 @@ export class BookingsController {
     const { adminId } = body;
     return this.bookingsService.approveBooking(id, adminId);
   }
+
+  @Get(':id')
+  getBooking(@Param('id') id: string) {
+    return this.bookingsService.getBooking(id);
+  }
 }

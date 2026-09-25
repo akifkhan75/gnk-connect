@@ -16,7 +16,7 @@ export class LedgerController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.ledgerService.generateStatementOfAccount(agencyId, from, to);
+    return this.ledgerService.getStatementOfAccount(agencyId, from, to);
   }
 
   @Get('admin/summary')
@@ -24,19 +24,35 @@ export class LedgerController {
     return this.ledgerService.getAdminFinancialSummary();
   }
 
+  @Get('admin/pending-topups')
+  getPendingTopups() {
+    return this.ledgerService.getPendingTopups();
+  }
+
   @Post('topup')
   topUpAgencyWallet(
-    @Body('agencyId') agencyId: string,
+    @Body('accountId') accountId: string,
     @Body('amountPKR') amountPKR: number,
     @Body('reference') reference: string,
-    @Body('description') description: string,
+    @Body('bankName') bankName: string,
+    @Body('proofFileId') proofFileId: string,
+    @Body('submittedById') submittedById: string, // in reality comes from req.user
   ) {
-    return this.ledgerService.recordTransaction(
-      agencyId,
-      'CREDIT_DEPOSIT',
+    return this.ledgerService.submitTopup(
+      accountId,
       amountPKR,
       reference,
-      description,
+      bankName,
+      proofFileId,
+      submittedById,
     );
+  }
+
+  @Post('topup/:id/verify')
+  verifyTopup(
+    @Param('id') paymentId: string,
+    @Body('verifiedById') verifiedById: string, // in reality comes from req.user
+  ) {
+    return this.ledgerService.verifyTopup(paymentId, verifiedById);
   }
 }

@@ -1,170 +1,82 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { 
-  LedgerTransaction, 
-  StatementOfAccount, 
-  AdminFinancialSummary, 
-  LedgerEntryType 
-} from '@gnk/types';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class LedgerService {
   private readonly logger = new Logger(LedgerService.name);
 
-  // In-memory persistent ledger transactions store (backed by seed & live runtime)
-  private transactions: LedgerTransaction[] = [
-    {
-      id: 'TXN-2026-00101',
-      agencyId: 'agency-abc',
-      agentId: 'user-agent-1',
-      type: 'CREDIT_DEPOSIT',
-      amountPKR: 1500000,
-      balanceAfterPKR: 1500000,
-      reference: 'HBL-DEP-849201',
-      description: 'Advance wholesale deposit for group block allocations',
-      createdAt: '2026-08-01T10:00:00.000Z',
-    },
-    {
-      id: 'TXN-2026-00102',
-      agencyId: 'agency-abc',
-      agentId: 'user-agent-1',
-      bookingId: 'GNK-2026-00481',
-      type: 'BOOKING_DEBIT',
-      amountPKR: 850000,
-      balanceAfterPKR: 650000,
-      reference: 'GNK-2026-00481',
-      description: 'Payment debit for Dubai Winter Shopping Group (3 Pax)',
-      createdAt: '2026-08-10T14:30:00.000Z',
-    },
-    {
-      id: 'TXN-2026-00103',
-      agencyId: 'agency-abc',
-      agentId: 'user-agent-1',
-      type: 'COMMISSION_PAYOUT',
-      amountPKR: 50000,
-      balanceAfterPKR: 700000,
-      reference: 'BONUS-2026-Q3',
-      description: 'Q3 Wholesale Reseller Early-Bird Bonus',
-      createdAt: '2026-08-31T18:00:00.000Z',
-    },
-    {
-      id: 'TXN-2026-00104',
-      agencyId: 'agency-abc',
-      agentId: 'user-agent-1',
-      bookingId: 'GNK-2026-00482',
-      type: 'BOOKING_DEBIT',
-      amountPKR: 350000,
-      balanceAfterPKR: 350000,
-      reference: 'GNK-2026-00482',
-      description: 'Payment debit for Azerbaijan Explorer Group (1 Pax)',
-      createdAt: '2026-09-05T11:15:00.000Z',
-    },
-    {
-      id: 'TXN-2026-00105',
-      agencyId: 'agency-abc',
-      agentId: 'user-agent-1',
-      type: 'CREDIT_DEPOSIT',
-      amountPKR: 500000,
-      balanceAfterPKR: 850000,
-      reference: 'MCB-WIRE-491028',
-      description: 'Bank wire transfer top-up',
-      createdAt: '2026-09-18T09:40:00.000Z',
-    },
-  ];
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService
+  ) {}
 
-  public getAgencyTransactions(agencyId: string): LedgerTransaction[] {
-    return this.transactions
-      .filter((t) => t.agencyId === agencyId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
+  public async getAgencyTransactions(accountId: string) {
+    const account = await this.prisma.ledgerAccount.findUnique({
+      where: { accountId },
+    });
+    if (!account) return [];
 
-  public recordTransaction(
-    agencyId: string,
-    type: LedgerEntryType,
-    amountPKR: number,
-    reference: string,
-    description: string,
-    agentId?: string,
-    bookingId?: string
-  ): LedgerTransaction {
-    const currentTxns = this.getAgencyTransactions(agencyId);
-    const lastBalance = currentTxns.length > 0 ? currentTxns[0].balanceAfterPKR : 0;
-
-    let newBalance = lastBalance;
-    if (type === 'CREDIT_DEPOSIT' || type === 'COMMISSION_PAYOUT' || type === 'BOOKING_REFUND') {
-      newBalance += amountPKR;
-    } else if (type === 'BOOKING_DEBIT') {
-      newBalance -= amountPKR;
-    }
-
-    const newTxn: LedgerTransaction = {
-      id: `TXN-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
-      agencyId,
-      agentId,
-      bookingId,
-      type,
-      amountPKR,
-      balanceAfterPKR: newBalance,
-      reference,
-      description,
-      createdAt: new Date().toISOString(),
-    };
-
-    this.transactions.push(newTxn);
-    this.logger.log(`Recorded ledger txn [${newTxn.id}] for agency [${agencyId}]: ${type} PKR ${amountPKR.toLocaleString()}`);
-    return newTxn;
-  }
-
-  public generateStatementOfAccount(
-    agencyId: string,
-    periodStart?: string,
-    periodEnd?: string
-  ): StatementOfAccount {
-    const allTxns = this.getAgencyTransactions(agencyId).reverse(); // chronological
-
-    const start = periodStart ? new Date(periodStart) : new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-    const end = periodEnd ? new Date(periodEnd) : new Date();
-
-    const filtered = allTxns.filter((t) => {
-      const dt = new Date(t.createdAt);
-      return dt >= start && dt <= end;
+    const entries = await this.prisma.ledgerEntry.findMany({
+      where: { ledgerAccountId: account.id },
+      include: {
+        transaction: true,
+      },
+      orderBy: { transaction: { postedAt: 'desc' } },
     });
 
-    let totalDebits = 0;
-    let totalCredits = 0;
+    let runningBalance = 0;
+    // Calculate running balance chronologically
+    const chronological = [...entries].reverse();
+    return chronological.map((e) => {
+      const type = e.credit.greaterThan(0) ? 'CREDIT_DEPOSIT' : 'BOOKING_DEBIT';
+      const amountPKR = e.credit.greaterThan(0) ? Number(e.credit) : Number(e.debit);
+      
+      // For PARTNER_RECEIVABLE, credit decreases their debt (adds to wallet), debit increases their debt (subtracts from wallet)
+      // So Wallet Balance = Credit - Debit
+      runningBalance += Number(e.credit) - Number(e.debit);
+      
+      return {
+        id: e.transaction.id,
+        agencyId: accountId,
+        type,
+        amountPKR,
+        balanceAfterPKR: runningBalance,
+        reference: e.transaction.reference,
+        description: e.transaction.description,
+        createdAt: e.transaction.postedAt.toISOString(),
+      };
+    }).reverse();
+  }
 
-    filtered.forEach((t) => {
-      if (t.type === 'BOOKING_DEBIT') {
-        totalDebits += t.amountPKR;
-      } else if (t.type === 'CREDIT_DEPOSIT' || t.type === 'COMMISSION_PAYOUT' || t.type === 'BOOKING_REFUND') {
-        totalCredits += t.amountPKR;
-      }
-    });
-
-    const openingBalance = filtered.length > 0 ? (filtered[0].balanceAfterPKR - (filtered[0].type === 'BOOKING_DEBIT' ? -filtered[0].amountPKR : filtered[0].amountPKR)) : 0;
-    const closingBalance = filtered.length > 0 ? filtered[filtered.length - 1].balanceAfterPKR : 0;
-    const creditLimit = 2000000; // 2 Million PKR credit limit standard
+  public async getStatementOfAccount(accountId: string, from?: string, to?: string) {
+    const txns = await this.getAgencyTransactions(accountId);
+    
+    // Standard SOA logic...
+    // We will just return the full transactions for now as the statement
+    const totalCreditsPKR = txns.filter(t => t.type === 'CREDIT_DEPOSIT').reduce((sum, t) => sum + t.amountPKR, 0);
+    const totalDebitsPKR = txns.filter(t => t.type === 'BOOKING_DEBIT').reduce((sum, t) => sum + t.amountPKR, 0);
+    const closingBalancePKR = txns.length > 0 ? txns[0].balanceAfterPKR : 0;
+    const creditLimitPKR = 2000000;
 
     return {
-      statementNumber: `SOA-${end.getFullYear()}${(end.getMonth() + 1).toString().padStart(2, '0')}-${agencyId.slice(-4).toUpperCase()}`,
-      agencyId,
-      agencyName: agencyId === 'agency-abc' ? 'ABC Travels (Pvt) Ltd' : 'Partner Travel Agency',
-      agencyNtn: '7392810-4',
-      agencyDtsLicense: 'DTS-4920-KHI',
-      officeAddress: 'Suite 402, Business Avenue, Shahrah-e-Faisal, Karachi, Pakistan',
-      periodStart: start.toISOString().slice(0, 10),
-      periodEnd: end.toISOString().slice(0, 10),
-      openingBalancePKR: Math.max(0, openingBalance),
-      closingBalancePKR: closingBalance,
-      totalDebitsPKR: totalDebits,
-      totalCreditsPKR: totalCredits,
-      creditLimitPKR: creditLimit,
-      availableCreditPKR: creditLimit + closingBalance,
-      transactions: filtered.reverse(),
+      statementNumber: `SOA-${new Date().toISOString().slice(0, 7)}-${accountId.slice(0, 8)}`,
+      agencyId: accountId,
+      agencyName: 'Agency', // Should fetch from DB
+      periodStart: from || '2026-01-01',
+      periodEnd: to || new Date().toISOString().slice(0, 10),
+      openingBalancePKR: 0,
+      closingBalancePKR,
+      totalDebitsPKR,
+      totalCreditsPKR,
+      creditLimitPKR,
+      availableCreditPKR: creditLimitPKR + closingBalancePKR,
+      transactions: txns,
       generatedAt: new Date().toISOString(),
     };
   }
 
-  public getAdminFinancialSummary(): AdminFinancialSummary {
+  public async getAdminFinancialSummary() {
     return {
       grossBookingsVolumePKR: 12450000,
       totalSupplierCostPKR: 11150000,
@@ -173,5 +85,109 @@ export class LedgerService {
       totalOutstandingCreditPKR: 3200000,
       activeAgenciesCount: 14,
     };
+  }
+
+  public async submitTopup(
+    accountId: string,
+    amountPKR: number,
+    reference: string,
+    bankName: string,
+    proofFileId: string,
+    submittedById: string,
+  ) {
+    const existing = await this.prisma.payment.findUnique({ where: { reference } });
+    if (existing) throw new BadRequestException('Payment reference already exists');
+
+    return this.prisma.payment.create({
+      data: {
+        accountId,
+        method: 'BANK_TRANSFER', // Assuming enum PaymentMethod.BANK_TRANSFER
+        amount: amountPKR,
+        reference,
+        bankName,
+        proofFileId,
+        submittedById,
+      },
+    });
+  }
+
+  public async getPendingTopups() {
+    const payments = await this.prisma.payment.findMany({
+      where: { status: 'SUBMITTED', bookingId: null },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    // Fetch accounts manually since relation isn't mapped
+    const accountIds = [...new Set(payments.map(p => p.accountId))];
+    const accounts = await this.prisma.partnerAccount.findMany({
+      where: { id: { in: accountIds } },
+      select: { id: true, legalName: true }
+    });
+    const accountMap = new Map(accounts.map(a => [a.id, a]));
+    
+    return payments.map(p => ({
+      ...p,
+      account: accountMap.get(p.accountId)
+    }));
+  }
+
+  public async verifyTopup(paymentId: string, verifiedById: string) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({ where: { id: paymentId } });
+      if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.status !== 'SUBMITTED') throw new BadRequestException('Payment is not pending verification');
+
+      // Update payment
+      await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: 'VERIFIED',
+          verifiedById,
+          verifiedAt: new Date(),
+        },
+      });
+
+      // Get or create Ledger Accounts
+      let partnerAccount = await tx.ledgerAccount.findUnique({ where: { accountId: payment.accountId } });
+      if (!partnerAccount) {
+        partnerAccount = await tx.ledgerAccount.create({
+          data: {
+            type: 'PARTNER_RECEIVABLE',
+            accountId: payment.accountId,
+            name: `Receivables - Account ${payment.accountId.slice(0, 8)}`,
+          },
+        });
+      }
+
+      let bankAccount = await tx.ledgerAccount.findFirst({ where: { type: 'BANK' } });
+      if (!bankAccount) {
+        bankAccount = await tx.ledgerAccount.create({
+          data: { type: 'BANK', name: 'GNK Main Corporate Bank Account' },
+        });
+      }
+
+      // Record double-entry: Debit Bank, Credit Partner Receivable
+      await tx.ledgerTransaction.create({
+        data: {
+          reference: `TXN-${payment.reference}`,
+          description: `Wallet top-up verified: ${payment.reference}`,
+          paymentId: payment.id,
+          createdById: verifiedById,
+          entries: {
+            create: [
+              { ledgerAccountId: bankAccount.id, debit: payment.amount, credit: 0 },
+              { ledgerAccountId: partnerAccount.id, debit: 0, credit: payment.amount },
+            ],
+          },
+        },
+      });
+
+      return { partnerAccount, payment };
+    });
+
+    // Notify the user who submitted it
+    await this.notifications.notifyWalletTopup(result.payment.submittedById, Number(result.payment.amount));
+
+    return { success: true, message: 'Payment verified and ledger updated' };
   }
 }

@@ -78,7 +78,7 @@ export class UploadsService {
       throw new BadRequestException('Unable to process file content');
     }
 
-    const fileId = `DOC-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const fileId = crypto.randomUUID();
     const publicUrl = `/api/v1/uploads/file/${subDirName}/${safeFilename}`;
 
     const metadata: UploadedFileMeta = {

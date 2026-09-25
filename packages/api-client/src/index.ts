@@ -234,15 +234,12 @@ export const pricingApi = {
     apiClient.post<any>('pricing/calculate', params),
 };
 
-export const agentsApi = {
-  getAllAgents: () =>
-    apiClient.get<any[]>('agents'),
+export const adminPartnersApi = {
+  getAllPartners: () =>
+    apiClient.get<any[]>('admin/partners'),
 
-  getAgencies: () =>
-    apiClient.get<any[]>('agents/agencies'),
-
-  updateStatus: (userId: string, status: 'APPROVED' | 'REJECTED' | 'SUSPENDED') =>
-    apiClient.patch<any>(`agents/${userId}/status`, { status }),
+  updateStatus: (id: string, status: 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'MORE_INFO_REQUIRED', reason?: string) =>
+    apiClient.patch<any>(`admin/partners/${id}/status`, { status, reason }),
 };
 
 export const bookingsApi = {
@@ -251,6 +248,9 @@ export const bookingsApi = {
 
   getBookingById: (id: string) =>
     apiClient.get<any>(`bookings/${id}`),
+
+  getBooking: (bookingId: string) =>
+    apiClient.get<any>(`bookings/${bookingId}`),
 
   approveAndPush: (id: string) =>
     apiClient.post<{ success: boolean; supplierBookingId?: string; message?: string }>(`bookings/${id}/approve-push`),
@@ -266,8 +266,32 @@ export const ledgerApi = {
   getAdminSummary: () =>
     apiClient.get<any>('ledger/admin/summary'),
 
-  topUpWallet: (data: { agencyId: string; amountPKR: number; reference: string; description: string }) =>
+  getPendingTopups: () =>
+    apiClient.get<any[]>('ledger/admin/pending-topups'),
+
+  topUpWallet: (data: { accountId: string; amountPKR: number; reference: string; bankName: string; proofFileId: string; submittedById: string }) =>
     apiClient.post<any>('ledger/topup', data),
+
+  verifyTopup: (paymentId: string, verifiedById: string) =>
+    apiClient.post<any>(`ledger/topup/${paymentId}/verify`, { verifiedById }),
+};
+
+export const partnerTeamApi = {
+  getTeam: () => apiClient.get<any[]>('partner/team'),
+  inviteMember: (data: { email: string; role: string }) => apiClient.post<any>('partner/team/invite', data),
+  updateRole: (userId: string, role: string) => apiClient.patch<any>(`partner/team/${userId}/role`, { role }),
+  removeMember: (userId: string) => apiClient.delete<any>(`partner/team/${userId}`),
+};
+
+export const notificationsApi = {
+  getMyNotifications: (userId: string, realm: 'PARTNER' | 'ADMIN') => 
+    apiClient.get<any[]>('notifications', { userId, realm }),
+  getUnreadCount: (userId: string, realm: 'PARTNER' | 'ADMIN') => 
+    apiClient.get<number>('notifications/unread-count', { userId, realm }),
+  markAsRead: (id: string, userId: string) => 
+    apiClient.patch<any>(`notifications/${id}/read`, { userId }),
+  markAllAsRead: (userId: string, realm: 'PARTNER' | 'ADMIN') => 
+    apiClient.patch<any>('notifications/read-all', { userId, realm }),
 };
 
 export * from './b2bStore';

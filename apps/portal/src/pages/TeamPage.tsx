@@ -1,42 +1,58 @@
 import * as React from 'react';
-import { DataTable, Button, StatusBadge, Dialog, Input, Label } from '@gnk/ui';
+import { DataTable, Button, StatusBadge, Input, Label } from '@gnk/ui';
 import { Plus, MoreHorizontal } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { partnerTeamApi } from '@gnk/api-client';
 
 export function TeamPage() {
   const [isInviteOpen, setIsInviteOpen] = React.useState(false);
+  const [inviteEmail, setInviteEmail] = React.useState('');
+  const [inviteRole, setInviteRole] = React.useState('STAFF');
+  const queryClient = useQueryClient();
 
-  const teamData = [
-    {
-      id: 'usr-1',
-      name: 'Tariq Mansoor',
-      email: 'tariq@abctravels.com',
-      role: 'OWNER',
-      status: 'ACTIVE',
+  const { data: teamMembers = [], isLoading } = useQuery({
+    queryKey: ['partnerTeam'],
+    queryFn: () => partnerTeamApi.getTeam(),
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: () => partnerTeamApi.inviteMember({ email: inviteEmail, role: inviteRole }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['partnerTeam'] });
+      setIsInviteOpen(false);
+      setInviteEmail('');
+      setInviteRole('STAFF');
     },
-    {
-      id: 'usr-2',
-      name: 'Ali Raza',
-      email: 'ali@abctravels.com',
-      role: 'MANAGER',
-      status: 'ACTIVE',
-    },
-    {
-      id: 'usr-3',
-      name: 'Sara Khan',
-      email: 'sara@abctravels.com',
-      role: 'STAFF',
-      status: 'PENDING_APPROVAL',
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => partnerTeamApi.removeMember(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['partnerTeam'] });
     }
-  ];
+  });
+
+  const handleInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inviteEmail) {
+      inviteMutation.mutate();
+    }
+  };
 
   const columns = [
     {
       key: 'name',
       title: 'Name',
+      render: (row: any) => (
+        <span className="font-medium">
+          {row.user?.fullName || row.user?.email.split('@')[0]}
+        </span>
+      ),
     },
     {
       key: 'email',
       title: 'Email',
+      render: (row: any) => row.user?.email,
     },
     {
       key: 'role',
@@ -51,7 +67,7 @@ export function TeamPage() {
       key: 'status',
       title: 'Status',
       render: (row: any) => (
-        <StatusBadge status={row.status} className="text-xs px-2 py-0.5" />
+        <StatusBadge status={row.user?.status || 'PENDING'} className="text-xs px-2 py-0.5" />
       ),
     },
     {
@@ -59,8 +75,17 @@ export function TeamPage() {
       title: '',
       align: 'right' as const,
       render: (row: any) => (
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-red-500 hover:text-red-600 hover:bg-red-50"
+          onClick={() => {
+            if (window.confirm('Are you sure you want to remove this member?')) {
+              removeMutation.mutate(row.userId);
+            }
+          }}
+        >
+          Remove
         </Button>
       ),
     },
@@ -85,8 +110,9 @@ export function TeamPage() {
 
       <div className="bg-surface border rounded-xl shadow-card overflow-hidden">
         <DataTable
-          data={teamData}
+          data={teamMembers}
           columns={columns}
+          isLoading={isLoading}
           keyExtractor={(row) => row.id}
           className="border-0 rounded-none"
         />
@@ -100,25 +126,41 @@ export function TeamPage() {
               Send an invitation to join your agency on GNK Connect.
             </p>
             
-            <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="inviteEmail">Email Address</Label>
-                <Input id="inviteEmail" type="email" placeholder="colleague@agency.com" />
+            <form onSubmit={handleInvite}>
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="inviteEmail">Email Address</Label>
+                  <Input 
+                    id="inviteEmail" 
+                    type="email" 
+                    placeholder="colleague@agency.com" 
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="inviteRole">Role</Label>
+                  <select 
+                    id="inviteRole" 
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="MANAGER">Manager</option>
+                    <option value="STAFF">Staff</option>
+                    <option value="ACCOUNTANT">Accountant</option>
+                  </select>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="inviteRole">Role</Label>
-                <select id="inviteRole" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                  <option value="MANAGER">Manager</option>
-                  <option value="STAFF">Staff</option>
-                  <option value="ACCOUNTANT">Accountant</option>
-                </select>
-              </div>
-            </div>
 
-            <div className="flex justify-end gap-3 mt-8">
-              <Button variant="outline" onClick={() => setIsInviteOpen(false)}>Cancel</Button>
-              <Button onClick={() => setIsInviteOpen(false)}>Send Invite</Button>
-            </div>
+              <div className="flex justify-end gap-3 mt-8">
+                <Button type="button" variant="outline" onClick={() => setIsInviteOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={inviteMutation.isPending}>
+                  {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

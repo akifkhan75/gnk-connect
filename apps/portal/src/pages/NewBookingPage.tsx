@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Input, Label, StatusBadge } from '@gnk/ui';
-import { ChevronRight, CheckCircle2, AlertCircle, Calendar } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Input, Label } from '@gnk/ui';
+import { ChevronRight, Calendar, Plus, CheckCircle2 } from 'lucide-react';
 
 export function NewBookingPage() {
-  const { quoteId } = useParams();
   const navigate = useNavigate();
   
   const [step, setStep] = useState(1);
@@ -64,7 +63,7 @@ export function NewBookingPage() {
             </div>
           </div>
 
-          {passengers.map((p, idx) => (
+          {passengers.map((_p, idx) => (
             <div key={idx} className="bg-surface border rounded-xl p-6 shadow-sm space-y-4">
               <h3 className="font-bold border-b pb-2">Passenger {idx + 1}</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

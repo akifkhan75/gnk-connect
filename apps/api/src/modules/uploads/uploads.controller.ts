@@ -15,11 +15,13 @@ import type { Response } from 'express';
 import * as fs from 'fs';
 import { UploadsService } from './uploads.service';
 import { UploadCategory, UploadResponseDto } from '@gnk/types';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('uploads')
 export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}
 
+  @Public()
   @Post('document')
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocument(

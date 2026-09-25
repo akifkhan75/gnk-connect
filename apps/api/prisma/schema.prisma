@@ -348,6 +348,7 @@ model Product {
   deletedAt         DateTime?
   supplier          Supplier    @relation(fields: [supplierId], references: [id])
   departures        Departure[]
+  bookings          Booking[]
 
   @@unique([supplierId, supplierProductId])
   @@index([isPublished])
@@ -369,6 +370,7 @@ model Departure {
   syncedAt            DateTime
   version             Int             @default(0)
   product             Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  bookings            Booking[]
 
   @@unique([productId, supplierDepartureId])
   @@index([departureDate])
@@ -542,6 +544,8 @@ model Booking {
   payments           Payment[]
   supplierCalls      SupplierCallLog[]
   account            PartnerAccount       @relation(fields: [accountId], references: [id])
+  product            Product              @relation(fields: [productId], references: [id])
+  departure          Departure            @relation(fields: [departureId], references: [id])
 
   @@unique([accountId, idempotencyKey])
   @@index([accountId, createdAt])

@@ -16,6 +16,7 @@ export * from './components/Skeleton';
 export * from './components/DataTable';
 export * from './components/Stepper';
 export * from './components/Timeline';
+export * from './components/NotificationBell';
 
 // Layouts
 export * from './layouts/AppShell';

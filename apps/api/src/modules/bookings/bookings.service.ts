@@ -3,6 +3,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { BookingSequenceService } from './booking-sequence.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { PricingService } from '../pricing/pricing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PaxType, Gender, Title } from '@prisma/client';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class BookingsService {
     private readonly sequenceService: BookingSequenceService,
     private readonly suppliersService: SuppliersService,
     private readonly pricingService: PricingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async createBooking(data: {
@@ -160,6 +162,41 @@ export class BookingsService {
       }
     });
 
+    await this.notifications.notifyBookingConfirmed(
+      booking.createdByUserId, 
+      booking.id, 
+      booking.supplierBookingRef || 'PENDING'
+    );
+
     return updated;
+  }
+
+  async getBooking(id: string) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+      include: {
+        passengers: true,
+        statusHistory: { orderBy: { createdAt: 'desc' } },
+        product: { select: { title: true, destination: true } },
+        departure: { select: { departureDate: true, returnDate: true } },
+      }
+    });
+
+    if (!booking) throw new NotFoundException('Booking not found');
+
+    // Mask passengers for security
+    const maskedPassengers = (booking.passengers || []).map((p: any) => ({
+      id: p.id,
+      title: p.title,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      type: p.type,
+      passportMasked: `****${p.passportLast4}`
+    }));
+
+    return {
+      ...booking,
+      passengers: maskedPassengers
+    };
   }
 }

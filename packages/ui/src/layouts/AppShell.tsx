@@ -19,6 +19,7 @@ export interface AppShellProps extends React.HTMLAttributes<HTMLDivElement> {
   onSettings?: () => void;
   onProfile?: () => void;
   sidebarFooter?: React.ReactNode;
+  topbarActions?: React.ReactNode;
 }
 
 export function AppShell({
@@ -29,6 +30,7 @@ export function AppShell({
   onSettings,
   onProfile,
   sidebarFooter,
+  topbarActions,
   children,
   className,
   ...props
@@ -68,7 +70,7 @@ export function AppShell({
           <div className="flex flex-1 items-center justify-between">
             <h1 className="text-lg font-semibold md:text-2xl hidden sm:block">Dashboard</h1>
             <div className="flex items-center gap-4 ml-auto">
-              {/* Topbar Actions could go here */}
+              {topbarActions}
               {user && (
                 <div className="flex items-center gap-2">
                   <div className="text-sm text-right hidden md:block">
