@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { airDeskAdapter } from '@gnk/suppliers';
 import { StandardGroupProduct } from '@gnk/types';
-import { 
-  MapPin, 
-  Check, 
-  Sparkles, 
-  Search, 
-  Eye 
-} from 'lucide-react';
+import { MapPin, Check, Sparkles, Search, Eye } from 'lucide-react';
 import { useCurrency } from '../context/CurrencyContext';
 import { PublicGroupBookingModal } from '../components/PublicGroupBookingModal';
+import { portalLink } from '../lib/links';
 
 export const PublicGroupsPage: React.FC = () => {
   const [products, setProducts] = useState<StandardGroupProduct[]>([]);
@@ -43,10 +37,22 @@ export const PublicGroupsPage: React.FC = () => {
 
   const filteredProducts = products.filter((p) => {
     if (activeCategory !== 'ALL') {
-      if (activeCategory === 'DUBAI' && !p.destination.toLowerCase().includes('dubai')) return false;
-      if (activeCategory === 'UMRAH' && !p.title.toLowerCase().includes('umrah') && !p.destination.toLowerCase().includes('saudi')) return false;
-      if (activeCategory === 'TURKEY' && !p.destination.toLowerCase().includes('turkey') && !p.title.toLowerCase().includes('turkey')) return false;
-      if (activeCategory === 'MALAYSIA' && !p.destination.toLowerCase().includes('malaysia')) return false;
+      if (activeCategory === 'DUBAI' && !p.destination.toLowerCase().includes('dubai'))
+        return false;
+      if (
+        activeCategory === 'UMRAH' &&
+        !p.title.toLowerCase().includes('umrah') &&
+        !p.destination.toLowerCase().includes('saudi')
+      )
+        return false;
+      if (
+        activeCategory === 'TURKEY' &&
+        !p.destination.toLowerCase().includes('turkey') &&
+        !p.title.toLowerCase().includes('turkey')
+      )
+        return false;
+      if (activeCategory === 'MALAYSIA' && !p.destination.toLowerCase().includes('malaysia'))
+        return false;
     }
 
     if (searchQuery.trim()) {
@@ -69,17 +75,24 @@ export const PublicGroupsPage: React.FC = () => {
             <Sparkles size={13} /> Guaranteed AirDesk Group Departures
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight">
-            Curated International <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">Group Tours</span>
+            Curated International{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">
+              Group Tours
+            </span>
           </h1>
           <p className="text-slate-400 text-base leading-relaxed">
-            Experience premium worldwide group travel with guaranteed flight blocks, 4 & 5-star hotel accommodations, expert multilingual tour guides, and seamless visa clearance.
+            Experience premium worldwide group travel with guaranteed flight blocks, 4 & 5-star
+            hotel accommodations, expert multilingual tour guides, and seamless visa clearance.
           </p>
         </div>
 
         {/* Filter & Search Bar */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="relative w-full md:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+            <Search
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500"
+              size={16}
+            />
             <input
               type="text"
               placeholder="Search group departures, cities, hotels..."
@@ -121,37 +134,43 @@ export const PublicGroupsPage: React.FC = () => {
             </span>
             <h3 className="text-xl font-black text-white">Looking for Wholesale B2B Rates?</h3>
             <p className="text-xs text-slate-300 max-w-xl">
-              Access wholesale group inventory directly with custom margins, 1-click supplier pushing, and live statement of account on the GNK Connect B2B Portal.
+              Access wholesale group inventory directly with custom margins, 1-click supplier
+              pushing, and live statement of account on the GNK Connect B2B Portal.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              to="/agent/login"
+            <a
+              href={portalLink('/login')}
               className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-6 py-3 rounded-xl text-xs transition-all shadow-lg shadow-cyan-500/20 whitespace-nowrap"
             >
               Partner Portal Login →
-            </Link>
-            <Link
-              to="/agent/register"
+            </a>
+            <a
+              href={portalLink('/register')}
               className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-4 py-3 rounded-xl text-xs border border-slate-700 whitespace-nowrap"
             >
               Register Agency
-            </Link>
+            </a>
           </div>
         </div>
 
         {/* Product Cards Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[1, 2, 3].map(n => (
-              <div key={n} className="bg-slate-900 border border-slate-800 rounded-3xl h-96 animate-pulse" />
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className="bg-slate-900 border border-slate-800 rounded-3xl h-96 animate-pulse"
+              />
             ))}
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="p-16 text-center text-slate-400 space-y-2 bg-slate-900 border border-slate-800 rounded-3xl">
             <p className="text-lg font-bold text-white">No matching group departures found</p>
-            <p className="text-xs text-slate-500">Try clearing your search query or selecting another destination filter.</p>
+            <p className="text-xs text-slate-500">
+              Try clearing your search query or selecting another destination filter.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -195,7 +214,9 @@ export const PublicGroupsPage: React.FC = () => {
                       <h3 className="font-bold text-white text-lg group-hover:text-cyan-400 transition-colors">
                         {p.title}
                       </h3>
-                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{p.overview}</p>
+                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                        {p.overview}
+                      </p>
 
                       {/* Inclusions preview */}
                       <div className="space-y-1.5 pt-2 border-t border-slate-800">
@@ -213,8 +234,11 @@ export const PublicGroupsPage: React.FC = () => {
                           Upcoming Fixed Departures
                         </span>
                         <div className="flex flex-wrap gap-1.5">
-                          {p.departures.map(d => (
-                            <span key={d.id} className="text-[11px] font-mono bg-slate-950 text-slate-300 px-2 py-0.5 rounded-lg border border-slate-800">
+                          {p.departures.map((d) => (
+                            <span
+                              key={d.id}
+                              className="text-[11px] font-mono bg-slate-950 text-slate-300 px-2 py-0.5 rounded-lg border border-slate-800"
+                            >
                               {d.departureDate} ({d.availableSeats} seats left)
                             </span>
                           ))}
@@ -227,7 +251,9 @@ export const PublicGroupsPage: React.FC = () => {
                   <div className="p-6 pt-0 space-y-2">
                     <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Starting From</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Starting From
+                        </span>
                         <div className="text-lg font-black text-white">
                           {formatPrice(retailPricePKR)}
                           <span className="text-[10px] text-slate-400 font-normal"> / person</span>

@@ -1,24 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Menu, 
-  X, 
-  Phone, 
-  ChevronDown, 
-  Compass, 
-  Globe, 
-  Bookmark, 
-  ShieldCheck, 
-  MessageCircle, 
+import {
+  Menu,
+  X,
+  Phone,
+  ChevronDown,
+  Compass,
+  Globe,
+  Bookmark,
+  ShieldCheck,
+  MessageCircle,
   Sparkles,
   FileSearch,
   CheckSquare,
   Newspaper,
   Star,
   ExternalLink,
-  Lock
 } from 'lucide-react';
 import { CONTACT_INFO, SERVICES, BRAND_NAME } from '../constants';
+import { portalLink } from '../lib/links';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrency, CurrencyCode, CURRENCIES } from '../context/CurrencyContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -65,36 +65,36 @@ export const Navbar: React.FC = () => {
       desc: 'Build personalized itineraries with smart budget estimates',
       path: '/planner',
       icon: Sparkles,
-      badge: 'AI Powered'
+      badge: 'AI Powered',
     },
     {
       title: 'Visa Status Tracker',
       desc: 'Live tracking for Umrah, Dubai & sticker visas',
       path: '/tracking',
       icon: FileSearch,
-      badge: 'Live'
+      badge: 'Live',
     },
     {
       title: 'Packing Checklist',
       desc: 'Interactive baggage builder tailored for your destination',
       path: '/checklist',
       icon: CheckSquare,
-      badge: null
+      badge: null,
     },
     {
       title: 'Travel Guides & Insights',
       desc: 'Visa policies, pilgrimage tips, and destination guides',
       path: '/news',
       icon: Newspaper,
-      badge: null
+      badge: null,
     },
     {
       title: 'Traveler Reviews',
       desc: 'Real verified feedback from individual and group travelers',
       path: '/reviews',
       icon: Star,
-      badge: '4.9 ★'
-    }
+      badge: '4.9 ★',
+    },
   ];
 
   return (
@@ -104,7 +104,7 @@ export const Navbar: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 flex items-center justify-between">
           {/* Left: Contact, WhatsApp & Accreditation */}
           <div className="flex items-center gap-5">
-            <a 
+            <a
               href={`tel:${CONTACT_INFO.phone}`}
               className="flex items-center gap-1.5 hover:text-cyan-400 transition-colors"
             >
@@ -113,7 +113,7 @@ export const Navbar: React.FC = () => {
               <span className="text-slate-500 text-[10px]">(24/7 Helpline)</span>
             </a>
 
-            <a 
+            <a
               href={`https://wa.me/${CONTACT_INFO.whatsapp}?text=Hello%20GNK%20Connect,%20I%20would%20like%20to%20inquire%20about%20travel%20packages`}
               target="_blank"
               rel="noopener noreferrer"
@@ -195,43 +195,36 @@ export const Navbar: React.FC = () => {
             </button>
 
             {/* Agent / B2B Portal Button */}
-            <Link
-              to="/agent/dashboard"
+            <a
+              href={portalLink('/')}
               className="flex items-center gap-1.5 px-3 py-0.5 rounded-md bg-gradient-to-r from-cyan-950 to-blue-950 border border-cyan-500/40 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500 hover:text-slate-950 hover:border-cyan-400 transition-all shadow-sm"
               aria-label="Access B2B Partner Portal"
             >
               <Compass size={12} />
               <span>Agent Portal</span>
-              <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded uppercase tracking-wider font-extrabold">B2B</span>
-            </Link>
-
-            {/* Admin Quick Gateway */}
-            <Link
-              to="/admin"
-              className="text-[11px] font-medium text-slate-400 hover:text-amber-300 flex items-center gap-1 transition-colors"
-            >
-              <Lock size={10} />
-              <span>Admin</span>
-            </Link>
+              <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded uppercase tracking-wider font-extrabold">
+                B2B
+              </span>
+            </a>
           </div>
         </div>
       </div>
 
       {/* 2. MAIN NAVIGATION BAR (Sticky & Glassmorphic) */}
-      <nav 
+      <nav
         role="navigation"
         aria-label="Main Navigation"
         className={`w-full transition-all duration-300 ${
-          isScrolled 
-            ? 'bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl py-2.5' 
+          isScrolled
+            ? 'bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl py-2.5'
             : 'bg-slate-950/80 backdrop-blur-md border-b border-slate-800/40 py-3.5'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             {/* Brand Logo */}
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-xl px-1 py-0.5"
               aria-label={`${BRAND_NAME} Home`}
             >
@@ -254,7 +247,9 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/"
                 className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
+                  location.pathname === '/'
+                    ? 'text-cyan-400 bg-cyan-500/10'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                 }`}
               >
                 Home
@@ -264,7 +259,9 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/groups"
                 className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors flex items-center gap-1.5 ${
-                  location.pathname === '/groups' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
+                  location.pathname === '/groups'
+                    ? 'text-cyan-400 bg-cyan-500/10'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                 }`}
               >
                 <span>Group Departures</span>
@@ -274,7 +271,7 @@ export const Navbar: React.FC = () => {
               </Link>
 
               {/* Services Mega Dropdown */}
-              <div 
+              <div
                 className="relative"
                 onMouseEnter={() => handleMouseEnter('services')}
                 onMouseLeave={handleMouseLeave}
@@ -282,18 +279,23 @@ export const Navbar: React.FC = () => {
                 <Link
                   to="/services"
                   className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors flex items-center gap-1 ${
-                    location.pathname.startsWith('/services') ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
+                    location.pathname.startsWith('/services')
+                      ? 'text-cyan-400 bg-cyan-500/10'
+                      : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                   }`}
                   aria-haspopup="true"
                   aria-expanded={activeDropdown === 'services'}
                 >
                   <span>Services</span>
-                  <ChevronDown size={14} className={`mt-0.5 transition-transform duration-200 ${activeDropdown === 'services' ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    size={14}
+                    className={`mt-0.5 transition-transform duration-200 ${activeDropdown === 'services' ? 'rotate-180' : ''}`}
+                  />
                 </Link>
 
                 <AnimatePresence>
                   {activeDropdown === 'services' && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
@@ -305,8 +307,8 @@ export const Navbar: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {SERVICES.map((service) => (
-                          <Link 
-                            key={service.id} 
+                          <Link
+                            key={service.id}
                             to={service.link}
                             className="flex flex-col p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors group/item"
                           >
@@ -320,8 +322,13 @@ export const Navbar: React.FC = () => {
                         ))}
                       </div>
                       <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between px-2">
-                        <span className="text-xs text-slate-400">Looking for corporate packages?</span>
-                        <Link to="/corporate" className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1">
+                        <span className="text-xs text-slate-400">
+                          Looking for corporate packages?
+                        </span>
+                        <Link
+                          to="/corporate"
+                          className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
+                        >
                           Corporate Portal <ExternalLink size={11} />
                         </Link>
                       </div>
@@ -334,14 +341,16 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/destinations"
                 className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/destinations' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
+                  location.pathname === '/destinations'
+                    ? 'text-cyan-400 bg-cyan-500/10'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                 }`}
               >
                 Destinations
               </Link>
 
               {/* Travel Tools Dropdown */}
-              <div 
+              <div
                 className="relative"
                 onMouseEnter={() => handleMouseEnter('tools')}
                 onMouseLeave={handleMouseLeave}
@@ -349,7 +358,9 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors flex items-center gap-1 ${
-                    ['/planner', '/tracking', '/checklist', '/news', '/reviews'].some(p => location.pathname.startsWith(p))
+                    ['/planner', '/tracking', '/checklist', '/news', '/reviews'].some((p) =>
+                      location.pathname.startsWith(p),
+                    )
                       ? 'text-cyan-400 bg-cyan-500/10'
                       : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                   }`}
@@ -357,12 +368,15 @@ export const Navbar: React.FC = () => {
                   aria-expanded={activeDropdown === 'tools'}
                 >
                   <span>Travel Tools</span>
-                  <ChevronDown size={14} className={`mt-0.5 transition-transform duration-200 ${activeDropdown === 'tools' ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    size={14}
+                    className={`mt-0.5 transition-transform duration-200 ${activeDropdown === 'tools' ? 'rotate-180' : ''}`}
+                  />
                 </button>
 
                 <AnimatePresence>
                   {activeDropdown === 'tools' && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
@@ -376,8 +390,8 @@ export const Navbar: React.FC = () => {
                         {travelTools.map((tool) => {
                           const Icon = tool.icon;
                           return (
-                            <Link 
-                              key={tool.title} 
+                            <Link
+                              key={tool.title}
                               to={tool.path}
                               className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors group/tool"
                             >
@@ -412,7 +426,9 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/about"
                 className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/about' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
+                  location.pathname === '/about'
+                    ? 'text-cyan-400 bg-cyan-500/10'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                 }`}
               >
                 About Us
@@ -422,7 +438,9 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/contact"
                 className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/contact' ? 'text-cyan-400 bg-cyan-500/10' : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
+                  location.pathname === '/contact'
+                    ? 'text-cyan-400 bg-cyan-500/10'
+                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
                 }`}
               >
                 Contact
@@ -460,7 +478,7 @@ export const Navbar: React.FC = () => {
                 type="button"
                 className="p-2 text-white hover:text-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg bg-slate-900 border border-slate-800"
                 onClick={() => setIsOpen(!isOpen)}
-                aria-label={isOpen ? "Close menu" : "Open navigation menu"}
+                aria-label={isOpen ? 'Close menu' : 'Open navigation menu'}
                 aria-expanded={isOpen}
               >
                 {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -472,7 +490,7 @@ export const Navbar: React.FC = () => {
         {/* Mobile Menu Drawer Overlay */}
         <AnimatePresence>
           {isOpen && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -485,30 +503,35 @@ export const Navbar: React.FC = () => {
                     <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
                       <Compass size={14} /> B2B Partner Network
                     </span>
-                    <span className="text-[10px] bg-cyan-500 text-slate-950 px-1.5 py-0.5 rounded font-black">AirDesk GDS</span>
+                    <span className="text-[10px] bg-cyan-500 text-slate-950 px-1.5 py-0.5 rounded font-black">
+                      AirDesk GDS
+                    </span>
                   </div>
                   <p className="text-xs text-slate-300 mb-3">
-                    Wholesale group inventory, instant seat allocations, and credit lines for travel agencies.
+                    Wholesale group inventory, instant seat allocations, and credit lines for travel
+                    agencies.
                   </p>
                   <div className="flex gap-2">
-                    <Link
-                      to="/agent/dashboard"
+                    <a
+                      href={portalLink('/')}
                       className="flex-1 text-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-2 rounded-xl font-bold text-xs shadow-md transition-colors"
                     >
                       Agent Portal
-                    </Link>
-                    <Link
-                      to="/agent/login"
+                    </a>
+                    <a
+                      href={portalLink('/login')}
                       className="px-4 text-center bg-slate-900 border border-slate-700 text-slate-200 hover:text-white py-2 rounded-xl font-bold text-xs"
                     >
                       Login
-                    </Link>
+                    </a>
                   </div>
                 </div>
 
                 {/* Currency Selector Mobile */}
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Currency</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Select Currency
+                  </span>
                   <div className="flex gap-1.5">
                     {Object.keys(CURRENCIES).map((key) => {
                       const code = key as CurrencyCode;
@@ -518,7 +541,9 @@ export const Navbar: React.FC = () => {
                           type="button"
                           onClick={() => setCurrency(code)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
-                            currency === code ? 'bg-cyan-500 text-slate-950' : 'bg-slate-900 text-slate-300 border border-slate-800'
+                            currency === code
+                              ? 'bg-cyan-500 text-slate-950'
+                              : 'bg-slate-900 text-slate-300 border border-slate-800'
                           }`}
                         >
                           {code}
@@ -542,7 +567,9 @@ export const Navbar: React.FC = () => {
                     className="flex items-center justify-between text-base font-bold text-white hover:text-cyan-400 py-2 px-3 rounded-lg hover:bg-slate-900"
                   >
                     <span>Group Departures</span>
-                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Wholesale</span>
+                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                      Wholesale
+                    </span>
                   </Link>
 
                   <Link
@@ -559,13 +586,15 @@ export const Navbar: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 gap-1 pl-2">
                       {SERVICES.map((service) => (
-                        <Link 
-                          key={service.id} 
+                        <Link
+                          key={service.id}
                           to={service.link}
                           className="text-sm font-semibold text-slate-300 py-1.5 px-3 rounded-lg hover:bg-slate-900 hover:text-cyan-400 flex items-center justify-between"
                         >
                           <span>{service.title}</span>
-                          <span className="text-[10px] text-slate-500">{service.packages?.length || 0} Packages</span>
+                          <span className="text-[10px] text-slate-500">
+                            {service.packages?.length || 0} Packages
+                          </span>
                         </Link>
                       ))}
                     </div>
@@ -578,8 +607,8 @@ export const Navbar: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 gap-1 pl-2">
                       {travelTools.map((tool) => (
-                        <Link 
-                          key={tool.title} 
+                        <Link
+                          key={tool.title}
                           to={tool.path}
                           className="text-sm font-semibold text-slate-300 py-1.5 px-3 rounded-lg hover:bg-slate-900 hover:text-cyan-400 flex items-center justify-between"
                         >
@@ -618,14 +647,6 @@ export const Navbar: React.FC = () => {
                     <Phone className="h-4 w-4 text-cyan-400" />
                     Call Helpline: {CONTACT_INFO.displayPhone}
                   </a>
-
-                  <Link
-                    to="/admin"
-                    className="flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-amber-400 py-1.5"
-                  >
-                    <Lock size={12} />
-                    <span>GNK Operations Admin Gateway</span>
-                  </Link>
                 </div>
               </div>
             </motion.div>

@@ -1,7 +1,0 @@
-{
-  "name": "GNK Connect",
-  "description": "A premium travel and tours platform by GNK Connect offering executive Umrah packages, sticker visas, hotel bookings, and curated domestic & international tours.",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
-}
