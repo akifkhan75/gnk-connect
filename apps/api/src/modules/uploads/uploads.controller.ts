@@ -15,11 +15,10 @@ import type { Response } from 'express';
 import * as fs from 'fs';
 import { UploadsService } from './uploads.service';
 import { UploadCategory, UploadResponseDto } from '@gnk/types';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller('uploads')
 export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}
@@ -29,7 +28,7 @@ export class UploadsController {
   async uploadDocument(
     @UploadedFile() file: any,
     @Body('category') category?: UploadCategory,
-    @Body('agentId') agentId?: string
+    @Body('agentId') agentId?: string,
   ): Promise<UploadResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required for upload');
@@ -50,7 +49,7 @@ export class UploadsController {
   async uploadPaymentSlip(
     @UploadedFile() file: any,
     @Body('bookingId') bookingId?: string,
-    @Body('agentId') agentId?: string
+    @Body('agentId') agentId?: string,
   ): Promise<UploadResponseDto> {
     if (!file) {
       throw new BadRequestException('Payment slip image or PDF is required');
@@ -69,7 +68,7 @@ export class UploadsController {
   streamUploadedFile(
     @Param('subDir') subDir: string,
     @Param('filename') filename: string,
-    @Res() res: Response
+    @Res() res: Response,
   ) {
     const { filePath, mimeType } = this.uploadsService.getFilePath(subDir, filename);
 

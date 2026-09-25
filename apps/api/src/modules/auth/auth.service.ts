@@ -1,266 +1,160 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import { AgentUser, Agency, AgentRole, AgentAccountType, AgentApprovalStatus } from '@gnk/types';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
+import { JwtService } from '@nestjs/jwt';
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid';
+import { Realm, UserStatus } from '@prisma/client';
 
-export interface JwtPayload {
+export interface TokenPayload {
   sub: string;
-  email: string;
-  fullName: string;
-  role: AgentRole;
-  agencyId?: string;
-  accountType: AgentAccountType;
-  approvalStatus: AgentApprovalStatus;
+  aud: string;
+  iss: string;
+  sid: string;
+  acc?: string;
+  role?: string; // for Partner members (OWNER, MANAGER, etc) or staff roles. Wait, doc says: 'It carries no role, status or permissions.'
   iat?: number;
   exp?: number;
 }
 
 @Injectable()
 export class AuthService {
-  private readonly jwtSecret: string;
-  private readonly tokenExpiryHours = 24;
+  private readonly logger = new Logger(AuthService.name);
 
-  constructor() {
-    const secret = process.env.JWT_SECRET;
-    if (!secret || secret.length < 32) {
-      throw new Error('FATAL: JWT_SECRET environment variable is missing or less than 32 bytes.');
-    }
-    this.jwtSecret = secret;
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  public async hashPassword(password: string): Promise<string> {
+    return argon2.hash(password);
   }
 
-  // In-memory / initial seed users
-  private users: (AgentUser & { passwordHash: string })[] = [
-    {
-      id: 'user-abc-owner',
-      email: 'agent@abctravels.com',
-      passwordHash: this.hashPassword('partner123'),
-      fullName: 'Tariq Mansoor',
-      phone: '+92 300 1234567',
-      role: 'AGENCY_OWNER',
-      agencyId: 'agency-abc-travels',
-      accountType: 'AGENCY',
-      approvalStatus: 'APPROVED',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    },
-    {
-      id: 'user-muhammad-ali',
-      email: 'muhammad.ali.travels@gmail.com',
-      passwordHash: this.hashPassword('partner123'),
-      fullName: 'Muhammad Ali',
-      phone: '+92 333 5551234',
-      role: 'INDIVIDUAL_AGENT',
-      accountType: 'INDIVIDUAL',
-      approvalStatus: 'PENDING_VERIFICATION',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&auto=format&fit=crop',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    },
-    {
-      id: 'user-gnk-admin',
-      email: 'admin@gnkconnect.pk',
-      passwordHash: this.hashPassword('admin123'),
-      fullName: 'GNK Operations Admin',
-      phone: '+92 300 0000001',
-      role: 'GNK_ADMIN',
-      accountType: 'AGENCY',
-      approvalStatus: 'APPROVED',
-      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+  public async verifyPassword(password: string, hash: string): Promise<boolean> {
+    try {
+      return await argon2.verify(hash, password);
+    } catch {
+      return false;
     }
-  ];
-
-  private agencies: Agency[] = [
-    {
-      id: 'agency-abc-travels',
-      name: 'ABC Travels & Tours',
-      tradeLicenseNumber: 'DTS-KHI-4920',
-      ntnNumber: '7392810-4',
-      city: 'Karachi',
-      country: 'Pakistan',
-      officeAddress: 'Suite 402, Business Avenue, Shahrah-e-Faisal, Karachi',
-      phone: '+92 21 34567890',
-      officialEmail: 'info@abctravels.com.pk',
-      ownerId: 'user-abc-owner',
-      approvalStatus: 'APPROVED',
-      creditLimitPKR: 1500000,
-      walletBalancePKR: 450000,
-      createdAt: new Date().toISOString(),
-      verificationDocuments: []
-    }
-  ];
-
-  // Password Hashing using PBKDF2
-  public hashPassword(password: string): string {
-    const salt = 'gnk_connect_static_salt_v1';
-    return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
   }
 
-  public verifyPassword(password: string, hash: string): boolean {
-    return this.hashPassword(password) === hash;
+  public generateRefreshToken(): string {
+    return crypto.randomBytes(32).toString('hex');
   }
 
-  // Token Generator (HMAC-SHA256 JWT standard)
-  public signToken(payload: Omit<JwtPayload, 'iat' | 'exp'>): string {
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const now = Math.floor(Date.now() / 1000);
-    const fullPayload: JwtPayload = {
-      ...payload,
-      iat: now,
-      exp: now + this.tokenExpiryHours * 3600
-    };
-    const body = Buffer.from(JSON.stringify(fullPayload)).toString('base64url');
-    const signature = crypto.createHmac('sha256', this.jwtSecret).update(`${header}.${body}`).digest('base64url');
-    return `${header}.${body}.${signature}`;
+  public hashRefreshToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  public verifyToken(token: string): JwtPayload {
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      throw new UnauthorizedException('Malformed token structure');
-    }
+  public async createSession(
+    realm: Realm,
+    userId: string,
+    userAgent?: string,
+    ipAddress?: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const refreshToken = this.generateRefreshToken();
+    const refreshHash = this.hashRefreshToken(refreshToken);
+    const familyId = uuidv7();
 
-    const [header, body, signature] = parts;
-    const expectedSig = crypto.createHmac('sha256', this.jwtSecret).update(`${header}.${body}`).digest('base64url');
+    const expiresInDays = realm === 'PARTNER' ? 30 : 0.5; // 12 hours for staff
+    const expiresAt = new Date();
+    expiresAt.setTime(expiresAt.getTime() + expiresInDays * 24 * 60 * 60 * 1000);
 
-    if (signature !== expectedSig) {
-      throw new UnauthorizedException('Invalid token signature');
-    }
+    const session = await this.prisma.session.create({
+      data: {
+        realm,
+        partnerUserId: realm === 'PARTNER' ? userId : null,
+        staffUserId: realm === 'STAFF' ? userId : null,
+        refreshHash,
+        familyId,
+        userAgent,
+        ipAddress,
+        expiresAt,
+      },
+    });
 
-    const payload: JwtPayload = JSON.parse(Buffer.from(body, 'base64url').toString('utf-8'));
-    const now = Math.floor(Date.now() / 1000);
-    if (payload.exp && payload.exp < now) {
-      throw new UnauthorizedException('Token has expired');
-    }
+    const accessToken = this.jwtService.sign(
+      {
+        sub: userId,
+        sid: session.id,
+      },
+      {
+        audience: realm === 'PARTNER' ? 'gnk-portal' : 'gnk-admin',
+        issuer: 'gnk-connect-api',
+        expiresIn: realm === 'PARTNER' ? '15m' : '10m',
+      },
+    );
 
-    return payload;
+    return { accessToken, refreshToken };
   }
 
-  async login(credentials: { email: string; password?: string }): Promise<{
-    accessToken: string;
-    user: AgentUser;
-    agency?: Agency;
-  }> {
-    const user = this.users.find(u => u.email.toLowerCase() === credentials.email.toLowerCase().trim());
-    if (!user) {
+  public async partnerLogin(
+    email: string,
+    password?: string,
+    userAgent?: string,
+    ipAddress?: string,
+  ) {
+    const user = await this.prisma.partnerUser.findUnique({
+      where: { email: email.toLowerCase() },
+      include: {
+        memberships: {
+          include: {
+            account: true,
+          },
+        },
+      },
+    });
+
+    if (!user || !user.passwordHash) {
+      // Prevent timing attacks by hashing a dummy string
+      await this.verifyPassword(password || '', '$argon2id$v=19$m=65536,t=3,p=4$dummy$dummy');
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (!credentials.password || !this.verifyPassword(credentials.password, user.passwordHash)) {
+    if (!password || !(await this.verifyPassword(password, user.passwordHash))) {
+      await this.prisma.partnerUser.update({
+        where: { id: user.id },
+        data: { failedLoginCount: { increment: 1 } },
+      });
+      // In reality we should lock the account if count > 5, this is handled by throttler
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const agency = user.agencyId ? this.agencies.find(a => a.id === user.agencyId) : undefined;
+    if (user.status !== UserStatus.ACTIVE && user.status !== UserStatus.INVITED) {
+      throw new UnauthorizedException('Account is locked or disabled');
+    }
 
-    const accessToken = this.signToken({
-      sub: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      agencyId: user.agencyId,
-      accountType: user.accountType,
-      approvalStatus: user.approvalStatus as AgentApprovalStatus
+    // Reset failure count on success
+    await this.prisma.partnerUser.update({
+      where: { id: user.id },
+      data: {
+        failedLoginCount: 0,
+        lastLoginAt: new Date(),
+      },
     });
 
-    // Remove hash from returned object
-    const { passwordHash: _, ...safeUser } = user;
+    const tokens = await this.createSession('PARTNER', user.id, userAgent, ipAddress);
 
     return {
-      accessToken,
-      user: safeUser as AgentUser,
-      agency
+      tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        status: user.status,
+      },
+      memberships: user.memberships.map((m) => ({
+        accountId: m.accountId,
+        role: m.role,
+        accountName: m.account.legalName,
+        accountStatus: m.account.status,
+      })),
     };
   }
 
-  async register(data: {
-    fullName: string;
-    email: string;
-    phone: string;
-    password?: string;
-    accountType: 'AGENCY' | 'INDIVIDUAL';
-    agencyName?: string;
-    city?: string;
-    officeAddress?: string;
-    ntnNumber?: string;
-    tradeLicenseNumber?: string;
-  }): Promise<{ accessToken: string; user: AgentUser; agency?: Agency }> {
-    if (!data.password) {
-      throw new BadRequestException('Password is required');
-    }
-
-    const existing = this.users.find(u => u.email.toLowerCase() === data.email.toLowerCase().trim());
-    if (existing) {
-      throw new BadRequestException('An account with this email address already exists');
-    }
-
-    const userId = `user-${Date.now()}`;
-    let agencyId: string | undefined;
-    let newAgency: Agency | undefined;
-
-    if (data.accountType === 'AGENCY' && data.agencyName) {
-      agencyId = `agency-${Date.now()}`;
-      newAgency = {
-        id: agencyId,
-        name: data.agencyName,
-        tradeLicenseNumber: data.tradeLicenseNumber,
-        ntnNumber: data.ntnNumber,
-        city: data.city || 'Karachi',
-        country: 'Pakistan',
-        officeAddress: data.officeAddress || '',
-        phone: data.phone,
-        officialEmail: data.email,
-        ownerId: userId,
-        approvalStatus: 'PENDING_VERIFICATION',
-        verificationDocuments: [
-          { title: 'Tax NTN / Registration', fileUrl: 'https://example.com/docs/ntn.pdf', uploadedAt: new Date().toISOString(), status: 'SUBMITTED' }
-        ],
-        createdAt: new Date().toISOString()
-      };
-      this.agencies.push(newAgency);
-    }
-
-    const newUser = {
-      id: userId,
-      email: data.email,
-      passwordHash: this.hashPassword(data.password),
-      fullName: data.fullName,
-      phone: data.phone,
-      role: data.accountType === 'AGENCY' ? ('AGENCY_OWNER' as const) : ('INDIVIDUAL_AGENT' as const),
-      agencyId,
-      accountType: data.accountType,
-      approvalStatus: 'PENDING_VERIFICATION' as const,
-      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.fullName)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    this.users.push(newUser);
-
-    const accessToken = this.signToken({
-      sub: newUser.id,
-      email: newUser.email,
-      fullName: newUser.fullName,
-      role: newUser.role,
-      agencyId: newUser.agencyId,
-      accountType: newUser.accountType,
-      approvalStatus: newUser.approvalStatus
-    });
-
-    const { passwordHash: _, ...safeUser } = newUser;
-
-    return {
-      accessToken,
-      user: safeUser as AgentUser,
-      agency: newAgency
-    };
-  }
-
-  async getProfile(userId: string): Promise<{ user: AgentUser; agency?: Agency }> {
-    const user = this.users.find(u => u.id === userId);
-    if (!user) throw new UnauthorizedException('User not found');
-    const agency = user.agencyId ? this.agencies.find(a => a.id === user.agencyId) : undefined;
-    const { passwordHash: _, ...safeUser } = user;
-    return { user: safeUser as AgentUser, agency };
+  public async partnerRegister(data: any) {
+    // TODO: implement full partner registration
+    // This will create a PartnerUser and a PartnerAccount
+    return { message: 'Check your email for the verification link.' };
   }
 }

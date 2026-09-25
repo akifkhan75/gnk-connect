@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
+import * as cookieParser from 'cookie-parser';
 import { EnvConfig } from './core/config/env.config';
 
 async function bootstrap() {
@@ -12,8 +13,9 @@ async function bootstrap() {
 
   const configService = app.get<ConfigService<EnvConfig>>(ConfigService);
 
-  // Security Headers
+  // Security Headers & Cookies
   app.use(helmet());
+  app.use(cookieParser());
 
   // CORS Configuration
   const allowedOrigins = configService.get('CORS_ORIGINS', { infer: true })?.split(',') || [];

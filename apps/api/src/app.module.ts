@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from './core/pipes/zod-validation.pipe';
 import { ProblemDetailsFilter } from './core/filters/problem-details.filter';
+import { RealmAuthGuard } from './modules/auth/guards/realm-auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PricingModule } from './modules/pricing/pricing.module';
@@ -92,6 +93,10 @@ import { createClient } from 'redis';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RealmAuthGuard,
     },
   ],
 })

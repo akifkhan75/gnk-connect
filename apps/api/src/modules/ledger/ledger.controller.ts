@@ -1,10 +1,9 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { LedgerService } from './ledger.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller('ledger')
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
@@ -18,7 +17,7 @@ export class LedgerController {
   getStatementOfAccount(
     @Param('agencyId') agencyId: string,
     @Query('from') from?: string,
-    @Query('to') to?: string
+    @Query('to') to?: string,
   ) {
     return this.ledgerService.generateStatementOfAccount(agencyId, from, to);
   }
@@ -35,14 +34,14 @@ export class LedgerController {
     @Body('agencyId') agencyId: string,
     @Body('amountPKR') amountPKR: number,
     @Body('reference') reference: string,
-    @Body('description') description: string
+    @Body('description') description: string,
   ) {
     return this.ledgerService.recordTransaction(
       agencyId,
       'CREDIT_DEPOSIT',
       amountPKR,
       reference,
-      description
+      description,
     );
   }
 }

@@ -1,10 +1,9 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
@@ -20,7 +19,7 @@ export class NotificationsController {
     @Body('recipientEmail') recipientEmail: string,
     @Body('recipientName') recipientName: string,
     @Body('title') title: string,
-    @Body('body') body: string
+    @Body('body') body: string,
   ) {
     return this.notificationsService.sendNotification(
       recipientEmail,
@@ -28,7 +27,7 @@ export class NotificationsController {
       'AGENT_APPROVED',
       'EMAIL',
       title,
-      body
+      body,
     );
   }
 }
