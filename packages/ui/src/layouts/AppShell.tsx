@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { cn } from '../components/Button';
-import { LogOut, Settings, User } from 'lucide-react';
+import { User } from 'lucide-react';
 
 export interface AppShellProps extends React.HTMLAttributes<HTMLDivElement> {
   logo?: React.ReactNode;

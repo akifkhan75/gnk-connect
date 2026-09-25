@@ -50,8 +50,8 @@ export function DataTable<T>({
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
               <tr key={i} className="border-b transition-colors">
-                {columns.map((column, j) => (
-                  <td key={j} className="p-4 align-middle">
+                {columns.map((column) => (
+                  <td key={column.key} className="p-4 align-middle">
                     <div className="h-4 w-full animate-pulse rounded bg-muted" />
                   </td>
                 ))}

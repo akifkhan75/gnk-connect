@@ -1,4 +1,4 @@
-import * as React from 'react';
+
 import { Badge, type BadgeProps } from './Badge';
 
 const statusConfig: Record<string, BadgeProps['variant']> = {

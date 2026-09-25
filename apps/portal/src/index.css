@@ -1,40 +1,9 @@
+@import '@gnk/ui/src/styles/tokens.css';
+@import '@gnk/ui/src/styles/theme.css';
 @import "tailwindcss";
 
-@theme {
-  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-serif: 'Playfair Display', Georgia, serif;
-
-  --color-navy-50: #e6f0ff;
-  --color-navy-100: #cce0ff;
-  --color-navy-500: #3366cc;
-  --color-navy-600: #004099;
-  --color-navy-700: #00205B;
-  --color-navy-800: #001a4d;
-  --color-navy-900: #000f2e;
-
-  --color-cyan-300: #66d1ff;
-  --color-cyan-400: #33baff;
-  --color-cyan-500: #00A3E0;
-  --color-cyan-600: #0082b3;
-
-  --color-gold-400: #fbbf24;
-  --color-gold-500: #f59e0b;
-  --color-gold-600: #d97706;
-
-  --animate-float: float 6s ease-in-out infinite;
-  --animate-blob: blob 7s infinite;
-
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
-  }
-
-  @keyframes blob {
-    0% { transform: translate(0px, 0px) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 20px) scale(0.9); }
-    100% { transform: translate(0px, 0px) scale(1); }
-  }
+body {
+  @apply bg-background text-foreground font-sans antialiased;
 }
 
 /* Custom Utilities */
