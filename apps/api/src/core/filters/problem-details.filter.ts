@@ -1,56 +1,96 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
-import { Request, Response } from 'express';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
+import { Prisma } from '@prisma/client';
+import type { Request, Response } from 'express';
 
+const TITLES: Record<number, string> = {
+  400: 'Bad request',
+  401: 'Not signed in',
+  403: 'Not allowed',
+  404: 'Not found',
+  409: 'Conflict',
+  413: 'Payload too large',
+  422: 'Validation failed',
+  429: 'Too many requests',
+  500: 'Something went wrong',
+  502: 'Supplier error',
+  503: 'Service unavailable',
+};
+
+/** Every error leaves the API as RFC 7807 problem details (plan 05). */
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
+  private readonly logger = new Logger('HTTP');
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let title = 'Internal Server Error';
     let detail = 'An unexpected error occurred.';
-    const type = 'about:blank';
-    const extensions: Record<string, any> = {};
+    let code: string | undefined;
+    let errors: unknown;
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof ThrottlerException) {
+      status = HttpStatus.TOO_MANY_REQUESTS;
+      detail = 'Too many attempts. Please wait a few minutes and try again.';
+      code = 'RATE_LIMITED';
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
-
-      // Check if it's our own custom structured error (like ZodValidationPipe)
-      if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        const res = exceptionResponse as any;
-        title = res.error || res.message || 'Error';
-        detail = Array.isArray(res.message) ? res.message.join(', ') : res.message || detail;
-
-        if (res.errors) {
-          extensions['errors'] = res.errors; // specific for Zod validation
-        }
-      } else {
-        title = exception.message;
-        detail = typeof exceptionResponse === 'string' ? exceptionResponse : exception.message;
+      const body = exception.getResponse();
+      if (typeof body === 'string') {
+        detail = body;
+      } else if (body && typeof body === 'object') {
+        const b = body as Record<string, unknown>;
+        detail = Array.isArray(b.message)
+          ? b.message.join(', ')
+          : String(b.message ?? exception.message);
+        code = typeof b.code === 'string' ? b.code : undefined;
+        errors = b.errors;
       }
-    } else if (exception instanceof Error) {
-      // In production, do not expose internal error messages for 500s
-      if (process.env.NODE_ENV !== 'production') {
-        detail = exception.message;
-        extensions['stack'] = exception.stack;
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      if (exception.code === 'P2002') {
+        status = HttpStatus.CONFLICT;
+        detail = 'A record with these details already exists.';
+        code = 'DUPLICATE';
+      } else if (exception.code === 'P2025') {
+        status = HttpStatus.NOT_FOUND;
+        detail = 'The record was not found or was changed by someone else. Refresh and try again.';
+        code = 'NOT_FOUND';
       }
     }
 
-    const problemDetails = {
-      type,
-      title,
-      status,
-      detail,
-      instance: request.url,
-      traceId: request.id, // provided by pino-http
-      ...extensions,
-    };
+    if (status >= 500) {
+      this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        exception instanceof Error &&
+        !(exception instanceof HttpException)
+      ) {
+        detail = exception.message;
+      }
+    }
 
-    // Ensure content-type is application/problem+json
-    response.setHeader('Content-Type', 'application/problem+json');
-    response.status(status).json(problemDetails);
+    response
+      .status(status)
+      .type('application/problem+json')
+      .json({
+        type: 'about:blank',
+        title: TITLES[status] ?? 'Error',
+        status,
+        detail,
+        ...(code ? { code } : {}),
+        ...(errors ? { errors } : {}),
+        instance: request.originalUrl,
+        traceId: (request as any).id,
+      });
   }
 }

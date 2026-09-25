@@ -1,67 +1,58 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 
+export const PII_KEYS = Symbol('PII_KEYS');
+
+/**
+ * AES-256-GCM field encryption with key versioning (plan 03).
+ * Ciphertext format: `<version>:<iv b64>:<authTag b64>:<data b64>`.
+ * Keys come from PII_ENCRYPTION_KEY ("v2:<hex>,v1:<hex>"); the first key encrypts,
+ * all listed keys can decrypt, which allows rotation.
+ */
 @Injectable()
 export class CryptoService {
-  private keys: Map<string, Buffer>;
-  private defaultKeyVersion: string;
+  private readonly keys = new Map<string, Buffer>();
+  private readonly currentVersion: string;
 
-  constructor() {
-    this.keys = new Map();
-    // Ideally this comes from config, but for now we read env directly or use a fallback
-    // e.g. PII_ENCRYPTION_KEY=v1:32bytehexstring
-    const envKeys =
-      process.env.PII_ENCRYPTION_KEY || 'v1:' + crypto.randomBytes(32).toString('hex');
-
-    envKeys.split(',').forEach((keyConfig) => {
-      const [version, hexKey] = keyConfig.split(':');
-      if (version && hexKey) {
-        this.keys.set(version, Buffer.from(hexKey, 'hex'));
-        if (!this.defaultKeyVersion) {
-          this.defaultKeyVersion = version;
-        }
-      }
-    });
-
-    if (this.keys.size === 0) {
-      throw new Error('No encryption keys configured');
+  constructor(@Inject(PII_KEYS) keyConfig: string) {
+    const entries = keyConfig.split(',');
+    for (const entry of entries) {
+      const [version, hex] = entry.split(':');
+      this.keys.set(version, Buffer.from(hex, 'hex'));
     }
+    this.currentVersion = entries[0].split(':')[0];
   }
 
   encrypt(plainText: string): string {
-    const iv = crypto.randomBytes(12); // GCM standard IV size
-    const key = this.keys.get(this.defaultKeyVersion)!;
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-
-    let encrypted = cipher.update(plainText, 'utf8', 'base64');
-    encrypted += cipher.final('base64');
-    const authTag = cipher.getAuthTag().toString('base64');
-
-    // Format: version:iv:authTag:encrypted
-    return `${this.defaultKeyVersion}:${iv.toString('base64')}:${authTag}:${encrypted}`;
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', this.keys.get(this.currentVersion)!, iv);
+    const data = Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]);
+    return [
+      this.currentVersion,
+      iv.toString('base64'),
+      cipher.getAuthTag().toString('base64'),
+      data.toString('base64'),
+    ].join(':');
   }
 
   decrypt(cipherText: string): string {
-    const parts = cipherText.split(':');
-    if (parts.length !== 4) {
-      throw new Error('Invalid cipherText format');
-    }
-
-    const [version, iv64, authTag64, encrypted64] = parts;
+    const [version, iv, tag, data] = cipherText.split(':');
     const key = this.keys.get(version);
+    if (!key || !data) throw new Error('Unreadable ciphertext');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64'));
+    return Buffer.concat([decipher.update(Buffer.from(data, 'base64')), decipher.final()]).toString(
+      'utf8',
+    );
+  }
 
-    if (!key) {
-      throw new Error(`Encryption key version ${version} not found`);
-    }
+  /** Random URL-safe token and its SHA-256 hash (only the hash is stored). */
+  static newToken(): { token: string; hash: string } {
+    const token = crypto.randomBytes(32).toString('base64url');
+    return { token, hash: CryptoService.hash(token) };
+  }
 
-    const iv = Buffer.from(iv64, 'base64');
-    const authTag = Buffer.from(authTag64, 'base64');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encrypted64, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
+  static hash(value: string): string {
+    return crypto.createHash('sha256').update(value).digest('hex');
   }
 }

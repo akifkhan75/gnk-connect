@@ -4,12 +4,8 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
-    "declaration": true,
-    "outDir": "dist",
-    "skipLibCheck": true,
-    "rootDir": "src"
+    "noEmit": true,
+    "skipLibCheck": true
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }

@@ -1,26 +1,46 @@
 import { Global, Module } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { AuthController } from './auth.controller';
-import { PermissionsGuard } from './guards/permissions.guard';
-import { PartnerRolesGuard } from './guards/partner-roles.guard';
-import { ApprovalGuard } from './guards/approval.guard';
-
+import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { EnvConfig } from '../../core/config/env.config';
+import { SequencesService } from '../../core/sequences.service';
+import { ActorResolverService } from './actor-resolver.service';
+import { AuthCacheService } from './auth-cache.service';
+import { PartnerAuthController } from './partner-auth.controller';
+import { PartnerAuthService } from './partner-auth.service';
+import { PasswordService } from './password.service';
+import { SessionService } from './session.service';
+import { StaffAuthController } from './staff-auth.controller';
+import { StaffAuthService } from './staff-auth.service';
 
 @Global()
 @Module({
   imports: [
     JwtModule.registerAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET'),
+      useFactory: (config: ConfigService<EnvConfig, true>) => ({
+        secret: config.get('JWT_SECRET', { infer: true }),
+        signOptions: { algorithm: 'HS256' },
+        verifyOptions: { algorithms: ['HS256'] },
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, PermissionsGuard, PartnerRolesGuard, ApprovalGuard],
-  exports: [AuthService, PermissionsGuard, PartnerRolesGuard, ApprovalGuard, JwtModule],
+  controllers: [PartnerAuthController, StaffAuthController],
+  providers: [
+    ActorResolverService,
+    AuthCacheService,
+    PasswordService,
+    SessionService,
+    PartnerAuthService,
+    StaffAuthService,
+    SequencesService,
+  ],
+  exports: [
+    ActorResolverService,
+    AuthCacheService,
+    PasswordService,
+    SessionService,
+    SequencesService,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

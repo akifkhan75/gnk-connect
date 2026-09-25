@@ -1,33 +1,51 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import helmet from 'helmet';
-import { Logger } from 'nestjs-pino';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from 'nestjs-pino';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { EnvConfig } from './core/config/env.config';
+import { AppModule } from './app.module';
+import type { EnvConfig } from './core/config/env.config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
-  const logger = app.get(Logger);
-  app.useLogger(logger);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+    bodyParser: false,
+  });
+  app.useLogger(app.get(Logger));
+  const config = app.get<ConfigService<EnvConfig, true>>(ConfigService);
 
-  const configService = app.get<ConfigService<EnvConfig>>(ConfigService);
-
-  // Security Headers & Cookies
-  app.use(helmet());
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+  app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'none'"] } } }));
   app.use(cookieParser());
+  app.useBodyParser('json', { limit: '100kb' });
+  app.useBodyParser('urlencoded', { extended: false, limit: '100kb' });
 
-  // CORS Configuration
-  const allowedOrigins = configService.get('CORS_ORIGINS', { infer: true })?.split(',') || [];
   app.enableCors({
-    origin: allowedOrigins,
+    origin: config
+      .get('CORS_ORIGINS', { infer: true })
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-GNK-CSRF',
+      'X-GNK-Account',
+      'Idempotency-Key',
+      'X-Request-Id',
+    ],
+    exposedHeaders: ['X-Request-Id', 'Retry-After'],
   });
 
   app.setGlobalPrefix('api/v1');
+  app.enableShutdownHooks();
 
-  const port = configService.get('PORT', { infer: true }) || 4000;
+  const port = config.get('PORT', { infer: true });
   await app.listen(port);
-  logger.log(`🚀 GNK Connect Enterprise B2B API running on: http://localhost:${port}/api/v1`);
+  app.get(Logger).log(`GNK Connect API listening on http://localhost:${port}/api/v1`);
 }
 bootstrap();

@@ -30,6 +30,7 @@ enum PartnerRole {
   STAFF
   ACCOUNTANT
 }
+
 // basic portal RBAC
 enum UserStatus {
   INVITED
@@ -61,6 +62,7 @@ model PartnerAccount {
   reviewedById    String?              @db.Uuid // StaffUser
   reviewedAt      DateTime?
   rejectionReason String?
+  reviewNote      String? // shown to partner when MORE_INFO_REQUIRED
   approvedAt      DateTime?
   suspendedReason String?
   version         Int                  @default(0)
@@ -71,6 +73,8 @@ model PartnerAccount {
   members         PartnerMember[]
   documents       KycDocument[]
   bookings        Booking[]
+  payments        Payment[]
+  invoices        Invoice[]
   ledgerAccount   LedgerAccount?  @relation(fields: [ledgerAccountId], references: [id])
   pricingRules    PricingRule[]
   ledgerAccountId String?         @db.Uuid
@@ -119,7 +123,9 @@ model PartnerInvite {
   tokenHash   String      @unique
   expiresAt   DateTime
   acceptedAt  DateTime?
+  revokedAt   DateTime?
   createdById String      @db.Uuid
+  createdAt   DateTime    @default(now())
 
   @@index([accountId])
 }
@@ -128,7 +134,7 @@ model PartnerInvite {
 model StaffUser {
   id               String          @id @default(uuid(7)) @db.Uuid
   email            String          @unique @db.Citext
-  passwordHash     String
+  passwordHash     String? // null while INVITED
   fullName         String
   status           UserStatus      @default(ACTIVE)
   totpSecretEnc    String? // AES-GCM encrypted
@@ -215,6 +221,7 @@ model Session {
 enum OneTimeTokenPurpose {
   EMAIL_VERIFY
   PASSWORD_RESET
+  STAFF_INVITE
 }
 
 model OneTimeToken {
@@ -254,18 +261,19 @@ enum FilePurpose {
 }
 
 model StoredFile {
-  id           String      @id @default(uuid(7)) @db.Uuid
+  id           String        @id @default(uuid(7)) @db.Uuid
   purpose      FilePurpose
-  bucketKey    String      @unique // private object key; never a public URL
+  bucketKey    String        @unique // private object key; never a public URL
   originalName String
   mimeType     String // sniffed from magic bytes
   sizeBytes    Int
   sha256       String
   ownerRealm   Realm
-  ownerUserId  String      @db.Uuid
-  accountId    String?     @db.Uuid // tenant scope for access checks
-  scanStatus   String      @default("PENDING") // PENDING/CLEAN/INFECTED (if AV enabled)
-  createdAt    DateTime    @default(now())
+  ownerUserId  String        @db.Uuid
+  accountId    String?       @db.Uuid // tenant scope for access checks
+  scanStatus   String        @default("PENDING") // PENDING/CLEAN/INFECTED (if AV enabled)
+  createdAt    DateTime      @default(now())
+  kycDocuments KycDocument[]
 
   @@index([accountId, purpose])
 }
@@ -275,6 +283,7 @@ model KycDocument {
   accountId    String         @db.Uuid
   type         KycDocType
   fileId       String         @db.Uuid
+  file         StoredFile     @relation(fields: [fileId], references: [id])
   status       KycDocStatus   @default(SUBMITTED)
   reviewNote   String?
   reviewedById String?        @db.Uuid
@@ -504,11 +513,12 @@ enum Title {
   MSTR
 }
 
-model BookingSequence {
-  year Int @id
-  last Int @default(0)
+// Atomic per-year counters for human-readable references
+// (GNK-2026-000124, PAY-2026-000031, INV-2026-000210) via INSERT … ON CONFLICT … RETURNING.
+model DocumentSequence {
+  key  String @id // e.g. "BOOKING:2026"
+  last Int    @default(0)
 }
-// atomic GNK-YYYY-###### via UPDATE … RETURNING
 
 model Booking {
   id                 String               @id @default(uuid(7)) @db.Uuid
@@ -543,6 +553,7 @@ model Booking {
   statusHistory      BookingStatusEvent[]
   payments           Payment[]
   supplierCalls      SupplierCallLog[]
+  invoice            Invoice?
   account            PartnerAccount       @relation(fields: [accountId], references: [id])
   product            Product              @relation(fields: [productId], references: [id])
   departure          Departure            @relation(fields: [departureId], references: [id])
@@ -629,25 +640,26 @@ model PaymentMethodConfig {
 }
 
 model Payment {
-  id              String        @id @default(uuid(7)) @db.Uuid
-  reference       String        @unique // PAY-2026-000031
-  accountId       String        @db.Uuid
-  bookingId       String?       @db.Uuid // null = wallet top-up
+  id              String         @id @default(uuid(7)) @db.Uuid
+  reference       String         @unique // PAY-2026-000031
+  accountId       String         @db.Uuid
+  bookingId       String?        @db.Uuid // null = wallet top-up
   method          PaymentMethod
-  status          PaymentStatus @default(SUBMITTED)
-  amount          Decimal       @db.Decimal(14, 2)
-  currency        String        @default("PKR") @db.Char(3)
+  status          PaymentStatus  @default(SUBMITTED)
+  amount          Decimal        @db.Decimal(14, 2)
+  currency        String         @default("PKR") @db.Char(3)
   bankName        String?
   transactionRef  String? // bank txn / cheque no.
   paidAt          DateTime?
-  proofFileId     String?       @db.Uuid
-  submittedById   String        @db.Uuid
-  verifiedById    String?       @db.Uuid
+  proofFileId     String?        @db.Uuid
+  submittedById   String         @db.Uuid
+  verifiedById    String?        @db.Uuid
   verifiedAt      DateTime?
   rejectionReason String?
   gatewayPayload  Json?
-  createdAt       DateTime      @default(now())
-  Booking         Booking?      @relation(fields: [bookingId], references: [id])
+  createdAt       DateTime       @default(now())
+  account         PartnerAccount @relation(fields: [accountId], references: [id])
+  Booking         Booking?       @relation(fields: [bookingId], references: [id])
 
   @@unique([method, transactionRef]) // prevent same bank ref used twice
   @@index([accountId])
@@ -698,13 +710,18 @@ model LedgerEntry {
 // Invariant (enforced in service + DB CHECK via raw migration): Σdebit = Σcredit per transaction.
 
 model Invoice {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  number    String   @unique // INV-2026-000210
-  accountId String   @db.Uuid
-  bookingId String   @unique @db.Uuid
-  total     Decimal  @db.Decimal(14, 2)
-  fileId    String?  @db.Uuid // generated PDF
-  issuedAt  DateTime @default(now())
+  id        String         @id @default(uuid(7)) @db.Uuid
+  number    String         @unique // INV-2026-000210
+  accountId String         @db.Uuid
+  bookingId String         @unique @db.Uuid
+  total     Decimal        @db.Decimal(14, 2)
+  fileId    String?        @db.Uuid // generated PDF
+  issuedAt  DateTime       @default(now())
+  voidedAt  DateTime?
+  account   PartnerAccount @relation(fields: [accountId], references: [id])
+  booking   Booking        @relation(fields: [bookingId], references: [id])
+
+  @@index([accountId])
 }
 
 model Notification {

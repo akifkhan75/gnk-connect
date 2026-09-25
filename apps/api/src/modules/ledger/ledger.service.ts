@@ -1,193 +1,292 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { LedgerAccountType, Prisma } from '@prisma/client';
+import type { BalanceDto, StatementDto } from '@gnk/types';
+import { todayPk } from '@gnk/validation';
+import { Decimal, num } from '../../core/money';
+import { SequencesService } from '../../core/sequences.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { NotificationsService } from '../notifications/notifications.service';
 
+type Tx = Prisma.TransactionClient;
+
+interface EntryInput {
+  ledgerAccountId: string;
+  debit?: Prisma.Decimal | number;
+  credit?: Prisma.Decimal | number;
+}
+
+const SYSTEM_NAMES: Record<Exclude<LedgerAccountType, 'PARTNER_RECEIVABLE'>, string> = {
+  BANK: 'GNK bank accounts',
+  CASH: 'GNK cash',
+  GNK_REVENUE: 'GNK margin revenue',
+  SUPPLIER_PAYABLE: 'Supplier payable',
+};
+
+/**
+ * Double-entry ledger (plan 03, 06 §P6). Balances are derived from entries, never stored.
+ * A partner's balance is Σcredit − Σdebit on their PARTNER_RECEIVABLE account:
+ * positive = money held for them, negative = they owe GNK (used credit).
+ */
 @Injectable()
 export class LedgerService {
-  private readonly logger = new Logger(LedgerService.name);
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsService
+    private readonly sequences: SequencesService,
   ) {}
 
-  public async getAgencyTransactions(accountId: string) {
-    const account = await this.prisma.ledgerAccount.findUnique({
-      where: { accountId },
+  // ---------- Accounts ----------
+
+  async partnerAccount(tx: Tx, accountId: string) {
+    const existing = await tx.ledgerAccount.findUnique({ where: { accountId } });
+    if (existing) return existing;
+    const partner = await tx.partnerAccount.findUniqueOrThrow({ where: { id: accountId } });
+    return tx.ledgerAccount.create({
+      data: { type: 'PARTNER_RECEIVABLE', accountId, name: `${partner.code} ${partner.legalName}` },
     });
-    if (!account) return [];
-
-    const entries = await this.prisma.ledgerEntry.findMany({
-      where: { ledgerAccountId: account.id },
-      include: {
-        transaction: true,
-      },
-      orderBy: { transaction: { postedAt: 'desc' } },
-    });
-
-    let runningBalance = 0;
-    // Calculate running balance chronologically
-    const chronological = [...entries].reverse();
-    return chronological.map((e) => {
-      const type = e.credit.greaterThan(0) ? 'CREDIT_DEPOSIT' : 'BOOKING_DEBIT';
-      const amountPKR = e.credit.greaterThan(0) ? Number(e.credit) : Number(e.debit);
-      
-      // For PARTNER_RECEIVABLE, credit decreases their debt (adds to wallet), debit increases their debt (subtracts from wallet)
-      // So Wallet Balance = Credit - Debit
-      runningBalance += Number(e.credit) - Number(e.debit);
-      
-      return {
-        id: e.transaction.id,
-        agencyId: accountId,
-        type,
-        amountPKR,
-        balanceAfterPKR: runningBalance,
-        reference: e.transaction.reference,
-        description: e.transaction.description,
-        createdAt: e.transaction.postedAt.toISOString(),
-      };
-    }).reverse();
   }
 
-  public async getStatementOfAccount(accountId: string, from?: string, to?: string) {
-    const txns = await this.getAgencyTransactions(accountId);
-    
-    // Standard SOA logic...
-    // We will just return the full transactions for now as the statement
-    const totalCreditsPKR = txns.filter(t => t.type === 'CREDIT_DEPOSIT').reduce((sum, t) => sum + t.amountPKR, 0);
-    const totalDebitsPKR = txns.filter(t => t.type === 'BOOKING_DEBIT').reduce((sum, t) => sum + t.amountPKR, 0);
-    const closingBalancePKR = txns.length > 0 ? txns[0].balanceAfterPKR : 0;
-    const creditLimitPKR = 2000000;
-
-    return {
-      statementNumber: `SOA-${new Date().toISOString().slice(0, 7)}-${accountId.slice(0, 8)}`,
-      agencyId: accountId,
-      agencyName: 'Agency', // Should fetch from DB
-      periodStart: from || '2026-01-01',
-      periodEnd: to || new Date().toISOString().slice(0, 10),
-      openingBalancePKR: 0,
-      closingBalancePKR,
-      totalDebitsPKR,
-      totalCreditsPKR,
-      creditLimitPKR,
-      availableCreditPKR: creditLimitPKR + closingBalancePKR,
-      transactions: txns,
-      generatedAt: new Date().toISOString(),
-    };
+  async systemAccount(tx: Tx, type: keyof typeof SYSTEM_NAMES) {
+    const existing = await tx.ledgerAccount.findFirst({ where: { type, accountId: null } });
+    return existing ?? tx.ledgerAccount.create({ data: { type, name: SYSTEM_NAMES[type] } });
   }
 
-  public async getAdminFinancialSummary() {
-    return {
-      grossBookingsVolumePKR: 12450000,
-      totalSupplierCostPKR: 11150000,
-      retainedGnkMarginPKR: 1300000,
-      totalAgencyWalletDepositsPKR: 8500000,
-      totalOutstandingCreditPKR: 3200000,
-      activeAgenciesCount: 14,
-    };
-  }
+  // ---------- Posting ----------
 
-  public async submitTopup(
-    accountId: string,
-    amountPKR: number,
-    reference: string,
-    bankName: string,
-    proofFileId: string,
-    submittedById: string,
+  async post(
+    tx: Tx,
+    input: {
+      description: string;
+      bookingId?: string;
+      paymentId?: string;
+      createdById?: string;
+      entries: EntryInput[];
+    },
   ) {
-    const existing = await this.prisma.payment.findUnique({ where: { reference } });
-    if (existing) throw new BadRequestException('Payment reference already exists');
+    const debit = input.entries.reduce((s, e) => s.plus(e.debit ?? 0), new Decimal(0));
+    const credit = input.entries.reduce((s, e) => s.plus(e.credit ?? 0), new Decimal(0));
+    if (!debit.equals(credit) || debit.lte(0))
+      throw new Error(`Unbalanced ledger posting: ${debit} ≠ ${credit}`);
 
-    return this.prisma.payment.create({
+    return tx.ledgerTransaction.create({
       data: {
-        accountId,
-        method: 'BANK_TRANSFER', // Assuming enum PaymentMethod.BANK_TRANSFER
-        amount: amountPKR,
-        reference,
-        bankName,
-        proofFileId,
-        submittedById,
+        reference: await this.sequences.next('LEDGER', tx),
+        description: input.description,
+        bookingId: input.bookingId,
+        paymentId: input.paymentId,
+        createdById: input.createdById,
+        entries: {
+          create: input.entries.map((e) => ({
+            ledgerAccountId: e.ledgerAccountId,
+            debit: e.debit ?? 0,
+            credit: e.credit ?? 0,
+          })),
+        },
       },
     });
   }
 
-  public async getPendingTopups() {
-    const payments = await this.prisma.payment.findMany({
-      where: { status: 'SUBMITTED', bookingId: null },
-      orderBy: { createdAt: 'desc' }
+  /** Verified deposit: Dr bank/cash, Cr partner. */
+  async postPayment(
+    tx: Tx,
+    p: { id: string; accountId: string; amount: Prisma.Decimal; method: string; reference: string },
+    staffId: string,
+  ) {
+    const partner = await this.partnerAccount(tx, p.accountId);
+    const cash = await this.systemAccount(tx, p.method === 'CASH' ? 'CASH' : 'BANK');
+    return this.post(tx, {
+      description: `Payment received ${p.reference}`,
+      paymentId: p.id,
+      createdById: staffId,
+      entries: [
+        { ledgerAccountId: cash.id, debit: p.amount },
+        { ledgerAccountId: partner.id, credit: p.amount },
+      ],
     });
-    
-    // Fetch accounts manually since relation isn't mapped
-    const accountIds = [...new Set(payments.map(p => p.accountId))];
-    const accounts = await this.prisma.partnerAccount.findMany({
-      where: { id: { in: accountIds } },
-      select: { id: true, legalName: true }
-    });
-    const accountMap = new Map(accounts.map(a => [a.id, a]));
-    
-    return payments.map(p => ({
-      ...p,
-      account: accountMap.get(p.accountId)
-    }));
   }
 
-  public async verifyTopup(paymentId: string, verifiedById: string) {
-    const result = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.findUnique({ where: { id: paymentId } });
-      if (!payment) throw new NotFoundException('Payment not found');
-      if (payment.status !== 'SUBMITTED') throw new BadRequestException('Payment is not pending verification');
-
-      // Update payment
-      await tx.payment.update({
-        where: { id: paymentId },
-        data: {
-          status: 'VERIFIED',
-          verifiedById,
-          verifiedAt: new Date(),
-        },
-      });
-
-      // Get or create Ledger Accounts
-      let partnerAccount = await tx.ledgerAccount.findUnique({ where: { accountId: payment.accountId } });
-      if (!partnerAccount) {
-        partnerAccount = await tx.ledgerAccount.create({
-          data: {
-            type: 'PARTNER_RECEIVABLE',
-            accountId: payment.accountId,
-            name: `Receivables - Account ${payment.accountId.slice(0, 8)}`,
-          },
-        });
-      }
-
-      let bankAccount = await tx.ledgerAccount.findFirst({ where: { type: 'BANK' } });
-      if (!bankAccount) {
-        bankAccount = await tx.ledgerAccount.create({
-          data: { type: 'BANK', name: 'GNK Main Corporate Bank Account' },
-        });
-      }
-
-      // Record double-entry: Debit Bank, Credit Partner Receivable
-      await tx.ledgerTransaction.create({
-        data: {
-          reference: `TXN-${payment.reference}`,
-          description: `Wallet top-up verified: ${payment.reference}`,
-          paymentId: payment.id,
-          createdById: verifiedById,
-          entries: {
-            create: [
-              { ledgerAccountId: bankAccount.id, debit: payment.amount, credit: 0 },
-              { ledgerAccountId: partnerAccount.id, debit: 0, credit: payment.amount },
-            ],
-          },
-        },
-      });
-
-      return { partnerAccount, payment };
+  /** Confirmed booking: Dr partner (total), Cr supplier payable (net), Cr GNK revenue (margin). */
+  async postBookingCharge(
+    tx: Tx,
+    b: {
+      id: string;
+      reference: string;
+      accountId: string;
+      seats: number;
+      supplierNetUnit: Prisma.Decimal;
+      markupUnit: Prisma.Decimal;
+      totalPrice: Prisma.Decimal;
+    },
+    actorId?: string,
+  ) {
+    const partner = await this.partnerAccount(tx, b.accountId);
+    const payable = await this.systemAccount(tx, 'SUPPLIER_PAYABLE');
+    const revenue = await this.systemAccount(tx, 'GNK_REVENUE');
+    const net = b.supplierNetUnit.times(b.seats);
+    const margin = b.totalPrice.minus(net);
+    return this.post(tx, {
+      description: `Booking ${b.reference} (${b.seats} seat${b.seats > 1 ? 's' : ''})`,
+      bookingId: b.id,
+      createdById: actorId,
+      entries: [
+        { ledgerAccountId: partner.id, debit: b.totalPrice },
+        { ledgerAccountId: payable.id, credit: net },
+        ...(margin.gt(0) ? [{ ledgerAccountId: revenue.id, credit: margin }] : []),
+      ],
     });
+  }
 
-    // Notify the user who submitted it
-    await this.notifications.notifyWalletTopup(result.payment.submittedById, Number(result.payment.amount));
+  /** Reverses a booking charge in full (cancellation after confirmation). */
+  async reverseBookingCharge(
+    tx: Tx,
+    b: {
+      id: string;
+      reference: string;
+      accountId: string;
+      seats: number;
+      supplierNetUnit: Prisma.Decimal;
+      totalPrice: Prisma.Decimal;
+    },
+    actorId?: string,
+  ) {
+    const partner = await this.partnerAccount(tx, b.accountId);
+    const payable = await this.systemAccount(tx, 'SUPPLIER_PAYABLE');
+    const revenue = await this.systemAccount(tx, 'GNK_REVENUE');
+    const net = b.supplierNetUnit.times(b.seats);
+    const margin = b.totalPrice.minus(net);
+    return this.post(tx, {
+      description: `Refund for cancelled booking ${b.reference}`,
+      bookingId: b.id,
+      createdById: actorId,
+      entries: [
+        { ledgerAccountId: payable.id, debit: net },
+        ...(margin.gt(0) ? [{ ledgerAccountId: revenue.id, debit: margin }] : []),
+        { ledgerAccountId: partner.id, credit: b.totalPrice },
+      ],
+    });
+  }
 
-    return { success: true, message: 'Payment verified and ledger updated' };
+  /** Manual correction by finance. CREDIT increases the partner's balance. */
+  async adjust(
+    accountId: string,
+    direction: 'CREDIT' | 'DEBIT',
+    amount: number,
+    description: string,
+    staffId: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const partner = await this.partnerAccount(tx, accountId);
+      const contra = await this.systemAccount(tx, 'GNK_REVENUE');
+      return this.post(tx, {
+        description: `Adjustment: ${description}`,
+        createdById: staffId,
+        entries:
+          direction === 'CREDIT'
+            ? [
+                { ledgerAccountId: contra.id, debit: amount },
+                { ledgerAccountId: partner.id, credit: amount },
+              ]
+            : [
+                { ledgerAccountId: partner.id, debit: amount },
+                { ledgerAccountId: contra.id, credit: amount },
+              ],
+      });
+    });
+  }
+
+  // ---------- Reading ----------
+
+  async balance(accountId: string, tx: Tx = this.prisma): Promise<BalanceDto> {
+    const partner = await tx.partnerAccount.findUnique({
+      where: { id: accountId },
+      select: { creditLimit: true },
+    });
+    if (!partner) throw new NotFoundException('Partner not found');
+    const ledger = await tx.ledgerAccount.findUnique({ where: { accountId } });
+    let balance = new Decimal(0);
+    if (ledger) {
+      const sums = await tx.ledgerEntry.aggregate({
+        where: { ledgerAccountId: ledger.id },
+        _sum: { debit: true, credit: true },
+      });
+      balance = new Decimal(sums._sum.credit ?? 0).minus(sums._sum.debit ?? 0);
+    }
+    return {
+      balance: num(balance),
+      creditLimit: num(partner.creditLimit),
+      availableFunds: num(balance.plus(partner.creditLimit)),
+    };
+  }
+
+  async balances(accountIds: string[]): Promise<Map<string, number>> {
+    if (!accountIds.length) return new Map();
+    const rows = await this.prisma.$queryRaw<{ accountId: string; balance: Prisma.Decimal }[]>`
+      SELECT la."accountId", COALESCE(SUM(le.credit) - SUM(le.debit), 0) AS balance
+      FROM "LedgerAccount" la
+      LEFT JOIN "LedgerEntry" le ON le."ledgerAccountId" = la.id
+      WHERE la."accountId" = ANY(${accountIds}::uuid[])
+      GROUP BY la."accountId"`;
+    return new Map(rows.map((r) => [r.accountId, num(r.balance)]));
+  }
+
+  async statement(accountId: string, from?: string, to?: string): Promise<StatementDto> {
+    const partner = await this.prisma.partnerAccount.findUnique({ where: { id: accountId } });
+    if (!partner) throw new NotFoundException('Partner not found');
+    const end = to ?? todayPk();
+    const start =
+      from ??
+      new Date(new Date(`${end}T00:00:00Z`).getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
+    if (start > end) throw new BadRequestException('The start date must be before the end date');
+
+    const fromDate = new Date(`${start}T00:00:00+05:00`); // statements follow Asia/Karachi days
+    const toDate = new Date(`${end}T23:59:59.999+05:00`);
+    const ledger = await this.prisma.ledgerAccount.findUnique({ where: { accountId } });
+
+    let opening = new Decimal(0);
+    let lines: StatementDto['lines'] = [];
+    if (ledger) {
+      const before = await this.prisma.ledgerEntry.aggregate({
+        where: { ledgerAccountId: ledger.id, transaction: { postedAt: { lt: fromDate } } },
+        _sum: { debit: true, credit: true },
+      });
+      opening = new Decimal(before._sum.credit ?? 0).minus(before._sum.debit ?? 0);
+      const entries = await this.prisma.ledgerEntry.findMany({
+        where: {
+          ledgerAccountId: ledger.id,
+          transaction: { postedAt: { gte: fromDate, lte: toDate } },
+        },
+        include: { transaction: true },
+        orderBy: [{ transaction: { postedAt: 'asc' } }, { id: 'asc' }],
+      });
+      let running = opening;
+      lines = entries.map((e) => {
+        running = running.plus(e.credit).minus(e.debit);
+        return {
+          date: e.transaction.postedAt.toISOString(),
+          reference: e.transaction.reference,
+          description: e.transaction.description,
+          debit: num(e.debit),
+          credit: num(e.credit),
+          balance: num(running),
+        };
+      });
+    }
+    const totalDebits = lines.reduce((s, l) => s + l.debit, 0);
+    const totalCredits = lines.reduce((s, l) => s + l.credit, 0);
+    const closing = lines.length ? lines[lines.length - 1].balance : num(opening);
+    const current = await this.balance(accountId);
+
+    return {
+      accountId,
+      accountCode: partner.code,
+      accountName: partner.tradeName || partner.legalName,
+      from: start,
+      to: end,
+      openingBalance: num(opening),
+      closingBalance: closing,
+      totalDebits,
+      totalCredits,
+      creditLimit: num(partner.creditLimit),
+      availableFunds: current.availableFunds,
+      lines,
+    };
   }
 }

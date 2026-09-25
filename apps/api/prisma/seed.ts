@@ -1,22 +1,21 @@
+import { PrismaClient } from '@prisma/client';
 import { seedBase } from './seed-base';
 import { seedDemo } from './seed-demo';
-import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await seedBase();
-
-  if (process.env.NODE_ENV !== 'production') {
-    await seedDemo();
+  const base = await seedBase(prisma);
+  console.log('✅ Base data seeded');
+  if (process.env.NODE_ENV !== 'production' && process.env.SEED_DEMO !== 'false') {
+    await seedDemo(prisma, base);
+    console.log('✅ Demo data seeded');
   }
 }
 
 main()
   .catch((e) => {
-    console.error('Seed error:', e);
+    console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(() => prisma.$disconnect());

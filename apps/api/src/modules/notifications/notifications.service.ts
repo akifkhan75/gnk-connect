@@ -1,97 +1,119 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { PartnerRole, Realm } from '@prisma/client';
+import type { NotificationDto, Permission } from '@gnk/types';
+import { iso } from '../../core/money';
+import { MailerService } from '../../infra/mailer/mailer.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { Realm } from '@prisma/client';
 
-export interface SendNotificationParams {
-  realm: Realm;
-  userId: string;
+interface NotifyInput {
   type: string;
   title: string;
   body: string;
   link?: string;
+  email?: boolean;
 }
 
+/** In-app notifications (bell + page) with optional email copy for partners. */
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailer: MailerService,
+  ) {}
 
-  public async getMyNotifications(userId: string, realm: Realm) {
-    return this.prisma.notification.findMany({
-      where: { userId, realm },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-  }
-
-  public async getUnreadCount(userId: string, realm: Realm) {
-    return this.prisma.notification.count({
-      where: { userId, realm, readAt: null },
-    });
-  }
-
-  public async markAsRead(id: string, userId: string) {
-    return this.prisma.notification.updateMany({
-      where: { id, userId },
-      data: { readAt: new Date() },
-    });
-  }
-
-  public async markAllAsRead(userId: string, realm: Realm) {
-    return this.prisma.notification.updateMany({
-      where: { userId, realm, readAt: null },
-      data: { readAt: new Date() },
-    });
-  }
-
-  public async sendNotification(params: SendNotificationParams) {
-    const notif = await this.prisma.notification.create({
-      data: {
-        realm: params.realm,
-        userId: params.userId,
-        type: params.type,
-        title: params.title,
-        body: params.body,
-        link: params.link,
+  /** Notify members of a partner account, optionally only some roles. */
+  async notifyAccount(accountId: string, input: NotifyInput, roles?: PartnerRole[]) {
+    const members = await this.prisma.partnerMember.findMany({
+      where: {
+        accountId,
+        ...(roles ? { role: { in: roles } } : {}),
+        user: { status: 'ACTIVE', deletedAt: null },
       },
+      include: { user: true },
     });
-
-    // In a real system, we might also dispatch an email here depending on user preferences
-    this.logger.log(`[${params.realm}] Notification sent to ${params.userId}: "${params.title}"`);
-    return notif;
+    await this.create(
+      'PARTNER',
+      members.map((m) => m.userId),
+      input,
+    );
+    if (input.email) {
+      for (const m of members)
+        await this.mailer.notification(m.user.email, input.title, input.body, input.link);
+    }
   }
 
-  public async notifyAgencyApproval(userId: string, agencyName: string) {
-    return this.sendNotification({
-      realm: 'PARTNER',
-      userId,
-      type: 'KYC_APPROVED',
-      title: 'Agency Account Approved! 🎉',
-      body: `Congratulations! ${agencyName} has been fully verified and approved. You can now access wholesale rates and make bookings.`,
-      link: '/dashboard',
+  async notifyPartnerUser(userId: string, input: NotifyInput) {
+    await this.create('PARTNER', [userId], input);
+  }
+
+  /** Notify every active staff member who holds the permission. */
+  async notifyStaff(permission: Permission, input: NotifyInput) {
+    const users = await this.prisma.staffUser.findMany({
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        roles: { some: { role: { permissions: { some: { permission: { key: permission } } } } } },
+      },
+      select: { id: true },
+    });
+    await this.create(
+      'STAFF',
+      users.map((u) => u.id),
+      input,
+    );
+  }
+
+  async list(
+    realm: Realm,
+    userId: string,
+    unreadOnly = false,
+  ): Promise<{ items: NotificationDto[]; unread: number }> {
+    const [rows, unread] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { realm, userId, ...(unreadOnly ? { readAt: null } : {}) },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+      this.prisma.notification.count({ where: { realm, userId, readAt: null } }),
+    ]);
+    return {
+      unread,
+      items: rows.map((n) => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        body: n.body,
+        link: n.link,
+        readAt: iso(n.readAt),
+        createdAt: iso(n.createdAt)!,
+      })),
+    };
+  }
+
+  async markRead(realm: Realm, userId: string, id?: string) {
+    await this.prisma.notification.updateMany({
+      where: { realm, userId, readAt: null, ...(id ? { id } : {}) },
+      data: { readAt: new Date() },
     });
   }
 
-  public async notifyBookingConfirmed(userId: string, bookingId: string, pnr: string) {
-    return this.sendNotification({
-      realm: 'PARTNER',
-      userId,
-      type: 'BOOKING_CONFIRMED',
-      title: 'Booking Confirmed',
-      body: `Your booking ${bookingId} has been confirmed. PNR: ${pnr}`,
-      link: `/bookings/${bookingId}/voucher`,
-    });
-  }
-
-  public async notifyWalletTopup(userId: string, amount: number) {
-    return this.sendNotification({
-      realm: 'PARTNER',
-      userId,
-      type: 'WALLET_CREDITED',
-      title: 'Wallet Top-up Successful',
-      body: `Your wallet has been credited with Rs ${amount.toLocaleString()}. The funds are now available for bookings.`,
-      link: '/payments',
-    });
+  private async create(realm: Realm, userIds: string[], input: NotifyInput) {
+    if (!userIds.length) return;
+    try {
+      await this.prisma.notification.createMany({
+        data: userIds.map((userId) => ({
+          realm,
+          userId,
+          type: input.type,
+          title: input.title,
+          body: input.body,
+          link: input.link,
+        })),
+      });
+    } catch (err) {
+      this.logger.error(`Failed to create notifications: ${(err as Error).message}`);
+    }
   }
 }

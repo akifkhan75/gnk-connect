@@ -1,42 +1,49 @@
-import { Controller, Get, Post, Param, Body, Patch } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { UUID } from '../../core/http/parse-uuid';
+import type { PartnerActor, StaffActor } from '../auth/auth.types';
+import { CurrentActor } from '../auth/decorators';
 import { NotificationsService } from './notifications.service';
-import { Realm } from '@prisma/client';
 
-@Controller('notifications')
-export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+@Controller('partner/notifications')
+export class PartnerNotificationsController {
+  constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
-  getMyNotifications(
-    // Usually from Req.user
-    @Body('userId') userId: string,
-    @Body('realm') realm: Realm,
-  ) {
-    // Hardcoded for testing since we don't have full auth wired
-    return this.notificationsService.getMyNotifications(userId || 'user-123', realm || 'PARTNER');
+  list(@CurrentActor() actor: PartnerActor, @Query('unread') unread?: string) {
+    return this.notifications.list('PARTNER', actor.userId, unread === 'true');
   }
 
-  @Get('unread-count')
-  getUnreadCount(
-    @Body('userId') userId: string,
-    @Body('realm') realm: Realm,
-  ) {
-    return this.notificationsService.getUnreadCount(userId || 'user-123', realm || 'PARTNER');
+  @Post('read-all')
+  @HttpCode(204)
+  async readAll(@CurrentActor() actor: PartnerActor) {
+    await this.notifications.markRead('PARTNER', actor.userId);
   }
 
-  @Patch(':id/read')
-  markAsRead(
-    @Param('id') id: string,
-    @Body('userId') userId: string,
-  ) {
-    return this.notificationsService.markAsRead(id, userId || 'user-123');
+  @Post(':id/read')
+  @HttpCode(204)
+  async read(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
+    await this.notifications.markRead('PARTNER', actor.userId, id);
+  }
+}
+
+@Controller('admin/notifications')
+export class AdminNotificationsController {
+  constructor(private readonly notifications: NotificationsService) {}
+
+  @Get()
+  list(@CurrentActor() actor: StaffActor, @Query('unread') unread?: string) {
+    return this.notifications.list('STAFF', actor.userId, unread === 'true');
   }
 
-  @Patch('read-all')
-  markAllAsRead(
-    @Body('userId') userId: string,
-    @Body('realm') realm: Realm,
-  ) {
-    return this.notificationsService.markAllAsRead(userId || 'user-123', realm || 'PARTNER');
+  @Post('read-all')
+  @HttpCode(204)
+  async readAll(@CurrentActor() actor: StaffActor) {
+    await this.notifications.markRead('STAFF', actor.userId);
+  }
+
+  @Post(':id/read')
+  @HttpCode(204)
+  async read(@CurrentActor() actor: StaffActor, @Param('id', UUID) id: string) {
+    await this.notifications.markRead('STAFF', actor.userId, id);
   }
 }

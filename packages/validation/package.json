@@ -2,12 +2,17 @@
   "name": "@gnk/validation",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "typescript": "~5.8.2"
+  },
+  "types": "./src/index.ts",
+  "dependencies": {
+    "zod": "^4.6.5",
+    "@gnk/types": "*"
   }
 }

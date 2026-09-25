@@ -15,6 +15,10 @@ COPY --from=builder /app/out/json/ .
 RUN npm ci
 
 COPY --from=builder /app/out/full/ .
+# Vite inlines these at build time.
+ARG VITE_API_URL
+ARG VITE_PORTAL_URL
+ENV VITE_API_URL=$VITE_API_URL VITE_PORTAL_URL=$VITE_PORTAL_URL
 RUN npx turbo run build --filter=@gnk/admin
 
 FROM nginx:alpine AS runner

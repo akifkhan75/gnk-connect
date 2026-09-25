@@ -1,57 +1,42 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { CryptoService } from './crypto.service';
 
+const KEY_V1 = 'v1:' + '0123456789abcdef'.repeat(4);
+const KEY_V2 = 'v2:' + 'fedcba9876543210'.repeat(4);
+
+const make = (keys: string) => new CryptoService(keys);
+
 describe('CryptoService', () => {
-  let service: CryptoService;
-
-  beforeEach(async () => {
-    // Set a predictable key for testing
-    process.env.PII_ENCRYPTION_KEY =
-      'v1:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [CryptoService],
-    }).compile();
-
-    service = module.get<CryptoService>(CryptoService);
+  it('round-trips plaintext', () => {
+    const crypto = make(KEY_V1);
+    const cipher = crypto.encrypt('AB1234567');
+    expect(cipher).not.toContain('AB1234567');
+    expect(cipher.startsWith('v1:')).toBe(true);
+    expect(crypto.decrypt(cipher)).toBe('AB1234567');
   });
 
-  afterEach(() => {
-    delete process.env.PII_ENCRYPTION_KEY;
+  it('uses a fresh IV for every encryption', () => {
+    const crypto = make(KEY_V1);
+    expect(crypto.encrypt('same')).not.toBe(crypto.encrypt('same'));
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('decrypts values written with an older key after rotation', () => {
+    const old = make(KEY_V1).encrypt('35201-1234567-1');
+    const rotated = make(`${KEY_V2},${KEY_V1}`);
+    expect(rotated.decrypt(old)).toBe('35201-1234567-1');
+    expect(rotated.encrypt('x').startsWith('v2:')).toBe(true);
   });
 
-  it('should encrypt and decrypt a string successfully', () => {
-    const plainText = 'PK123456789';
-    const cipherText = service.encrypt(plainText);
-
-    expect(cipherText).toBeDefined();
-    expect(cipherText).not.toEqual(plainText);
-    expect(cipherText.startsWith('v1:')).toBeTruthy();
-
-    const decrypted = service.decrypt(cipherText);
-    expect(decrypted).toEqual(plainText);
+  it('rejects tampered ciphertext', () => {
+    const crypto = make(KEY_V1);
+    const [v, iv, tag, data] = crypto.encrypt('secret').split(':');
+    const flipped = Buffer.from(data, 'base64');
+    flipped[0] ^= 0xff;
+    expect(() => crypto.decrypt([v, iv, tag, flipped.toString('base64')].join(':'))).toThrow();
   });
 
-  it('should format output as version:iv:authTag:encrypted', () => {
-    const cipherText = service.encrypt('test data');
-    const parts = cipherText.split(':');
-
-    expect(parts).toHaveLength(4);
-    expect(parts[0]).toEqual('v1');
-    // base64 strings don't contain colons, so length should exactly be 4
-  });
-
-  it('should throw an error when decrypting invalid format', () => {
-    expect(() => service.decrypt('invalid-format')).toThrow('Invalid cipherText format');
-  });
-
-  it('should throw an error when key version is missing', () => {
-    expect(() => service.decrypt('v99:iv:tag:data')).toThrow(
-      'Encryption key version v99 not found',
-    );
+  it('hashes tokens deterministically', () => {
+    const { token, hash } = CryptoService.newToken();
+    expect(CryptoService.hash(token)).toBe(hash);
+    expect(hash).toHaveLength(64);
   });
 });

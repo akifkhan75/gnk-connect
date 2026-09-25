@@ -1,58 +1,145 @@
-import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { z } from 'zod';
+import {
+  adminPartnerListSchema,
+  ledgerAdjustmentSchema,
+  statementQuerySchema,
+  type LedgerAdjustmentInput,
+} from '@gnk/validation';
+import type { AdminPartnerListItem, Paginated } from '@gnk/types';
+import { UUID } from '../../core/http/parse-uuid';
+import { Meta, type RequestMeta } from '../../core/http/request-meta';
+import { ZodPipe } from '../../core/http/zod.pipe';
+import { num } from '../../core/money';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import type { PartnerActor, StaffActor } from '../auth/auth.types';
+import { CurrentActor, RequirePartnerRole, RequirePermission } from '../auth/decorators';
 import { LedgerService } from './ledger.service';
 
-@Controller('ledger')
-export class LedgerController {
-  constructor(private readonly ledgerService: LedgerService) {}
+type StatementQuery = z.output<typeof statementQuerySchema>;
 
-  @Get('agency/:agencyId')
-  getAgencyLedger(@Param('agencyId') agencyId: string) {
-    return this.ledgerService.getAgencyTransactions(agencyId);
+@Controller('partner/ledger')
+export class PartnerLedgerController {
+  constructor(private readonly ledger: LedgerService) {}
+
+  @Get('balance')
+  balance(@CurrentActor() actor: PartnerActor) {
+    return this.ledger.balance(actor.accountId);
   }
 
-  @Get('statement/:agencyId')
-  getStatementOfAccount(
-    @Param('agencyId') agencyId: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
+  @Get('statement')
+  @RequirePartnerRole('OWNER', 'MANAGER', 'ACCOUNTANT')
+  statement(
+    @CurrentActor() actor: PartnerActor,
+    @Query(new ZodPipe(statementQuerySchema)) q: StatementQuery,
   ) {
-    return this.ledgerService.getStatementOfAccount(agencyId, from, to);
+    return this.ledger.statement(actor.accountId, q.from, q.to);
+  }
+}
+
+@Controller('admin/ledger')
+export class AdminLedgerController {
+  constructor(
+    private readonly ledger: LedgerService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /** Partner balances overview (receivables), largest debt first. */
+  @Get('accounts')
+  @RequirePermission('ledger:read')
+  async accounts(
+    @Query(new ZodPipe(adminPartnerListSchema)) q: z.output<typeof adminPartnerListSchema>,
+  ): Promise<Paginated<AdminPartnerListItem>> {
+    const where = {
+      deletedAt: null,
+      status: { in: ['APPROVED', 'SUSPENDED'] as ('APPROVED' | 'SUSPENDED')[] },
+      ...(q.q
+        ? {
+            OR: [
+              { legalName: { contains: q.q, mode: 'insensitive' as const } },
+              { code: { contains: q.q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+    const rows = await this.prisma.partnerAccount.findMany({
+      where,
+      include: {
+        members: { where: { role: 'OWNER' }, include: { user: true } },
+        _count: { select: { bookings: true } },
+      },
+    });
+    const balances = await this.ledger.balances(rows.map((r) => r.id));
+    const items = rows
+      .map<AdminPartnerListItem>((a) => ({
+        id: a.id,
+        code: a.code,
+        type: a.type,
+        status: a.status,
+        legalName: a.tradeName || a.legalName,
+        city: a.city,
+        email: a.email,
+        phone: a.phone,
+        ownerName: a.members[0]?.user.fullName ?? null,
+        bookingsCount: a._count.bookings,
+        balance: balances.get(a.id) ?? 0,
+        creditLimit: num(a.creditLimit),
+        createdAt: a.createdAt.toISOString(),
+      }))
+      .sort((a, b) => a.balance - b.balance);
+    const start = (q.page - 1) * q.pageSize;
+    return {
+      items: items.slice(start, start + q.pageSize),
+      total: items.length,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
   }
 
-  @Get('admin/summary')
-  getAdminSummary() {
-    return this.ledgerService.getAdminFinancialSummary();
-  }
-
-  @Get('admin/pending-topups')
-  getPendingTopups() {
-    return this.ledgerService.getPendingTopups();
-  }
-
-  @Post('topup')
-  topUpAgencyWallet(
-    @Body('accountId') accountId: string,
-    @Body('amountPKR') amountPKR: number,
-    @Body('reference') reference: string,
-    @Body('bankName') bankName: string,
-    @Body('proofFileId') proofFileId: string,
-    @Body('submittedById') submittedById: string, // in reality comes from req.user
+  @Get(':accountId/statement')
+  @RequirePermission('ledger:read')
+  statement(
+    @Param('accountId', UUID) accountId: string,
+    @Query(new ZodPipe(statementQuerySchema)) q: StatementQuery,
   ) {
-    return this.ledgerService.submitTopup(
+    return this.ledger.statement(accountId, q.from, q.to);
+  }
+
+  @Post(':accountId/adjustments')
+  @RequirePermission('ledger:adjust')
+  async adjust(
+    @CurrentActor() actor: StaffActor,
+    @Param('accountId', UUID) accountId: string,
+    @Body(new ZodPipe(ledgerAdjustmentSchema))
+    dto: z.output<typeof ledgerAdjustmentSchema> & LedgerAdjustmentInput,
+    @Meta() meta: RequestMeta,
+  ) {
+    const before = await this.ledger.balance(accountId);
+    const txn = await this.ledger.adjust(
       accountId,
-      amountPKR,
-      reference,
-      bankName,
-      proofFileId,
-      submittedById,
+      dto.direction,
+      dto.amount,
+      dto.description,
+      actor.userId,
     );
-  }
-
-  @Post('topup/:id/verify')
-  verifyTopup(
-    @Param('id') paymentId: string,
-    @Body('verifiedById') verifiedById: string, // in reality comes from req.user
-  ) {
-    return this.ledgerService.verifyTopup(paymentId, verifiedById);
+    const after = await this.ledger.balance(accountId);
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'ledger.adjust',
+      entityType: 'PartnerAccount',
+      entityId: accountId,
+      before,
+      after: {
+        ...after,
+        reference: txn.reference,
+        direction: dto.direction,
+        amount: dto.amount,
+        description: dto.description,
+      },
+      meta,
+    });
+    return after;
   }
 }

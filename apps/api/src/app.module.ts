@@ -1,120 +1,79 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
-import { ZodValidationPipe } from './core/pipes/zod-validation.pipe';
-import { ProblemDetailsFilter } from './core/filters/problem-details.filter';
-import { RealmAuthGuard } from './modules/auth/guards/realm-auth.guard';
-import { PermissionsGuard } from './modules/auth/guards/permissions.guard';
-import { PartnerRolesGuard } from './modules/auth/guards/partner-roles.guard';
-import { ApprovalGuard } from './modules/auth/guards/approval.guard';
-import { AuthModule } from './modules/auth/auth.module';
-import { SuppliersModule } from './modules/suppliers/suppliers.module';
-import { PricingModule } from './modules/pricing/pricing.module';
-import { PartnersModule } from './modules/partners/partners.module';
-import { BookingsModule } from './modules/bookings/bookings.module';
-import { UploadsModule } from './modules/uploads/uploads.module';
-import { LedgerModule } from './modules/ledger/ledger.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
-import { CatalogModule } from './modules/catalog/catalog.module';
-
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { LoggerModule } from 'nestjs-pino';
-import { validateEnv } from './core/config/env.config';
-import { PrismaModule } from './infra/prisma/prisma.module';
-import { CryptoModule } from './infra/crypto/crypto.module';
-import { v4 as uuidv4 } from 'uuid';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RedisThrottlerStorage } from '@nestjs-redis/throttler-storage';
-import { createClient } from 'redis';
+import { LoggerModule } from 'nestjs-pino';
+import { randomUUID } from 'crypto';
+import { validateEnv, type EnvConfig } from './core/config/env.config';
+import { ProblemDetailsFilter } from './core/filters/problem-details.filter';
+import { CryptoModule } from './infra/crypto/crypto.module';
+import { MailerModule } from './infra/mailer/mailer.module';
+import { PrismaModule } from './infra/prisma/prisma.module';
+import { REDIS, RedisModule, type RedisClient } from './infra/redis/redis.module';
+import { StorageModule } from './infra/storage/storage.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { PlatformModule } from './modules/platform.module';
+import { AccessGuard } from './modules/auth/guards/access.guard';
+import { RealmAuthGuard } from './modules/auth/guards/realm-auth.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+      envFilePath: ['../../.env', '.env'],
     }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        genReqId: (req: any, res: any) => {
-          if (req.id) return req.id;
-          let id = req.headers['x-request-id'];
-          if (id) return id;
-          id = uuidv4();
-          res.setHeader('x-request-id', id);
-          return id;
-        },
-        transport:
-          process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { colorize: true } }
-            : undefined,
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvConfig, true>) => {
+        const dev = config.get('NODE_ENV', { infer: true }) !== 'production';
+        return {
+          pinoHttp: {
+            level: dev ? 'info' : 'info',
+            genReqId: (req, res) => {
+              const id = (req.headers['x-request-id'] as string) || randomUUID();
+              res.setHeader('x-request-id', id);
+              return id;
+            },
+            // Never log credentials or tokens.
+            redact: [
+              'req.headers.authorization',
+              'req.headers.cookie',
+              'res.headers["set-cookie"]',
+            ],
+            autoLogging: { ignore: (req) => req.url === '/api/v1/health' },
+            transport: dev
+              ? { target: 'pino-pretty', options: { singleLine: true, colorize: true } }
+              : undefined,
+          },
+        };
       },
+    }),
+    RedisModule,
+    ThrottlerModule.forRootAsync({
+      inject: [REDIS, ConfigService],
+      useFactory: (redis: RedisClient, config: ConfigService<EnvConfig, true>) => ({
+        // One default tier; sensitive routes override it with @Throttle (plan 04 §5).
+        throttlers: [{ name: 'default', ttl: 60_000, limit: 300 }],
+        storage: new RedisThrottlerStorage(redis),
+        skipIf: () => config.get('NODE_ENV', { infer: true }) === 'test',
+      }),
     }),
     PrismaModule,
     CryptoModule,
-    ThrottlerModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          { name: 'global-anon', ttl: 60000, limit: 60 },
-          { name: 'global-auth', ttl: 60000, limit: 300 },
-          { name: 'login-short', ttl: 15 * 60000, limit: 5 },
-          { name: 'login-long', ttl: 60 * 60000, limit: 20 },
-          { name: 'register', ttl: 60 * 60000, limit: 3 },
-          { name: 'forgot-email', ttl: 60 * 60000, limit: 3 },
-          { name: 'forgot-ip', ttl: 60 * 60000, limit: 10 },
-          { name: 'refresh', ttl: 60000, limit: 30 },
-          { name: 'totp', ttl: 5 * 60000, limit: 5 },
-          { name: 'quote', ttl: 60000, limit: 60 },
-          { name: 'booking-create-min', ttl: 60000, limit: 10 },
-          { name: 'booking-create-day', ttl: 24 * 60 * 60000, limit: 100 },
-          { name: 'upload', ttl: 60 * 60000, limit: 20 },
-          { name: 'supplier-sync', ttl: 5 * 60000, limit: 1 },
-          { name: 'export', ttl: 60 * 60000, limit: 10 },
-        ],
-        storage: new RedisThrottlerStorage(
-          createClient({ url: config.get('REDIS_URL') as string }),
-        ),
-      }),
-    }),
+    MailerModule,
+    StorageModule,
+    AuditModule,
     AuthModule,
-    SuppliersModule,
-    PricingModule,
-    PartnersModule,
-    BookingsModule,
-    UploadsModule,
-    LedgerModule,
-    NotificationsModule,
-    CatalogModule,
+    PlatformModule,
   ],
   providers: [
-    {
-      provide: APP_PIPE,
-      useClass: ZodValidationPipe,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: ProblemDetailsFilter,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RealmAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: PermissionsGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: PartnerRolesGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: ApprovalGuard,
-    },
+    { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: RealmAuthGuard },
+    { provide: APP_GUARD, useClass: AccessGuard },
   ],
 })
 export class AppModule {}
