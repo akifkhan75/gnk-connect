@@ -4,6 +4,7 @@ import { AppShell, ThemeProvider, ThemeToggle } from '@gnk/ui';
 import { LayoutDashboard, ShieldCheck, FileCheck, Users, Settings } from 'lucide-react';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPartnersPage } from './pages/AdminPartnersPage';
+import { AdminSuppliersPage } from './pages/AdminSuppliersPage';
 
 const queryClient = new QueryClient();
 
@@ -11,6 +12,7 @@ function AdminLayout() {
   const navItems = [
     { title: 'Overview', href: '/', icon: LayoutDashboard },
     { title: 'Partners & KYC', href: '/partners', icon: ShieldCheck, isActive: true },
+    { title: 'Suppliers & Sync', href: '/suppliers', icon: FileCheck },
     { title: 'Bookings', href: '/bookings', icon: FileCheck },
     { title: 'Staff Users', href: '/staff', icon: Users },
   ];
@@ -51,6 +53,10 @@ const router = createBrowserRouter([
       {
         path: 'partners',
         element: <AdminPartnersPage />,
+      },
+      {
+        path: 'suppliers',
+        element: <AdminSuppliersPage />,
       }
     ]
   },

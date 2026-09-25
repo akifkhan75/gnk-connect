@@ -14,6 +14,7 @@ import { BookingsModule } from './modules/bookings/bookings.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
@@ -83,6 +84,7 @@ import { createClient } from 'redis';
     UploadsModule,
     LedgerModule,
     NotificationsModule,
+    CatalogModule,
   ],
   providers: [
     {
