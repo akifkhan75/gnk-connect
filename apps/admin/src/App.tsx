@@ -5,6 +5,7 @@ import { LayoutDashboard, ShieldCheck, FileCheck, Users, Settings } from 'lucide
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPartnersPage } from './pages/AdminPartnersPage';
 import { AdminSuppliersPage } from './pages/AdminSuppliersPage';
+import { AdminPricingPage } from './pages/AdminPricingPage';
 
 const queryClient = new QueryClient();
 
@@ -12,6 +13,7 @@ function AdminLayout() {
   const navItems = [
     { title: 'Overview', href: '/', icon: LayoutDashboard },
     { title: 'Partners & KYC', href: '/partners', icon: ShieldCheck, isActive: true },
+    { title: 'Pricing Engine', href: '/pricing', icon: FileCheck },
     { title: 'Suppliers & Sync', href: '/suppliers', icon: FileCheck },
     { title: 'Bookings', href: '/bookings', icon: FileCheck },
     { title: 'Staff Users', href: '/staff', icon: Users },
@@ -57,6 +59,10 @@ const router = createBrowserRouter([
       {
         path: 'suppliers',
         element: <AdminSuppliersPage />,
+      },
+      {
+        path: 'pricing',
+        element: <AdminPricingPage />,
       }
     ]
   },

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Param } from '@nestjs/common';
 import { PricingService } from './pricing.service';
 
 @Controller('pricing')
@@ -18,5 +18,13 @@ export class PricingController {
   @Post('calculate')
   calculatePrice(@Body() body: any) {
     return this.pricingService.calculatePrice(body);
+  }
+
+  @Get('quote/:accountId/:departureId')
+  quoteGroupDeparture(
+    @Param('accountId') accountId: string,
+    @Param('departureId') departureId: string
+  ) {
+    return this.pricingService.quoteGroupDeparture(accountId, departureId);
   }
 }

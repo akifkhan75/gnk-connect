@@ -1,105 +1,93 @@
-import { Injectable } from '@nestjs/common';
-import { PricingRule, PriceCalculationResult, RulePriority, MarkupType } from '@gnk/types';
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../infra/prisma/prisma.service';
+import { PricingEngine, PriceCalculationResult } from './pricing.domain';
+import { PricingRule } from '@prisma/client';
 
 @Injectable()
 export class PricingService {
-  private rules: PricingRule[] = [
-    {
-      id: 'rule-agent-prod-01',
-      name: 'ABC Travels Dubai Group VIP Override',
-      priority: 1,
-      supplierId: 'airdesk',
-      productId: 'AD-DXB-7D-EXP',
-      agencyId: 'agency-abc-travels',
-      markupType: 'FIXED',
-      markupValue: 12000,
-      currency: 'PKR',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'rule-agent-02',
-      name: 'ABC Travels Preferred Partner Margin (5%)',
-      priority: 2,
-      agencyId: 'agency-abc-travels',
-      markupType: 'PERCENTAGE',
-      markupValue: 5,
-      currency: 'PKR',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'rule-default-07',
-      name: 'GNK Connect Global Default Markup',
-      priority: 5,
-      markupType: 'FIXED',
-      markupValue: 10000,
-      currency: 'PKR',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
+  private readonly logger = new Logger(PricingService.name);
 
-  getRules(): PricingRule[] {
-    return [...this.rules].sort((a, b) => a.priority - b.priority);
+  constructor(private readonly prisma: PrismaService) {}
+
+  async getRules() {
+    return this.prisma.pricingRule.findMany({
+      orderBy: [
+        { scope: 'asc' },
+        { priority: 'desc' },
+      ]
+    });
   }
 
-  saveRule(rule: Partial<PricingRule>): PricingRule {
-    const newRule: PricingRule = {
-      id: rule.id || `rule-${Date.now()}`,
-      name: rule.name || 'Custom Rule',
-      priority: rule.priority || 2,
-      markupType: rule.markupType || 'FIXED',
-      markupValue: rule.markupValue || 10000,
-      currency: 'PKR',
-      agencyId: rule.agencyId,
-      productId: rule.productId,
-      supplierId: rule.supplierId,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    this.rules.push(newRule);
-    return newRule;
+  async saveRule(data: any) {
+    if (data.id) {
+      return this.prisma.pricingRule.update({
+        where: { id: data.id },
+        data: {
+          ...data,
+          updatedById: 'system', // TODO: extract from token
+        }
+      });
+    } else {
+      return this.prisma.pricingRule.create({
+        data: {
+          ...data,
+          createdById: 'system', // TODO: extract from token
+        }
+      });
+    }
   }
 
-  calculatePrice(params: {
+  async calculatePrice(params: {
     supplierNetPricePKR: number;
-    supplierId: string;
-    product: { id: string; supplierProductId: string; productType: string };
-    agent?: { id: string; agencyId?: string };
-  }): PriceCalculationResult {
-    const net = params.supplierNetPricePKR;
-    const activeRules = this.rules.filter(r => r.isActive);
+    supplierId?: string;
+    productId?: string;
+    productType?: string;
+    departureId?: string;
+    accountId?: string;
+    tierId?: string;
+  }): Promise<PriceCalculationResult> {
+    const rules = await this.prisma.pricingRule.findMany({
+      where: {
+        isActive: true,
+      }
+    });
 
-    // Priority 1
-    const p1 = activeRules.find(r => r.priority === 1 && r.agencyId === params.agent?.agencyId && (r.productId === params.product.id || r.productId === params.product.supplierProductId));
-    if (p1) return this.applyRule(p1, net, 'Priority 1: Agent + Product Override');
-
-    // Priority 2
-    const p2 = activeRules.find(r => r.priority === 2 && r.agencyId === params.agent?.agencyId);
-    if (p2) return this.applyRule(p2, net, 'Priority 2: Agent Specific Margin');
-
-    // Priority 5
-    const fallback = activeRules.find(r => r.priority === 5) || this.rules[this.rules.length - 1];
-    return this.applyRule(fallback, net, 'Priority 5: Global Default');
+    return PricingEngine.calculate(params.supplierNetPricePKR, rules, {
+      accountId: params.accountId,
+      tierId: params.tierId,
+      departureId: params.departureId,
+      productId: params.productId,
+      productType: params.productType,
+      supplierId: params.supplierId,
+    });
   }
 
-  private applyRule(rule: PricingRule, net: number, desc: string): PriceCalculationResult {
-    const markupAmount = rule.markupType === 'FIXED' ? rule.markupValue : Math.round((net * rule.markupValue) / 100);
-    return {
-      supplierNetPricePKR: net,
-      calculatedSellingPricePKR: net + markupAmount,
-      markupAmountPKR: markupAmount,
-      markupTypeApplied: rule.markupType,
-      markupValueApplied: rule.markupValue,
-      appliedRuleId: rule.id,
-      appliedRuleName: rule.name,
-      priorityApplied: rule.priority,
-      breakdown: `${desc} [${rule.name}]`,
-    };
+  async quoteGroupDeparture(accountId: string, departureId: string) {
+    // 1. Fetch Departure & Product & Partner
+    const departure = await this.prisma.departure.findUnique({
+      where: { id: departureId },
+      include: {
+        product: true
+      }
+    });
+    if (!departure) throw new Error('Departure not found');
+
+    const partner = await this.prisma.partnerAccount.findUnique({
+      where: { id: accountId }
+    });
+    if (!partner) throw new Error('Partner not found');
+
+    // 2. Compute price
+    const rules = await this.prisma.pricingRule.findMany({ where: { isActive: true } });
+    const result = PricingEngine.calculate(Number(departure.supplierNet), rules, {
+      accountId,
+      tierId: partner.pricingTierId || undefined,
+      departureId,
+      productId: departure.productId,
+      productType: departure.product.type,
+      supplierId: departure.product.supplierId,
+    });
+
+    return result;
   }
 }
