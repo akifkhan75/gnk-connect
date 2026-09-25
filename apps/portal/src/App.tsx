@@ -6,6 +6,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { LoginPage } from './pages/LoginPage';
 import { TeamPage } from './pages/TeamPage';
+import { GroupsPage } from './pages/GroupsPage';
+import { GroupDetailPage } from './pages/GroupDetailPage';
 
 const queryClient = new QueryClient();
 
@@ -61,7 +63,11 @@ const router = createBrowserRouter([
       },
       {
         path: 'groups',
-        element: <div className="p-4">Catalog Placeholder</div>,
+        element: <GroupsPage />,
+      },
+      {
+        path: 'groups/:id',
+        element: <GroupDetailPage />,
       },
       {
         path: 'bookings',
