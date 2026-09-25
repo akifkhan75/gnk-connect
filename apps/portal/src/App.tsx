@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell, ThemeProvider, ThemeToggle } from '@gnk/ui';
 import { LayoutDashboard, Users, CreditCard, FileText, Settings, BookOpen } from 'lucide-react';
 import { DashboardPage } from './pages/DashboardPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { LoginPage } from './pages/LoginPage';
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,14 @@ function PortalLayout() {
 }
 
 const router = createBrowserRouter([
+  {
+    path: '/register',
+    element: <RegisterPage />,
+  },
+  {
+    path: '/login',
+    element: <LoginPage />,
+  },
   {
     path: '/',
     element: <PortalLayout />,
