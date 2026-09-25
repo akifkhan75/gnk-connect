@@ -6,6 +6,7 @@ import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPartnersPage } from './pages/AdminPartnersPage';
 import { AdminSuppliersPage } from './pages/AdminSuppliersPage';
 import { AdminPricingPage } from './pages/AdminPricingPage';
+import { AdminBookingsPage } from './pages/AdminBookingsPage';
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,10 @@ const router = createBrowserRouter([
       {
         path: 'pricing',
         element: <AdminPricingPage />,
+      },
+      {
+        path: 'bookings',
+        element: <AdminBookingsPage />,
       }
     ]
   },

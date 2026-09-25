@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { TeamPage } from './pages/TeamPage';
 import { GroupsPage } from './pages/GroupsPage';
 import { GroupDetailPage } from './pages/GroupDetailPage';
+import { NewBookingPage } from './pages/NewBookingPage';
 
 const queryClient = new QueryClient();
 
@@ -68,6 +69,10 @@ const router = createBrowserRouter([
       {
         path: 'groups/:id',
         element: <GroupDetailPage />,
+      },
+      {
+        path: 'groups/book/:quoteId',
+        element: <NewBookingPage />,
       },
       {
         path: 'bookings',
