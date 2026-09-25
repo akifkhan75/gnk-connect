@@ -9,7 +9,7 @@ import { ApprovalGuard } from './modules/auth/guards/approval.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PricingModule } from './modules/pricing/pricing.module';
-import { AgentsModule } from './modules/agents/agents.module';
+import { PartnersModule } from './modules/partners/partners.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
@@ -78,7 +78,7 @@ import { createClient } from 'redis';
     AuthModule,
     SuppliersModule,
     PricingModule,
-    AgentsModule,
+    PartnersModule,
     BookingsModule,
     UploadsModule,
     LedgerModule,
