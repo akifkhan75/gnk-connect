@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, CreditCard, FileText, Settings, BookOpen } from
 import { DashboardPage } from './pages/DashboardPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { LoginPage } from './pages/LoginPage';
+import { TeamPage } from './pages/TeamPage';
 
 const queryClient = new QueryClient();
 
@@ -65,6 +66,10 @@ const router = createBrowserRouter([
       {
         path: 'bookings',
         element: <div className="p-4">Bookings Placeholder</div>,
+      },
+      {
+        path: 'team',
+        element: <TeamPage />,
       }
     ]
   },

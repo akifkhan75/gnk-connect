@@ -3,6 +3,9 @@ import { AuthLayout, Stepper, Button, Input, Label } from '@gnk/ui';
 
 export function RegisterPage() {
   const [step, setStep] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [dtsFile, setDtsFile] = useState<File | null>(null);
+  const [cnicFile, setCnicFile] = useState<File | null>(null);
 
   const steps = [
     { title: 'Account Details' },
@@ -60,24 +63,84 @@ export function RegisterPage() {
             <div className="rounded-xl border border-dashed p-6 text-center">
               <div className="text-sm font-medium text-foreground">Upload DTS License</div>
               <p className="mt-1 text-xs text-muted-foreground">PDF, JPEG, or PNG up to 10MB</p>
-              <Button variant="outline" className="mt-4">Select File</Button>
+              {dtsFile ? (
+                <div className="mt-4 p-2 bg-muted rounded flex items-center justify-between">
+                  <span className="text-sm truncate max-w-[200px]">{dtsFile.name}</span>
+                  <Button variant="ghost" size="sm" onClick={() => setDtsFile(null)}>Remove</Button>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <Input 
+                    type="file" 
+                    id="dts-upload"
+                    className="hidden" 
+                    onChange={(e) => setDtsFile(e.target.files?.[0] || null)}
+                    accept="application/pdf,image/jpeg,image/png"
+                  />
+                  <Label htmlFor="dts-upload" className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                    Select File
+                  </Label>
+                </div>
+              )}
             </div>
             <div className="rounded-xl border border-dashed p-6 text-center">
               <div className="text-sm font-medium text-foreground">Upload Owner CNIC</div>
               <p className="mt-1 text-xs text-muted-foreground">PDF, JPEG, or PNG up to 10MB</p>
-              <Button variant="outline" className="mt-4">Select File</Button>
+              {cnicFile ? (
+                <div className="mt-4 p-2 bg-muted rounded flex items-center justify-between">
+                  <span className="text-sm truncate max-w-[200px]">{cnicFile.name}</span>
+                  <Button variant="ghost" size="sm" onClick={() => setCnicFile(null)}>Remove</Button>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <Input 
+                    type="file" 
+                    id="cnic-upload"
+                    className="hidden" 
+                    onChange={(e) => setCnicFile(e.target.files?.[0] || null)}
+                    accept="application/pdf,image/jpeg,image/png"
+                  />
+                  <Label htmlFor="cnic-upload" className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2">
+                    Select File
+                  </Label>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={handleBack} disabled={step === 0}>
+          <Button variant="outline" onClick={handleBack} disabled={step === 0 || isUploading}>
             Back
           </Button>
           {step < 2 ? (
             <Button onClick={handleNext}>Next Step</Button>
           ) : (
-            <Button>Submit Application</Button>
+            <Button 
+              disabled={!dtsFile || !cnicFile || isUploading}
+              onClick={async () => {
+                setIsUploading(true);
+                try {
+                  // In reality, this posts to API
+                  const dtsData = new FormData();
+                  dtsData.append('file', dtsFile!);
+                  dtsData.append('category', 'DTS_LICENSE');
+                  
+                  const cnicData = new FormData();
+                  cnicData.append('file', cnicFile!);
+                  cnicData.append('category', 'CNIC_FRONT');
+                  
+                  // Mock wait to simulate upload
+                  await new Promise(r => setTimeout(r, 1000));
+                  
+                  alert('Application Submitted successfully! Your files have been uploaded.');
+                } finally {
+                  setIsUploading(false);
+                }
+              }}
+            >
+              {isUploading ? 'Uploading...' : 'Submit Application'}
+            </Button>
           )}
         </div>
       </div>
