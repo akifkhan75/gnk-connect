@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
 @Injectable()
@@ -95,6 +100,88 @@ export class PartnersService {
     return this.prisma.partnerAccount.update({
       where: { id: accountId },
       data: safeData,
+    });
+  }
+
+  // --- Partner Team Methods ---
+
+  async getTeamMembers(accountId: string) {
+    return this.prisma.partnerMember.findMany({
+      where: { accountId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            status: true,
+          },
+        },
+      },
+    });
+  }
+
+  async inviteMember(accountId: string, actorId: string, actorRole: string, data: any) {
+    // Only AGENCY accounts can have multiple members
+    const account = await this.prisma.partnerAccount.findUnique({
+      where: { id: accountId },
+    });
+    if (account?.type !== 'AGENCY') {
+      throw new BadRequestException('Only agency accounts can invite multiple members');
+    }
+
+    // MANAGER cannot invite an OWNER
+    if (actorRole === 'MANAGER' && data.role === 'OWNER') {
+      throw new ForbiddenException('Managers cannot invite owners');
+    }
+
+    // Stub for now. Real implementation needs to create an INVITED user and send an email
+    throw new BadRequestException('Invite implementation pending email service integration');
+  }
+
+  async updateMemberRole(
+    accountId: string,
+    actorId: string,
+    actorRole: string,
+    targetUserId: string,
+    newRole: string,
+  ) {
+    // Managers cannot promote someone to OWNER or demote an OWNER
+    if (actorRole === 'MANAGER' && newRole === 'OWNER') {
+      throw new ForbiddenException('Managers cannot grant owner role');
+    }
+
+    const targetMember = await this.prisma.partnerMember.findUnique({
+      where: { accountId_userId: { userId: targetUserId, accountId } },
+    });
+
+    if (!targetMember) throw new NotFoundException('Team member not found');
+    if (actorRole === 'MANAGER' && targetMember.role === 'OWNER') {
+      throw new ForbiddenException('Managers cannot modify owner roles');
+    }
+
+    return this.prisma.partnerMember.update({
+      where: { accountId_userId: { userId: targetUserId, accountId } },
+      data: { role: newRole as any },
+    });
+  }
+
+  async removeMember(accountId: string, actorId: string, actorRole: string, targetUserId: string) {
+    if (actorId === targetUserId) {
+      throw new BadRequestException('You cannot remove yourself');
+    }
+
+    const targetMember = await this.prisma.partnerMember.findUnique({
+      where: { accountId_userId: { userId: targetUserId, accountId } },
+    });
+
+    if (!targetMember) throw new NotFoundException('Team member not found');
+    if (actorRole === 'MANAGER' && targetMember.role === 'OWNER') {
+      throw new ForbiddenException('Managers cannot remove an owner');
+    }
+
+    return this.prisma.partnerMember.delete({
+      where: { accountId_userId: { userId: targetUserId, accountId } },
     });
   }
 }
