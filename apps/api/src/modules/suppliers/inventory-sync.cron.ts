@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AirDeskHttpClient } from './airdesk-http.client';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../../infra/prisma/prisma.service';
 
 @Injectable()
 export class InventorySyncCron implements OnModuleInit {
@@ -14,15 +14,19 @@ export class InventorySyncCron implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.logger.log('🔄 Initializing AirDesk Automated Inventory Synchronization Engine (15-min interval)...');
+    this.logger.log(
+      '🔄 Initializing AirDesk Automated Inventory Synchronization Engine (15-min interval)...',
+    );
     // Run initial sync after a short delay on startup
     setTimeout(() => {
-      this.syncAirDeskInventory().catch(e => this.logger.warn(`Initial sync note: ${e.message}`));
+      this.syncAirDeskInventory().catch((e) => this.logger.warn(`Initial sync note: ${e.message}`));
     }, 3000);
 
     // Schedule recurring sync
     this.syncTimer = setInterval(() => {
-      this.syncAirDeskInventory().catch(e => this.logger.error(`Periodic sync error: ${e.message}`));
+      this.syncAirDeskInventory().catch((e) =>
+        this.logger.error(`Periodic sync error: ${e.message}`),
+      );
     }, this.intervalMs);
   }
 
@@ -44,24 +48,23 @@ export class InventorySyncCron implements OnModuleInit {
 
       // Ensure Supplier record exists
       try {
-        await this.prisma.supplier.upsert({
+        const supplier = await this.prisma.supplier.upsert({
           where: { code: 'airdesk' },
           update: { lastSyncAt: new Date() },
           create: {
-            id: 'sup-airdesk-01',
             code: 'airdesk',
             name: 'AirDesk Groups API Engine',
-            type: 'AIRDESK',
+            adapterKey: 'airdesk',
             status: 'ACTIVE',
             lastSyncAt: new Date(),
           },
         });
 
         for (const group of groups) {
-          await this.prisma.product.upsert({
+          const product = await this.prisma.product.upsert({
             where: {
               supplierId_supplierProductId: {
-                supplierId: 'sup-airdesk-01',
+                supplierId: supplier.id,
                 supplierProductId: group.supplierProductId,
               },
             },
@@ -70,57 +73,69 @@ export class InventorySyncCron implements OnModuleInit {
               destination: group.destination,
               country: group.country,
               durationDays: group.durationDays,
-              durationNights: group.durationNights,
-              heroImage: group.heroImage,
-              overview: group.overview,
-              inclusions: group.inclusions,
-              exclusions: group.exclusions,
-              itinerary: group.itinerary,
-              airline: group.airline,
-              hotelRating: group.hotelRating,
-              visaIncluded: group.visaIncluded || false,
+              content: {
+                overview: group.overview,
+                inclusions: group.inclusions,
+                exclusions: group.exclusions,
+                itinerary: group.itinerary,
+                images: group.galleryImages || [group.heroImage],
+                heroImage: group.heroImage,
+                airline: group.airline,
+                hotelRating: group.hotelRating,
+                visaIncluded: group.visaIncluded || false,
+              },
+              syncedAt: new Date(),
             },
             create: {
-              id: group.id,
-              supplierId: 'sup-airdesk-01',
+              supplierId: supplier.id,
               supplierProductId: group.supplierProductId,
-              supplierProductCode: group.supplierProductCode,
-              productType: group.productType,
+              type: 'GROUP',
               title: group.title,
               destination: group.destination,
               country: group.country,
               durationDays: group.durationDays,
-              durationNights: group.durationNights,
-              heroImage: group.heroImage,
-              overview: group.overview,
-              inclusions: group.inclusions,
-              exclusions: group.exclusions,
-              itinerary: group.itinerary,
-              airline: group.airline,
-              hotelRating: group.hotelRating,
-              visaIncluded: group.visaIncluded || false,
+              content: {
+                overview: group.overview,
+                inclusions: group.inclusions,
+                exclusions: group.exclusions,
+                itinerary: group.itinerary,
+                images: group.galleryImages || [group.heroImage],
+                heroImage: group.heroImage,
+                airline: group.airline,
+                hotelRating: group.hotelRating,
+                visaIncluded: group.visaIncluded || false,
+              },
+              isPublished: false,
               isFeatured: group.featured || false,
+              syncedAt: new Date(),
             },
           });
 
           // Sync departures
           for (const dep of group.departures) {
             await this.prisma.departure.upsert({
-              where: { id: dep.id },
+              where: {
+                productId_supplierDepartureId: {
+                  productId: product.id,
+                  supplierDepartureId: dep.id,
+                },
+              },
               update: {
-                availableSeats: dep.availableSeats,
-                supplierNetPricePKR: dep.supplierNetPricePKR,
-                status: dep.status,
+                supplierAvailable: dep.availableSeats,
+                supplierNet: dep.supplierNetPricePKR,
+                status: dep.status as any,
+                syncedAt: new Date(),
               },
               create: {
-                id: dep.id,
-                productId: group.id,
+                productId: product.id,
+                supplierDepartureId: dep.id,
                 departureDate: new Date(dep.departureDate),
                 returnDate: new Date(dep.returnDate),
                 totalSeats: dep.totalSeats,
-                availableSeats: dep.availableSeats,
-                supplierNetPricePKR: dep.supplierNetPricePKR,
-                status: dep.status,
+                supplierAvailable: dep.availableSeats,
+                supplierNet: dep.supplierNetPricePKR,
+                status: dep.status as any,
+                syncedAt: new Date(),
               },
             });
           }
@@ -131,7 +146,9 @@ export class InventorySyncCron implements OnModuleInit {
       }
 
       const durationMs = Date.now() - startTime;
-      this.logger.log(`✅ AirDesk inventory sync complete: ${groups.length} group series synced in ${durationMs}ms`);
+      this.logger.log(
+        `✅ AirDesk inventory sync complete: ${groups.length} group series synced in ${durationMs}ms`,
+      );
 
       return {
         success: true,
