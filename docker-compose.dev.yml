@@ -68,7 +68,7 @@ services:
       - '3001:3001'
       - '3002:3002'
       - '4000:4000'
-    command: sh -c "corepack enable pnpm && pnpm install && pnpm run dev:local"
+    command: sh -c "corepack enable pnpm && pnpm install && pnpm --filter @gnk/api exec prisma generate && pnpm --filter @gnk/api exec prisma migrate deploy && pnpm run dev:local"
     depends_on:
       postgres:
         condition: service_healthy

@@ -4,7 +4,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "dev": "pnpm run build:deps && nest start --watch",
+    "dev": "pnpm run build:deps && prisma generate && nest start --watch",
     "build": "pnpm run build:deps && prisma generate && nest build",
     "start": "node dist/apps/api/src/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
