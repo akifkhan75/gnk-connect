@@ -1,6 +1,4 @@
 import { Global, Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { EnvConfig } from '../../core/config/env.config';
 import { CryptoService, PII_KEYS } from './crypto.service';
 
 @Global()

@@ -12,8 +12,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo run dev",
-    "dev:local": "node scripts/dev.mjs",
+    "dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "dev:local": "turbo run dev --filter=!@gnk/mobile",
     "build": "turbo run build",
     "build:local": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

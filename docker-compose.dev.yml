@@ -1,0 +1,77 @@
+services:
+  # ---------------- PostgreSQL Database ---------------- #
+  postgres:
+    image: postgres:16-alpine
+    container_name: gnk_postgres_dev
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gnk_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gnk_secret_password}
+      POSTGRES_DB: ${POSTGRES_DB:-gnk_elite_db}
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gnk_network_dev
+
+  # ---------------- Redis In-Memory Cache ---------------- #
+  redis:
+    image: redis:7-alpine
+    container_name: gnk_redis_dev
+    restart: always
+    command: redis-server
+    volumes:
+      - redisdata_dev:/data
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gnk_network_dev
+
+  # ---------------- Fullstack Dev Server (Node) ---------------- #
+  app:
+    image: node:20-alpine
+    container_name: gnk_app_dev
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gnk_admin}:${POSTGRES_PASSWORD:-gnk_secret_password}@postgres:5432/${POSTGRES_DB:-gnk_elite_db}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-gnk_jwt_super_secret_key_2026_very_secure_string}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-v1:11e25dbb62a7467385ae63bf8ef595fe2d17e9f4b8606d2d0b7be26c8940a0ec}
+    volumes:
+      - .:/app
+    ports:
+      - '3000:3000'
+      - '3001:3001'
+      - '3002:3002'
+      - '4000:4000'
+    command: sh -c "npm install && npm run dev:local"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gnk_network_dev
+
+volumes:
+  pgdata_dev:
+    driver: local
+  redisdata_dev:
+    driver: local
+
+networks:
+  gnk_network_dev:
+    driver: bridge

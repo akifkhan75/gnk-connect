@@ -38,8 +38,8 @@ const SIGNATURES: { mime: string; ext: string; test: (b: Buffer) => boolean }[] 
 export class StorageService implements OnModuleInit {
   private readonly root: string;
 
-  constructor() {
-    this.root = path.resolve(process.env.UPLOAD_DIR || './uploads');
+  constructor(config: ConfigService<EnvConfig, true>) {
+    this.root = path.resolve(config.get('UPLOAD_DIR', { infer: true }));
   }
 
   onModuleInit() {
