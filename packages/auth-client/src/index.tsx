@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { HttpClient } from '@gnk/api-client';
+import { HttpClient, trimTrailingSlashes } from '@gnk/api-client';
 import type { AuthResponse, PartnerSession, StaffSession } from '@gnk/types';
 
 type Realm = 'partner' | 'staff';
@@ -53,7 +53,7 @@ export function createAuthClient<R extends Realm>(realm: R, baseUrl: string) {
   };
 
   const call = (path: string, body?: unknown): Promise<Response> =>
-    fetch(`${baseUrl.replace(/\/+$/, '')}/auth/${realm}/${path}`, {
+    fetch(`${trimTrailingSlashes(baseUrl)}/auth/${realm}/${path}`, {
       method: 'POST',
       credentials: 'include',
       headers: {

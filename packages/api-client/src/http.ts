@@ -27,11 +27,18 @@ export interface HttpClientOptions {
 
 type Query = Record<string, string | number | boolean | undefined | null>;
 
+/** Strips trailing '/' characters in linear time (a `/\/+$/` regex backtracks quadratically). */
+export function trimTrailingSlashes(url: string) {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return url.slice(0, end);
+}
+
 export class HttpClient {
   constructor(private readonly options: HttpClientOptions) {}
 
   get baseUrl() {
-    return this.options.baseUrl.replace(/\/+$/, '');
+    return trimTrailingSlashes(this.options.baseUrl);
   }
 
   url(path: string, query?: Query) {

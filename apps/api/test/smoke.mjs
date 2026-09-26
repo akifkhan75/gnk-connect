@@ -7,7 +7,7 @@
 //   PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=... \
 //   node test/smoke.mjs
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 
 const API = process.env.API_URL ?? 'http://localhost:4000/api/v1';
 const need = (k) => process.env[k] ?? (console.error(`Set ${k}`), process.exit(2));
@@ -126,7 +126,7 @@ const pax = (first) => ({
   gender: 'MALE',
   dateOfBirth: '1988-04-12',
   nationality: 'PK',
-  passportNumber: `AB${Math.floor(1000000 + Math.random() * 8999999)}`,
+  passportNumber: `AB${randomInt(1000000, 10000000)}`,
   passportExpiry: '2032-01-01',
 });
 const key = randomUUID();

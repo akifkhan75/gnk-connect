@@ -39,12 +39,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
@@ -52,19 +54,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build shared packages and Prisma client
-        run: npm run build:deps -w @gnk/api && npx prisma generate --schema apps/api/prisma/schema.prisma
+        run: pnpm --filter @gnk/api run build:deps && pnpm --filter @gnk/api exec prisma generate
 
-      - run: npm run lint
-      - run: npm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run typecheck
       - name: Unit tests
-        run: npm test -w @gnk/api
+        run: pnpm --filter @gnk/api test
 
       - name: Build apps
-        run: npm run build -w @gnk/api && npm run build -w @gnk/portal && npm run build -w @gnk/admin && npm run build -w @gnk/website
+        run: pnpm --filter @gnk/api --filter @gnk/portal --filter @gnk/admin --filter @gnk/website run build
 
       - name: Migrate and seed
         working-directory: apps/api
-        run: npx prisma migrate deploy && NODE_ENV=development npx ts-node --transpile-only prisma/seed.ts
+        run: pnpm exec prisma migrate deploy && NODE_ENV=development pnpm exec ts-node --transpile-only prisma/seed.ts
 
       - name: End-to-end API smoke test
         working-directory: apps/api

@@ -15,12 +15,12 @@
     "dev": "docker-compose -f docker-compose.dev.yml up --build",
     "dev:local": "turbo run dev --filter=!@gnk/mobile",
     "build": "turbo run build",
-    "build:local": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "build:local": "pnpm -r --filter '!@gnk/mobile' run build",
+    "typecheck": "pnpm -r --filter '!@gnk/mobile' run typecheck",
+    "test": "pnpm -r --filter '!@gnk/mobile' run test",
     "lint": "eslint apps packages --quiet",
-    "db:migrate": "npm run db:migrate -w @gnk/api",
-    "db:seed": "npm run db:seed -w @gnk/api",
+    "db:migrate": "pnpm --filter @gnk/api run db:migrate",
+    "db:seed": "pnpm --filter @gnk/api run db:seed",
     "prepare": "husky"
   },
   "devDependencies": {
