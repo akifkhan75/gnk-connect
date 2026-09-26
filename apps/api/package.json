@@ -4,15 +4,15 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "dev": "npm run build:deps && nest start --watch",
-    "build": "npm run build:deps && prisma generate && nest build",
+    "dev": "pnpm run build:deps && nest start --watch",
+    "build": "pnpm run build:deps && prisma generate && nest build",
     "start": "node dist/apps/api/src/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest",
     "db:migrate": "node scripts/with-env.mjs prisma migrate deploy",
-    "db:seed": "npm run build:deps && node scripts/with-env.mjs ts-node --transpile-only prisma/seed.ts",
+    "db:seed": "pnpm run build:deps && node scripts/with-env.mjs ts-node --transpile-only prisma/seed.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
-    "build:deps": "npm run build -w @gnk/types -w @gnk/validation -w @gnk/suppliers --prefix ../.."
+    "build:deps": "pnpm --filter @gnk/types --filter @gnk/validation --filter @gnk/suppliers run build"
   },
   "dependencies": {
     "@gnk/suppliers": "*",

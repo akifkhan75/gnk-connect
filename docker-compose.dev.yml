@@ -40,7 +40,7 @@ services:
 
   # ---------------- Fullstack Dev Server (Node) ---------------- #
   app:
-    image: node:20-alpine
+    image: node:20
     container_name: gnk_app_dev
     working_dir: /app
     environment:
@@ -52,12 +52,23 @@ services:
       PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-v1:11e25dbb62a7467385ae63bf8ef595fe2d17e9f4b8606d2d0b7be26c8940a0ec}
     volumes:
       - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/apps/admin/node_modules
+      - /app/apps/portal/node_modules
+      - /app/apps/website/node_modules
+      - /app/packages/api-client/node_modules
+      - /app/packages/auth-client/node_modules
+      - /app/packages/suppliers/node_modules
+      - /app/packages/types/node_modules
+      - /app/packages/ui/node_modules
+      - /app/packages/validation/node_modules
     ports:
       - '3000:3000'
       - '3001:3001'
       - '3002:3002'
       - '4000:4000'
-    command: sh -c "npm install && npm run dev:local"
+    command: sh -c "corepack enable pnpm && pnpm install && pnpm run dev:local"
     depends_on:
       postgres:
         condition: service_healthy

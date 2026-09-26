@@ -45,7 +45,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const port = config.get('PORT', { infer: true });
-  await app.listen(port);
-  app.get(Logger).log(`GNK Connect API listening on http://localhost:${port}/api/v1`);
+  await app.listen(port, '0.0.0.0');
+  app.get(Logger).log(`GNK Connect API listening on http://0.0.0.0:${port}/api/v1`);
 }
 bootstrap();
