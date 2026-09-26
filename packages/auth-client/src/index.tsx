@@ -4,11 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
-import { HttpClient, trimTrailingSlashes } from '@gnk/api-client';
-import type { AuthResponse, PartnerSession, StaffSession } from '@gnk/types';
+import { HttpClient, subscribeEvents, trimTrailingSlashes, type LiveStatus } from '@gnk/api-client';
+import type { AuthResponse, PartnerSession, RealtimeEvent, StaffSession } from '@gnk/types';
 
 type Realm = 'partner' | 'staff';
 type SessionFor<R extends Realm> = R extends 'partner' ? PartnerSession : StaffSession;
@@ -152,5 +153,28 @@ export function createAuthClient<R extends Realm>(realm: R, baseUrl: string) {
     return ctx;
   }
 
-  return { http, AuthProvider, useAuth };
+  /**
+   * Live updates while signed in. The handler is called for every change event;
+   * the stream follows the active partner account and reconnects on its own.
+   */
+  function useEvents(handler: (e: RealtimeEvent) => void): LiveStatus {
+    const { status, session } = useAuth();
+    const [live, setLive] = useState<LiveStatus>('connecting');
+    const ref = useRef(handler);
+    ref.current = handler;
+    const accountKey = session && 'account' in session ? session.account.accountId : '';
+    const blocked = !!session?.user.mustChangePassword;
+    useEffect(() => {
+      if (status !== 'authenticated' || blocked) return;
+      return subscribeEvents(
+        http,
+        `${realm === 'partner' ? 'partner' : 'admin'}/events`,
+        (e) => ref.current(e),
+        setLive,
+      );
+    }, [status, accountKey, blocked]);
+    return live;
+  }
+
+  return { http, AuthProvider, useAuth, useEvents };
 }

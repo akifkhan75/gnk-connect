@@ -36,7 +36,14 @@ export type KycDocType = (typeof KYC_DOC_TYPES)[number];
 export const KYC_DOC_STATUSES = ['SUBMITTED', 'VERIFIED', 'REJECTED'] as const;
 export type KycDocStatus = (typeof KYC_DOC_STATUSES)[number];
 
-export const FILE_PURPOSES = ['KYC', 'PAYMENT_PROOF', 'LOGO', 'INVOICE', 'PASSPORT_COPY'] as const;
+export const FILE_PURPOSES = [
+  'KYC',
+  'PAYMENT_PROOF',
+  'LOGO',
+  'INVOICE',
+  'PASSPORT_COPY',
+  'VOUCHER',
+] as const;
 export type FilePurpose = (typeof FILE_PURPOSES)[number];
 
 export const PRODUCT_TYPES = [
@@ -136,6 +143,25 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const SUPPLIER_STATUSES = ['ACTIVE', 'MAINTENANCE', 'INACTIVE'] as const;
 export type SupplierStatus = (typeof SUPPLIER_STATUSES)[number];
+
+export const ACCOUNT_CLASSES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'] as const;
+export type AccountClass = (typeof ACCOUNT_CLASSES)[number];
+
+export const VOUCHER_TYPES = [
+  'SALE',
+  'RECEIPT',
+  'PAYMENT',
+  'JOURNAL',
+  'REVERSAL',
+  'ADJUSTMENT',
+] as const;
+export type VoucherType = (typeof VOUCHER_TYPES)[number];
+
+export const VOUCHER_STATUSES = ['DRAFT', 'SUBMITTED', 'POSTED', 'REJECTED'] as const;
+export type VoucherStatus = (typeof VOUCHER_STATUSES)[number];
+
+/** Books are kept in this currency; every voucher balances in it. */
+export const BASE_CURRENCY = 'PKR';
 
 export type Realm = 'PARTNER' | 'STAFF';
 export type ThemePreference = 'LIGHT' | 'DARK' | 'SYSTEM';

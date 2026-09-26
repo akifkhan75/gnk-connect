@@ -44,20 +44,20 @@ export function DataTable<T>({
   rowClassName?: (row: T) => string | undefined;
   selectedKey?: string | null;
 }) {
-  const cellPad = dense ? 'px-3 py-2' : 'px-4 py-3';
+  const cellPad = dense ? 'px-3 py-2' : 'px-4 py-3.5';
   const align = (a?: Column<T>['align']) =>
     a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
   return (
     <div className={cn('overflow-x-auto', className)}>
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b bg-surface-sunken/70">
+          <tr className="border-b border-border/80">
             {columns.map((c) => (
               <th
                 key={c.key}
                 scope="col"
                 className={cn(
-                  'sticky top-0 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
+                  'sticky top-0 whitespace-nowrap bg-surface/95 text-[12px] font-medium text-muted-foreground backdrop-blur',
                   dense ? 'px-3 py-2' : 'px-4 py-2.5',
                   align(c.align),
                   c.hideBelow && hide[c.hideBelow],
@@ -102,9 +102,9 @@ export function DataTable<T>({
                   tabIndex={onRowClick ? 0 : undefined}
                   aria-selected={selectedKey === key || undefined}
                   className={cn(
-                    'border-b transition-colors last:border-0',
+                    'border-b border-border/60 transition-colors last:border-0',
                     onRowClick &&
-                      'cursor-pointer hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none',
+                      'cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none',
                     selectedKey === key && 'bg-accent-soft/70 hover:bg-accent-soft',
                     rowClassName?.(row),
                   )}
@@ -158,7 +158,12 @@ export function Pagination({
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
   return (
-    <div className={cn('flex items-center justify-between gap-3 border-t px-4 py-2.5', className)}>
+    <div
+      className={cn(
+        'flex items-center justify-between gap-3 border-t border-border/70 px-4 py-2.5',
+        className,
+      )}
+    >
       <p className="text-xs text-muted-foreground">
         {from}–{to} of {total}
       </p>

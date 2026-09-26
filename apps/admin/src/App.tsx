@@ -32,6 +32,26 @@ const AuditPage = page(() => import('@/pages/AuditPage'), 'AuditPage');
 const SettingsPage = page(() => import('@/pages/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/pages/ProfilePage'), 'ProfilePage');
 const InvoicePage = page(() => import('@/pages/InvoicePage'), 'InvoicePage');
+const VouchersPage = page(() => import('@/pages/accounting/VouchersPage'), 'VouchersPage');
+const VoucherEditorPage = page(
+  () => import('@/pages/accounting/VoucherEditorPage'),
+  'VoucherEditorPage',
+);
+const VoucherDetailPage = page(
+  () => import('@/pages/accounting/VoucherDetailPage'),
+  'VoucherDetailPage',
+);
+const VoucherPrintPage = page(
+  () => import('@/pages/accounting/VoucherDetailPage'),
+  'VoucherPrintPage',
+);
+const ChartOfAccountsPage = page(
+  () => import('@/pages/accounting/ChartOfAccountsPage'),
+  'ChartOfAccountsPage',
+);
+const ReportsPage = page(() => import('@/pages/accounting/ReportsPage'), 'ReportsPage');
+const SetupPage = page(() => import('@/pages/accounting/SetupPage'), 'SetupPage');
+const ReceiptPage = page(() => import('@/pages/ReceiptPage'), 'ReceiptPage');
 const NotFoundPage = page(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 
 const router = createBrowserRouter([
@@ -48,6 +68,8 @@ const router = createBrowserRouter([
     element: <RequireAuth />,
     children: [
       { path: '/invoices/:id', element: <InvoicePage /> },
+      { path: '/payments/:id/receipt', element: <ReceiptPage /> },
+      { path: '/accounting/vouchers/:id/print', element: <VoucherPrintPage /> },
       {
         element: <AdminLayout />,
         children: [
@@ -62,6 +84,13 @@ const router = createBrowserRouter([
           { path: 'pricing', element: <PricingPage /> },
           { path: 'ledger', element: <LedgerPage /> },
           { path: 'ledger/:accountId', element: <StatementPage /> },
+          { path: 'accounting/vouchers', element: <VouchersPage /> },
+          { path: 'accounting/vouchers/new', element: <VoucherEditorPage /> },
+          { path: 'accounting/vouchers/:id', element: <VoucherDetailPage /> },
+          { path: 'accounting/vouchers/:id/edit', element: <VoucherEditorPage /> },
+          { path: 'accounting/accounts', element: <ChartOfAccountsPage /> },
+          { path: 'accounting/reports', element: <ReportsPage /> },
+          { path: 'accounting/setup', element: <SetupPage /> },
           { path: 'staff', element: <StaffPage /> },
           { path: 'audit', element: <AuditPage /> },
           { path: 'settings', element: <SettingsPage /> },

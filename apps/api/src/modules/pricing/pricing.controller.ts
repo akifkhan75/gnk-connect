@@ -15,7 +15,7 @@ import type { PartnerActor, StaffActor } from '../auth/auth.types';
 import {
   CurrentActor,
   RequireApproved,
-  RequirePartnerRole,
+  RequirePartnerCapability,
   RequirePermission,
 } from '../auth/decorators';
 import { PricingService } from './pricing.service';
@@ -27,7 +27,7 @@ export class PartnerQuotesController {
   @Post()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @RequireApproved()
-  @RequirePartnerRole('OWNER', 'MANAGER', 'STAFF')
+  @RequirePartnerCapability('bookings:create')
   create(
     @CurrentActor() actor: PartnerActor,
     @Body(new ZodPipe(createQuoteSchema)) dto: z.output<typeof createQuoteSchema>,

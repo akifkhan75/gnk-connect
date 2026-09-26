@@ -8,14 +8,20 @@ import {
   ChevronDown,
   CreditCard,
   FileClock,
+  FilePlus2,
+  FileSpreadsheet,
+  Landmark,
   LayoutDashboard,
   LogOut,
+  Network,
   Percent,
   PlugZap,
+  ReceiptText,
   ScrollText,
   Settings,
   UserCog,
   UserRound,
+  Wallet,
 } from 'lucide-react';
 import type { Permission } from '@gnk/types';
 import {
@@ -28,15 +34,18 @@ import {
   DropdownMenu,
   DropdownSeparator,
   DropdownTrigger,
+  LiveIndicator,
   Logo,
   NotificationBell,
   SearchInput,
   ThemeToggle,
   titleCase,
+  type CommandItem,
   type NavGroup,
   type NavItem,
 } from '@gnk/ui';
 import { ENV_NAME, api, useAuth } from '@/lib/api';
+import { useLiveUpdates } from '@/lib/live';
 import { useCan } from '@/lib/useCan';
 
 type Item = NavItem & { perm: Permission };
@@ -47,12 +56,19 @@ export function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const live = useLiveUpdates();
   const [search, setSearch] = useState('');
-  const queues = useQuery({ queryKey: ['queues'], queryFn: api.queues, refetchInterval: 30_000 });
+  const onSearch = (e: FormEvent) => {
+    e.preventDefault();
+    if (search.trim()) navigate(`/bookings?q=${encodeURIComponent(search.trim())}`);
+  };
+  // Live events keep these fresh; the slow interval only covers a dropped connection.
+  const fallback = live === 'live' ? false : 60_000;
+  const queues = useQuery({ queryKey: ['queues'], queryFn: api.queues, refetchInterval: fallback });
   const notifications = useQuery({
     queryKey: ['notifications'],
     queryFn: api.notifications.list,
-    refetchInterval: 45_000,
+    refetchInterval: fallback,
   });
 
   const groups: { label?: string; items: Item[] }[] = [
@@ -84,24 +100,48 @@ export function AdminLayout() {
       ],
     },
     {
+      label: 'Accounting',
+      items: [
+        {
+          label: 'Vouchers',
+          href: '/accounting/vouchers',
+          icon: ReceiptText,
+          perm: 'ledger:read',
+          badge: queues.data?.vouchers || null,
+        },
+        {
+          label: 'Chart of accounts',
+          href: '/accounting/accounts',
+          icon: Network,
+          perm: 'ledger:read',
+        },
+        { label: 'Partner balances', href: '/ledger', icon: ScrollText, perm: 'ledger:read' },
+        {
+          label: 'Reports',
+          href: '/accounting/reports',
+          icon: FileSpreadsheet,
+          perm: 'ledger:read',
+        },
+        {
+          label: 'Currencies & periods',
+          href: '/accounting/setup',
+          icon: Landmark,
+          perm: 'ledger:read',
+        },
+      ],
+    },
+    {
       label: 'Catalog',
       items: [
         { label: 'Products', href: '/catalog', icon: Boxes, perm: 'catalog:read' },
         { label: 'Suppliers', href: '/suppliers', icon: PlugZap, perm: 'suppliers:read' },
+        { label: 'Pricing rules', href: '/pricing', icon: Percent, perm: 'pricing:read' },
       ],
-    },
-    {
-      label: 'Commercial',
-      items: [{ label: 'Pricing rules', href: '/pricing', icon: Percent, perm: 'pricing:read' }],
-    },
-    {
-      label: 'Finance',
-      items: [{ label: 'Ledger', href: '/ledger', icon: ScrollText, perm: 'ledger:read' }],
     },
     {
       label: 'System',
       items: [
-        { label: 'Staff & roles', href: '/staff', icon: UserCog, perm: 'staff:manage' },
+        { label: 'Users & roles', href: '/staff', icon: UserCog, perm: 'staff:manage' },
         { label: 'Audit log', href: '/audit', icon: FileClock, perm: 'audit:read' },
         { label: 'Settings', href: '/settings', icon: Settings, perm: 'settings:manage' },
       ],
@@ -111,18 +151,74 @@ export function AdminLayout() {
     .map((g) => ({ ...g, items: g.items.filter((i) => can(i.perm)) }))
     .filter((g) => g.items.length);
 
-  const onSearch = (e: FormEvent) => {
-    e.preventDefault();
-    if (search.trim()) navigate(`/bookings?q=${encodeURIComponent(search.trim())}`);
-  };
+  const commands: CommandItem[] = [
+    ...(can('ledger:jv_prepare')
+      ? [
+          {
+            id: 'new-jv',
+            label: 'New journal voucher',
+            group: 'Create',
+            icon: FilePlus2,
+            onSelect: () => navigate('/accounting/vouchers/new?type=JOURNAL'),
+          },
+        ]
+      : []),
+    ...(can('ledger:post')
+      ? [
+          {
+            id: 'new-pv',
+            label: 'New payment voucher',
+            group: 'Create',
+            icon: Wallet,
+            onSelect: () => navigate('/accounting/vouchers/new?type=PAYMENT'),
+          },
+          {
+            id: 'new-rv',
+            label: 'New receipt voucher',
+            group: 'Create',
+            icon: ReceiptText,
+            onSelect: () => navigate('/accounting/vouchers/new?type=RECEIPT'),
+          },
+        ]
+      : []),
+    ...(can('payments:verify')
+      ? [
+          {
+            id: 'record-payment',
+            label: 'Record a partner payment',
+            group: 'Create',
+            icon: CreditCard,
+            onSelect: () => navigate('/payments?record=1'),
+          },
+        ]
+      : []),
+    ...(can('staff:manage')
+      ? [
+          {
+            id: 'add-user',
+            label: 'Add a staff user',
+            group: 'Create',
+            icon: UserCog,
+            onSelect: () => navigate('/staff?add=1'),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <AppShell
       pathname={location.pathname}
       nav={nav}
+      navigate={navigate}
+      commands={commands}
       brand={
         <Link to="/">
-          <Logo onDark product="Admin Console" />
+          <Logo product="Admin" />
+        </Link>
+      }
+      brandCompact={
+        <Link to="/" aria-label="Dashboard">
+          <Logo compact />
         </Link>
       }
       renderLink={(item, props) => (
@@ -131,41 +227,45 @@ export function AdminLayout() {
           end={item.href === '/'}
           className={props.className}
           aria-current={props['aria-current']}
+          title={props.title}
         >
           {props.children}
         </NavLink>
       )}
       sidebarFooter={
-        <div className="rounded-md bg-white/5 px-3 py-2.5 text-xs">
-          <p className="truncate font-medium text-white">{session!.user.fullName}</p>
-          <p className="mt-0.5 truncate text-sidebar-muted">
-            {session!.roles.map((r) => titleCase(r)).join(', ')}
-          </p>
+        <div className="flex items-center gap-2.5 rounded-lg px-1.5 py-1">
+          <Avatar name={session!.user.fullName} className="size-7" />
+          <div className="min-w-0 text-[12px] leading-tight">
+            <p className="truncate font-medium text-sidebar-foreground">{session!.user.fullName}</p>
+            <p className="truncate text-sidebar-muted">
+              {session!.roles.map((r) => titleCase(r.replace(/^CUSTOM_/, ''))).join(', ')}
+            </p>
+          </div>
         </div>
       }
       topbar={
         <>
           {ENV_NAME && (
             <Badge
-              tone={ENV_NAME === 'PROD' ? 'danger' : ENV_NAME === 'STAGING' ? 'warning' : 'primary'}
+              tone={ENV_NAME === 'PROD' ? 'danger' : ENV_NAME === 'STAGING' ? 'warning' : 'neutral'}
               className="font-semibold tracking-wider"
             >
               {ENV_NAME}
             </Badge>
           )}
-          {can('bookings:read') ? (
-            <form onSubmit={onSearch} className="hidden max-w-sm flex-1 md:block">
+          {can('bookings:read') && (
+            <form onSubmit={onSearch} className="hidden w-full max-w-xs md:block">
               <SearchInput
-                placeholder="Find booking, PNR, partner or passenger"
+                placeholder="Booking, PNR, partner or passenger"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Search bookings"
+                className="[&_input]:h-8 [&_input]:bg-muted/60 [&_input]:shadow-none"
               />
             </form>
-          ) : (
-            <div className="flex-1" />
           )}
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+            <LiveIndicator status={live} className="mr-1.5" />
             <NotificationBell
               items={notifications.data?.items ?? []}
               unread={notifications.data?.unread ?? 0}
@@ -184,10 +284,10 @@ export function AdminLayout() {
               <DropdownTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 hover:bg-muted"
+                  className="flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 transition-colors hover:bg-muted"
                 >
-                  <Avatar name={session!.user.fullName} />
-                  <ChevronDown className="size-4 text-muted-foreground" />
+                  <Avatar name={session!.user.fullName} className="size-7" />
+                  <ChevronDown className="size-3.5 text-muted-foreground" />
                 </button>
               </DropdownTrigger>
               <DropdownContent className="w-56">

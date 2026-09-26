@@ -8,7 +8,12 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import type { AuthResponse, MessageResponse, Permission, StaffSession } from '@gnk/types';
-import type { AcceptInviteInput, ChangePasswordInput, ResetPasswordInput } from '@gnk/validation';
+import type {
+  AcceptInviteInput,
+  ChangePasswordInput,
+  ForcedPasswordChangeInput,
+  ResetPasswordInput,
+} from '@gnk/validation';
 import type { RequestMeta } from '../../core/http/request-meta';
 import { CryptoService } from '../../infra/crypto/crypto.service';
 import { MailerService } from '../../infra/mailer/mailer.service';
@@ -120,6 +125,7 @@ export class StaffAuthService {
         email: user.email,
         fullName: user.fullName,
         themePreference: user.themePreference,
+        mustChangePassword: user.mustChangePassword,
       },
       roles: user.roles.map((r) => r.role.key),
       permissions: [...permissions].sort(),
@@ -152,6 +158,7 @@ export class StaffAuthService {
       where: { id: user.id },
       data: {
         passwordHash: await this.passwords.hash(dto.password),
+        mustChangePassword: false,
         failedLoginCount: 0,
         lockedUntil: null,
       },
@@ -192,6 +199,7 @@ export class StaffAuthService {
         data: {
           fullName: dto.fullName,
           passwordHash: await this.passwords.hash(dto.password),
+          mustChangePassword: false,
           status: 'ACTIVE',
           lastLoginAt: new Date(),
         },
@@ -229,7 +237,7 @@ export class StaffAuthService {
     this.assertStrong(dto.password, user.email, user.fullName);
     await this.prisma.staffUser.update({
       where: { id: user.id },
-      data: { passwordHash: await this.passwords.hash(dto.password) },
+      data: { passwordHash: await this.passwords.hash(dto.password), mustChangePassword: false },
     });
     const current = await this.prisma.session.findUnique({ where: { id: actor.sessionId } });
     await this.prisma.session.updateMany({
@@ -244,6 +252,37 @@ export class StaffAuthService {
       meta,
     });
     return { message: 'Password changed. Other devices have been signed out.' };
+  }
+
+  /** First sign-in after an admin or team owner set the password: choose a new one. */
+  async setInitialPassword(
+    actor: StaffActor,
+    dto: ForcedPasswordChangeInput,
+    meta: RequestMeta,
+  ): Promise<MessageResponse> {
+    const user = await this.prisma.staffUser.findUniqueOrThrow({ where: { id: actor.userId } });
+    if (!user.mustChangePassword)
+      throw new ForbiddenException('Use "Change password" in your profile instead');
+    this.assertStrong(dto.password, user.email, user.fullName);
+    if (await this.passwords.verify(user.passwordHash, dto.password))
+      throw new UnprocessableEntityException({
+        message: 'Choose a password different from the temporary one',
+        code: 'VALIDATION_FAILED',
+        errors: [{ path: 'password', message: 'Choose a new password' }],
+      });
+    await this.prisma.staffUser.update({
+      where: { id: user.id },
+      data: { passwordHash: await this.passwords.hash(dto.password), mustChangePassword: false },
+    });
+    this.cache.invalidateUser(user.id);
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: user.id },
+      action: 'auth.initial_password_set',
+      entityType: 'StaffUser',
+      entityId: user.id,
+      meta,
+    });
+    return { message: 'Your password is set.' };
   }
 
   async setTheme(actor: StaffActor, theme: 'LIGHT' | 'DARK' | 'SYSTEM') {

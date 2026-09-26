@@ -114,7 +114,7 @@ export class AdminDashboardController {
   @Get('queues')
   async queues(@CurrentActor() actor: StaffActor): Promise<AdminQueueCounts> {
     const has = (p: Parameters<StaffActor['permissions']['has']>[0]) => actor.permissions.has(p);
-    const [partners, bookings, payments] = await Promise.all([
+    const [partners, bookings, payments, vouchers] = await Promise.all([
       has('partners:review')
         ? this.prisma.partnerAccount.count({
             where: { status: { in: ['SUBMITTED', 'UNDER_REVIEW'] } },
@@ -126,8 +126,11 @@ export class AdminDashboardController {
           })
         : 0,
       has('payments:verify') ? this.prisma.payment.count({ where: { status: 'SUBMITTED' } }) : 0,
+      has('ledger:jv_approve')
+        ? this.prisma.ledgerTransaction.count({ where: { status: 'SUBMITTED' } })
+        : 0,
     ]);
-    return { partners, bookings, payments };
+    return { partners, bookings, payments, vouchers };
   }
 
   @Get('dashboard')

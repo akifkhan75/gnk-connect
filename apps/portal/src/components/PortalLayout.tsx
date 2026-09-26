@@ -25,6 +25,7 @@ import {
   DropdownMenu,
   DropdownSeparator,
   DropdownTrigger,
+  LiveIndicator,
   Logo,
   NotificationBell,
   SearchInput,
@@ -35,6 +36,7 @@ import {
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
+import { useLiveUpdates } from '@/lib/live';
 import { ROLE_LABEL } from '@/lib/labels';
 import { can } from './guards';
 
@@ -48,16 +50,18 @@ export function PortalLayout() {
   const approved = account.accountStatus === 'APPROVED';
   const role = account.role;
 
+  const live = useLiveUpdates();
+  const fallback = live === 'live' ? false : 60_000;
   const balance = useQuery({
     queryKey: keys.balance,
     queryFn: api.ledger.balance,
     enabled: approved,
-    refetchInterval: 60_000,
+    refetchInterval: fallback,
   });
   const notifications = useQuery({
     queryKey: keys.notifications,
     queryFn: api.notifications.list,
-    refetchInterval: 45_000,
+    refetchInterval: fallback,
   });
   const counts = useQuery({
     queryKey: keys.bookingCounts,
@@ -85,10 +89,10 @@ export function PortalLayout() {
               },
               { label: 'Invoices', href: '/invoices', icon: FileText },
               ...(can.money(role)
-                ? [
-                    { label: 'Payments', href: '/payments', icon: Wallet },
-                    { label: 'Ledger', href: '/ledger', icon: ScrollText },
-                  ]
+                ? [{ label: 'Payments & receipts', href: '/payments', icon: Wallet }]
+                : []),
+              ...(can.ledger(role)
+                ? [{ label: 'Statement', href: '/ledger', icon: ScrollText }]
                 : []),
             ],
           },
@@ -116,9 +120,50 @@ export function PortalLayout() {
     <AppShell
       pathname={location.pathname}
       nav={nav}
+      navigate={navigate}
+      commands={[
+        ...(approved && can.book(role)
+          ? [
+              {
+                id: 'book',
+                label: 'Find a group to book',
+                group: 'Actions',
+                icon: Plane,
+                onSelect: () => navigate('/groups'),
+              },
+            ]
+          : []),
+        ...(approved && can.pay(role)
+          ? [
+              {
+                id: 'pay',
+                label: 'Submit a payment',
+                group: 'Actions',
+                icon: Wallet,
+                onSelect: () => navigate('/payments?new=1'),
+              },
+            ]
+          : []),
+        ...(can.team(role) && account.accountType === 'AGENCY'
+          ? [
+              {
+                id: 'team',
+                label: 'Add a team member',
+                group: 'Actions',
+                icon: Users,
+                onSelect: () => navigate('/team?add=1'),
+              },
+            ]
+          : []),
+      ]}
       brand={
         <Link to="/">
-          <Logo onDark product="Partner Portal" />
+          <Logo product="Partner Portal" />
+        </Link>
+      }
+      brandCompact={
+        <Link to="/" aria-label="Dashboard">
+          <Logo compact />
         </Link>
       }
       renderLink={(item, props) => (
@@ -128,13 +173,14 @@ export function PortalLayout() {
           className={props.className}
           onClick={props.onClick}
           aria-current={props['aria-current']}
+          title={props.title}
         >
           {props.children}
         </NavLink>
       )}
       sidebarFooter={
-        <div className="rounded-md bg-white/5 px-3 py-2.5 text-xs">
-          <p className="truncate font-medium text-white">{account.accountName}</p>
+        <div className="rounded-lg px-1.5 py-1 text-xs">
+          <p className="truncate font-medium text-sidebar-foreground">{account.accountName}</p>
           <p className="mt-0.5 text-sidebar-muted">
             {account.accountCode} · {ROLE_LABEL[role]}
           </p>
@@ -142,7 +188,7 @@ export function PortalLayout() {
       }
       banner={
         !approved && location.pathname !== '/onboarding' ? (
-          <div className="border-b border-warning/30 bg-warning-soft px-4 py-2.5 text-[13px] sm:px-6">
+          <div className="border-b border-warning/20 bg-warning-soft/80 px-4 py-2.5 text-[13px] backdrop-blur sm:px-8">
             <span className="font-medium">
               Your account is{' '}
               {account.accountStatus === 'DRAFT' ? 'not yet submitted' : 'awaiting approval'}.
@@ -159,8 +205,9 @@ export function PortalLayout() {
       topbar={
         <>
           {approved ? (
-            <form onSubmit={onSearch} className="hidden max-w-xs flex-1 md:block">
+            <form onSubmit={onSearch} className="hidden w-full max-w-xs md:block">
               <SearchInput
+                className="[&_input]:h-8 [&_input]:bg-muted/60 [&_input]:shadow-none"
                 placeholder="Search bookings, PNR or passenger"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -170,11 +217,12 @@ export function PortalLayout() {
           ) : (
             <div className="flex-1" />
           )}
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-            {approved && balance.data && can.money(role) && (
+          <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+            <LiveIndicator status={live} className="mr-1.5" />
+            {approved && balance.data && can.ledger(role) && (
               <Link
                 to="/ledger"
-                className="hidden items-center gap-3 rounded-md border bg-surface-sunken px-3 py-1.5 text-xs sm:flex"
+                className="mr-1 hidden items-center gap-3 rounded-full bg-muted/70 px-3.5 py-1.5 text-xs transition-colors hover:bg-muted sm:flex"
                 title="Balance and available credit"
               >
                 <span>
@@ -216,9 +264,9 @@ export function PortalLayout() {
               <DropdownTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 hover:bg-muted"
+                  className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-1.5 transition-colors hover:bg-muted"
                 >
-                  <Avatar name={session!.user.fullName} />
+                  <Avatar name={session!.user.fullName} className="size-7" />
                   <span className="hidden text-left leading-tight lg:block">
                     <span className="block max-w-36 truncate text-[13px] font-medium">
                       {session!.user.fullName}

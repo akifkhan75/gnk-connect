@@ -35,7 +35,7 @@ export function Alert({
   return (
     <div
       role={tone === 'danger' ? 'alert' : 'status'}
-      className={cn('flex gap-3 rounded-lg border px-4 py-3', t.box, className)}
+      className={cn('flex gap-3 rounded-xl border px-4 py-3', t.box, className)}
     >
       <t.icon className={cn('mt-0.5 size-[18px] shrink-0', t.iconClass)} aria-hidden />
       <div className="min-w-0 flex-1 text-[13px]">
@@ -63,11 +63,11 @@ export function EmptyState({
   return (
     <div className={cn('flex flex-col items-center px-6 py-10 text-center', className)}>
       {icon && (
-        <div className="mb-3 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5">
+        <div className="mb-3.5 flex size-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground [&_svg]:size-[22px]">
           {icon}
         </div>
       )}
-      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-[15px] font-semibold tracking-[-0.015em]">{title}</p>
       {description && (
         <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">{description}</p>
       )}
@@ -156,7 +156,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={t.id}
-              className="pointer-events-auto flex gap-3 rounded-lg border bg-surface p-3.5 shadow-pop animate-[gnk-pop-in_160ms_ease-out]"
+              className="pointer-events-auto flex gap-3 rounded-2xl bg-surface/90 p-3.5 shadow-pop backdrop-blur-xl animate-[gnk-pop-in_240ms_var(--ease)]"
             >
               <Icon
                 className={cn(

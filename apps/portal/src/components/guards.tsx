@@ -1,9 +1,15 @@
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Lock, ShieldAlert } from 'lucide-react';
-import type { PartnerRole } from '@gnk/types';
+import {
+  PARTNER_ROLE_CAPABILITIES,
+  partnerCan,
+  type PartnerCapability,
+  type PartnerRole,
+} from '@gnk/types';
 import { Button, EmptyState, Spinner } from '@gnk/ui';
 import { useAuth } from '@/lib/api';
+import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
 import { Link } from 'react-router-dom';
 
 export function FullPageSpinner() {
@@ -16,11 +22,12 @@ export function FullPageSpinner() {
 
 /** Restores the session (via refresh cookie) before rendering anything protected. */
 export function RequireAuth() {
-  const { status } = useAuth();
+  const { status, session } = useAuth();
   const location = useLocation();
   if (status === 'loading') return <FullPageSpinner />;
   if (status === 'anonymous')
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  if (session?.user.mustChangePassword) return <SetPasswordPage />;
   return <Outlet />;
 }
 
@@ -72,9 +79,17 @@ export function ApprovedGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// UX only, from the shared capability map the API enforces.
+const has = (role: PartnerRole | undefined, c: PartnerCapability) => !!role && partnerCan(role, c);
 export const can = {
-  book: (role?: PartnerRole) => role === 'OWNER' || role === 'MANAGER' || role === 'STAFF',
-  money: (role?: PartnerRole) => role === 'OWNER' || role === 'MANAGER' || role === 'ACCOUNTANT',
-  team: (role?: PartnerRole) => role === 'OWNER' || role === 'MANAGER',
-  owner: (role?: PartnerRole) => role === 'OWNER',
+  book: (role?: PartnerRole) => has(role, 'bookings:create'),
+  money: (role?: PartnerRole) => has(role, 'payments:view'),
+  pay: (role?: PartnerRole) => has(role, 'payments:submit'),
+  ledger: (role?: PartnerRole) => has(role, 'ledger:view'),
+  team: (role?: PartnerRole) => has(role, 'team:manage'),
+  owner: (role?: PartnerRole) => has(role, 'account:manage'),
 };
+
+/** Roles holding a capability, for RoleGate. */
+export const rolesWith = (c: PartnerCapability) =>
+  (Object.keys(PARTNER_ROLE_CAPABILITIES) as PartnerRole[]).filter((r) => partnerCan(r, c));

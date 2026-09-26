@@ -83,22 +83,24 @@ model PartnerAccount {
 }
 
 model PartnerUser {
-  id               String          @id @default(uuid(7)) @db.Uuid
-  email            String          @unique @db.Citext
-  emailVerifiedAt  DateTime?
-  passwordHash     String? // argon2id; null while INVITED
-  fullName         String
-  phone            String
-  status           UserStatus      @default(ACTIVE)
-  failedLoginCount Int             @default(0)
-  lockedUntil      DateTime?
-  lastLoginAt      DateTime?
-  themePreference  ThemePref       @default(SYSTEM)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  deletedAt        DateTime?
-  memberships      PartnerMember[]
-  sessions         Session[]       @relation("PartnerSessions")
+  id                 String          @id @default(uuid(7)) @db.Uuid
+  email              String          @unique @db.Citext
+  emailVerifiedAt    DateTime?
+  passwordHash       String? // argon2id; null while INVITED
+  fullName           String
+  phone              String
+  status             UserStatus      @default(ACTIVE)
+  failedLoginCount   Int             @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  themePreference    ThemePref       @default(SYSTEM)
+  mustChangePassword Boolean         @default(false) // set when someone else chose the password
+  notificationPrefs  Json            @default("{}") // { [category]: { email: boolean } }
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+  memberships        PartnerMember[]
+  sessions           Session[]       @relation("PartnerSessions")
 }
 
 model PartnerMember {
@@ -132,29 +134,33 @@ model PartnerInvite {
 
 // ---------- Staff (GNK admin) realm ----------
 model StaffUser {
-  id               String          @id @default(uuid(7)) @db.Uuid
-  email            String          @unique @db.Citext
-  passwordHash     String? // null while INVITED
-  fullName         String
-  status           UserStatus      @default(ACTIVE)
-  totpSecretEnc    String? // AES-GCM encrypted
-  totpEnabledAt    DateTime?
-  failedLoginCount Int             @default(0)
-  lockedUntil      DateTime?
-  lastLoginAt      DateTime?
-  themePreference  ThemePref       @default(SYSTEM)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  deletedAt        DateTime?
-  roles            StaffUserRole[]
-  sessions         Session[]       @relation("StaffSessions")
+  id                 String          @id @default(uuid(7)) @db.Uuid
+  email              String          @unique @db.Citext
+  passwordHash       String? // null while INVITED
+  fullName           String
+  status             UserStatus      @default(ACTIVE)
+  totpSecretEnc      String? // AES-GCM encrypted
+  totpEnabledAt      DateTime?
+  failedLoginCount   Int             @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  themePreference    ThemePref       @default(SYSTEM)
+  mustChangePassword Boolean         @default(false)
+  notificationPrefs  Json            @default("{}")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+  roles              StaffUserRole[]
+  sessions           Session[]       @relation("StaffSessions")
 }
 
 model Role {
   id          String           @id @default(uuid(7)) @db.Uuid
-  key         String           @unique // SUPER_ADMIN, OPERATIONS, FINANCE, PARTNER_MANAGER, PRICING_MANAGER, SUPPORT
+  key         String           @unique // SUPER_ADMIN, OPERATIONS, FINANCE, … or CUSTOM_* for admin-defined roles
   name        String
-  isSystem    Boolean          @default(true)
+  description String?
+  isSystem    Boolean          @default(true) // system roles' grants come from code; custom roles are edited in the admin
+  createdAt   DateTime         @default(now())
   permissions RolePermission[]
   users       StaffUserRole[]
 }
@@ -258,6 +264,7 @@ enum FilePurpose {
   LOGO
   INVOICE
   PASSPORT_COPY
+  VOUCHER
 }
 
 model StoredFile {
@@ -544,6 +551,7 @@ model Booking {
   holdExpiresAt      DateTime?
   agentNotes         String?
   internalNotes      String? // staff-only
+  assignedStaffId    String?              @db.Uuid // staff member who owns this request
   rejectionReason    String?
   idempotencyKey     String
   version            Int                  @default(0)
@@ -552,6 +560,7 @@ model Booking {
   passengers         Passenger[]
   statusHistory      BookingStatusEvent[]
   payments           Payment[]
+  allocations        PaymentAllocation[]
   supplierCalls      SupplierCallLog[]
   invoice            Invoice?
   account            PartnerAccount       @relation(fields: [accountId], references: [id])
@@ -640,26 +649,30 @@ model PaymentMethodConfig {
 }
 
 model Payment {
-  id              String         @id @default(uuid(7)) @db.Uuid
-  reference       String         @unique // PAY-2026-000031
-  accountId       String         @db.Uuid
-  bookingId       String?        @db.Uuid // null = wallet top-up
-  method          PaymentMethod
-  status          PaymentStatus  @default(SUBMITTED)
-  amount          Decimal        @db.Decimal(14, 2)
-  currency        String         @default("PKR") @db.Char(3)
-  bankName        String?
-  transactionRef  String? // bank txn / cheque no.
-  paidAt          DateTime?
-  proofFileId     String?        @db.Uuid
-  submittedById   String         @db.Uuid
-  verifiedById    String?        @db.Uuid
-  verifiedAt      DateTime?
-  rejectionReason String?
-  gatewayPayload  Json?
-  createdAt       DateTime       @default(now())
-  account         PartnerAccount @relation(fields: [accountId], references: [id])
-  Booking         Booking?       @relation(fields: [bookingId], references: [id])
+  id               String              @id @default(uuid(7)) @db.Uuid
+  reference        String              @unique // PAY-2026-000031
+  accountId        String              @db.Uuid
+  bookingId        String?             @db.Uuid // null = wallet top-up
+  method           PaymentMethod
+  status           PaymentStatus       @default(SUBMITTED)
+  amount           Decimal             @db.Decimal(14, 2)
+  currency         String              @default("PKR") @db.Char(3)
+  bankName         String?
+  transactionRef   String? // bank txn / cheque no.
+  paidAt           DateTime?
+  proofFileId      String?             @db.Uuid
+  submittedById    String              @db.Uuid
+  verifiedById     String?             @db.Uuid
+  verifiedAt       DateTime?
+  rejectionReason  String?
+  notes            String? // agent's remarks
+  depositAccountId String?             @db.Uuid // chart account (bank/cash) the money landed in, set on approval
+  gatewayPayload   Json?
+  createdAt        DateTime            @default(now())
+  account          PartnerAccount      @relation(fields: [accountId], references: [id])
+  Booking          Booking?            @relation(fields: [bookingId], references: [id])
+  attachments      PaymentAttachment[]
+  allocations      PaymentAllocation[]
 
   @@unique([method, transactionRef]) // prevent same bank ref used twice
   @@index([accountId])
@@ -668,46 +681,165 @@ model Payment {
   @@index([createdAt])
 }
 
-// Double-entry ledger — balances are derived, never stored as mutable totals
-enum LedgerAccountType {
-  PARTNER_RECEIVABLE
-  GNK_REVENUE
-  SUPPLIER_PAYABLE
-  BANK
-  CASH
+model PaymentAttachment {
+  paymentId String   @db.Uuid
+  fileId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@id([paymentId, fileId])
 }
 
+/// How a payment is applied to bookings. Unallocated remainder stays on the partner's balance.
+model PaymentAllocation {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  paymentId String  @db.Uuid
+  bookingId String  @db.Uuid
+  amount    Decimal @db.Decimal(14, 2)
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  booking   Booking @relation(fields: [bookingId], references: [id])
+
+  @@unique([paymentId, bookingId])
+  @@index([bookingId])
+}
+
+// ---------- Accounting ----------
+// Books are kept in PKR. Foreign-currency lines carry fcAmount × rate = PKR amount;
+// every voucher balances in PKR. Balances are derived from posted entries, never stored.
+
+enum AccountClass {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model Currency {
+  code     String  @id @db.Char(3)
+  name     String
+  symbol   String?
+  isActive Boolean @default(true)
+}
+
+/// Manually entered conversion rates (PKR per 1 unit), used as defaults in the voucher editor.
+model ExchangeRate {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  currency    String   @db.Char(3)
+  rate        Decimal  @db.Decimal(18, 6)
+  date        DateTime @db.Date
+  note        String?
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  @@index([currency, date])
+}
+
+/// Chart of accounts. Groups (isGroup) organise the tree and cannot be posted to.
+/// Partner receivables are children of 1200 (accountId set); system accounts carry a systemKey.
 model LedgerAccount {
-  id             String            @id @default(uuid(7)) @db.Uuid
-  type           LedgerAccountType
-  accountId      String?           @unique @db.Uuid
+  id             String           @id @default(uuid(7)) @db.Uuid
+  code           String           @unique
   name           String
+  class          AccountClass
+  parentId       String?          @db.Uuid
+  isGroup        Boolean          @default(false)
+  isActive       Boolean          @default(true)
+  systemKey      String?          @unique // CASH, BANK, AR_CONTROL, SUPPLIER_PAYABLE, REVENUE, FX, ADJUSTMENTS…
+  currency       String           @default("PKR") @db.Char(3)
+  description    String?
+  accountId      String?          @unique @db.Uuid // partner receivable
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  parent         LedgerAccount?   @relation("ChartTree", fields: [parentId], references: [id])
+  children       LedgerAccount[]  @relation("ChartTree")
+  entries        LedgerEntry[]
   PartnerAccount PartnerAccount[]
+
+  @@index([parentId])
 }
 
+enum VoucherType {
+  SALE // booking charged to a partner
+  RECEIPT // money in (RV)
+  PAYMENT // money out (PV)
+  JOURNAL // JV
+  REVERSAL
+  ADJUSTMENT
+}
+
+enum VoucherStatus {
+  DRAFT
+  SUBMITTED // awaiting approval (maker-checker)
+  POSTED
+  REJECTED
+}
+
+/// A voucher. Entries exist only once POSTED; drafts keep their lines in draftLines.
 model LedgerTransaction {
-  id          String        @id @default(uuid(7)) @db.Uuid
-  reference   String        @unique
-  description String
-  bookingId   String?       @db.Uuid
-  paymentId   String?       @db.Uuid
-  createdById String?       @db.Uuid
-  postedAt    DateTime      @default(now())
-  entries     LedgerEntry[]
+  id               String              @id @default(uuid(7)) @db.Uuid
+  reference        String              @unique // JV-2026-000012, RV-…, PV-…, SV-…
+  type             VoucherType         @default(JOURNAL)
+  status           VoucherStatus       @default(POSTED)
+  date             DateTime            @db.Date // accounting date
+  description      String // narration
+  bookingId        String?             @db.Uuid
+  paymentId        String?             @db.Uuid
+  partnerAccountId String?             @db.Uuid // partner the voucher concerns, for statements and access
+  draftLines       Json? // VoucherLineInput[] while DRAFT/SUBMITTED/REJECTED
+  createdById      String?             @db.Uuid // maker
+  submittedAt      DateTime?
+  approvedById     String?             @db.Uuid // checker
+  approvedAt       DateTime?
+  rejectionReason  String?
+  reversalOfId     String?             @unique @db.Uuid
+  postedAt         DateTime?
+  createdAt        DateTime            @default(now())
+  entries          LedgerEntry[]
+  attachments      VoucherAttachment[]
+  reversalOf       LedgerTransaction?  @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversedBy       LedgerTransaction?  @relation("Reversal")
+
+  @@index([type, date])
+  @@index([status])
+  @@index([partnerAccountId, date])
+  @@index([bookingId])
+  @@index([paymentId])
 }
 
 model LedgerEntry {
   id              String            @id @default(uuid(7)) @db.Uuid
   transactionId   String            @db.Uuid
   ledgerAccountId String            @db.Uuid
-  debit           Decimal           @default(0) @db.Decimal(14, 2)
-  credit          Decimal           @default(0) @db.Decimal(14, 2)
+  debit           Decimal           @default(0) @db.Decimal(14, 2) // PKR
+  credit          Decimal           @default(0) @db.Decimal(14, 2) // PKR
+  currency        String            @default("PKR") @db.Char(3)
+  fcAmount        Decimal?          @db.Decimal(14, 2) // foreign-currency amount (unsigned)
+  rate            Decimal?          @db.Decimal(18, 6) // PKR per 1 unit
+  narration       String?
   transaction     LedgerTransaction @relation(fields: [transactionId], references: [id])
+  account         LedgerAccount     @relation(fields: [ledgerAccountId], references: [id])
 
   @@index([ledgerAccountId, transactionId])
 }
 
-// Invariant (enforced in service + DB CHECK via raw migration): Σdebit = Σcredit per transaction.
+// Invariant (enforced in service + DB trigger via raw migration): Σdebit = Σcredit per transaction.
+
+model VoucherAttachment {
+  voucherId String            @db.Uuid
+  fileId    String            @db.Uuid
+  createdAt DateTime          @default(now())
+  voucher   LedgerTransaction @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  @@id([voucherId, fileId])
+}
+
+/// A closed accounting month ("2026-09"). Nothing can be posted into it.
+model ClosedPeriod {
+  month      String   @id
+  closedById String   @db.Uuid
+  closedAt   DateTime @default(now())
+}
 
 model Invoice {
   id        String         @id @default(uuid(7)) @db.Uuid

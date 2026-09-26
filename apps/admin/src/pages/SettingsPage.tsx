@@ -12,6 +12,7 @@ import {
   CardBody,
   CardFooter,
   CardHeader,
+  Checkbox,
   ErrorState,
   Field,
   Input,
@@ -169,6 +170,26 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
           >
             <Textarea rows={3} {...register('booking.paymentTermsNote')} />
           </Field>
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Accounting controls"
+          description="Maker-checker: the person who prepares a journal voucher cannot also post it."
+        />
+        <CardBody>
+          <Checkbox
+            label={
+              <span>
+                <span className="font-medium">Journal vouchers need approval</span>
+                <span className="block text-[13px] text-muted-foreground">
+                  Recommended. When off, preparers can post journals directly. Super admins can
+                  always self-approve with a recorded reason.
+                </span>
+              </span>
+            }
+            {...register('accounting.requireJvApproval')}
+          />
         </CardBody>
         <CardFooter>
           <Button type="submit" loading={formState.isSubmitting} disabled={!formState.isDirty}>

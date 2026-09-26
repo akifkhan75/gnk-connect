@@ -1,6 +1,6 @@
 import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
 import type { PartnerAccountStatus, PartnerRole } from '@prisma/client';
-import type { Permission } from '@gnk/types';
+import { PARTNER_ROLE_CAPABILITIES, type PartnerCapability, type Permission } from '@gnk/types';
 
 export const IS_PUBLIC = 'gnk:public';
 export const PERMISSIONS = 'gnk:permissions';
@@ -16,6 +16,14 @@ export const RequirePermission = (...permissions: Permission[]) =>
 
 /** Partner routes: the member's role in the active account must be one of these. */
 export const RequirePartnerRole = (...roles: PartnerRole[]) => SetMetadata(PARTNER_ROLES, roles);
+
+/** Partner routes: the member's role must grant this capability (PARTNER_ROLE_CAPABILITIES). */
+export const RequirePartnerCapability = (capability: PartnerCapability) =>
+  RequirePartnerRole(
+    ...(Object.keys(PARTNER_ROLE_CAPABILITIES) as PartnerRole[]).filter((r) =>
+      PARTNER_ROLE_CAPABILITIES[r].includes(capability),
+    ),
+  );
 
 /** Partner routes: the active account must be in one of these statuses. */
 export const RequireAccountStatus = (...statuses: PartnerAccountStatus[]) =>

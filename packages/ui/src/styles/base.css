@@ -13,11 +13,28 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
+    letter-spacing: -0.006em;
     -webkit-font-smoothing: antialiased;
-    font-feature-settings: 'ss01';
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv11', 'ss03'; /* Inter: straight-sided digits, open shapes */
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: hsl(var(--accent) / 0.2);
+  }
+  /* Quiet scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border-strong)) transparent;
   }
   :focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid hsl(var(--ring) / 0.7);
     outline-offset: 2px;
   }
   .tabular {
@@ -52,7 +69,7 @@
 @keyframes gnk-pop-in {
   from {
     opacity: 0;
-    transform: translateY(4px) scale(0.98);
+    transform: translateY(6px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -73,5 +90,26 @@
   }
   to {
     transform: none;
+  }
+}
+@keyframes gnk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gnk-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px hsl(var(--success) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0);
   }
 }

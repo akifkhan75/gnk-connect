@@ -17,6 +17,14 @@ const STAFF_PREFIXES = ['/api/v1/admin/', '/api/v1/auth/staff/'];
 
 // Partner routes a suspended/closed account may still reach (to see its status and sign out).
 const SUSPENDED_ALLOWED = ['/api/v1/auth/partner/'];
+// Until a user replaces a password someone else set, only auth routes are open to them.
+const AUTH_PREFIXES = ['/api/v1/auth/'];
+
+const passwordChangeRequired = () =>
+  new ForbiddenException({
+    message: 'Choose a new password to continue',
+    code: 'PASSWORD_CHANGE_REQUIRED',
+  });
 
 /**
  * Global default-deny authentication (plan 04 §4.3).
@@ -64,7 +72,10 @@ export class RealmAuthGuard implements CanActivate {
     }
 
     if (realm === 'STAFF') {
-      req.actor = await this.actors.staff(claims.sub, claims.sid);
+      const staff = await this.actors.staff(claims.sub, claims.sid);
+      if (staff.mustChangePassword && !AUTH_PREFIXES.some((p) => path.startsWith(p)))
+        throw passwordChangeRequired();
+      req.actor = staff;
       return true;
     }
 
@@ -79,6 +90,8 @@ export class RealmAuthGuard implements CanActivate {
         code: 'ACCOUNT_SUSPENDED',
       });
     }
+    if (actor.mustChangePassword && !AUTH_PREFIXES.some((p) => path.startsWith(p)))
+      throw passwordChangeRequired();
     req.actor = actor;
     return true;
   }

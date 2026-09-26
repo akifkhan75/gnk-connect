@@ -13,6 +13,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { z } from 'zod';
 import {
   adminBookingListSchema,
+  bookingAssignSchema,
   bookingDecisionSchema,
   bookingListSchema,
   bookingRejectSchema,
@@ -27,7 +28,7 @@ import type { PartnerActor, StaffActor } from '../auth/auth.types';
 import {
   CurrentActor,
   RequireApproved,
-  RequirePartnerRole,
+  RequirePartnerCapability,
   RequirePermission,
 } from '../auth/decorators';
 import { BookingsService } from './bookings.service';
@@ -57,7 +58,7 @@ export class PartnerBookingsController {
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @RequireApproved()
-  @RequirePartnerRole('OWNER', 'MANAGER', 'STAFF')
+  @RequirePartnerCapability('bookings:create')
   create(
     @CurrentActor() actor: PartnerActor,
     @Body(new ZodPipe(createBookingSchema)) dto: z.output<typeof createBookingSchema>,
@@ -69,7 +70,7 @@ export class PartnerBookingsController {
 
   @Post(':id/cancel')
   @HttpCode(200)
-  @RequirePartnerRole('OWNER', 'MANAGER', 'STAFF')
+  @RequirePartnerCapability('bookings:create')
   cancel(
     @CurrentActor() actor: PartnerActor,
     @Param('id', UUID) id: string,
@@ -179,6 +180,17 @@ export class AdminBookingsController {
   @RequirePermission('bookings:cancel')
   complete(@CurrentActor() actor: StaffActor, @Param('id', UUID) id: string) {
     return this.bookings.complete(actor, id);
+  }
+
+  @Patch(':id/assign')
+  @RequirePermission('bookings:read')
+  assign(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(bookingAssignSchema)) dto: z.output<typeof bookingAssignSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.assign(actor, id, dto.staffId, meta);
   }
 
   @Patch(':id/notes')

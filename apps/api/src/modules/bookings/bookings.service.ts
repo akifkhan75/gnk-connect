@@ -33,6 +33,7 @@ import { AuditService } from '../audit/audit.service';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
 import { LedgerService } from '../ledger/ledger.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { SettingsService } from '../settings/settings.service';
 import { SupplierGatewayService } from '../suppliers/supplier-gateway.service';
 import { BookingMapper, type BookingDetailRow } from './booking.mapper';
@@ -88,6 +89,7 @@ export class BookingsService {
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
     private readonly mapper: BookingMapper,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // =============== Partner ===============
@@ -296,6 +298,7 @@ export class BookingsService {
       body: `${actor.accountName} requested ${booking.seats} seat${booking.seats > 1 ? 's' : ''} on ${departure.product.sector ?? departure.product.title} (${isoDate(departure.departureDate)}).`,
       link: `/bookings/${booking.id}`,
     });
+    await this.changed(booking.id, booking.accountId);
     return this.partnerGet(actor, booking.id);
   }
 
@@ -340,6 +343,8 @@ export class BookingsService {
     const where: Prisma.BookingWhereInput = {
       ...(q.tab !== 'all' ? { status: { in: ADMIN_TABS[q.tab] } } : {}),
       ...(q.accountId ? { accountId: q.accountId } : {}),
+      ...(q.owner === 'me' ? { assignedStaffId: actor.userId } : {}),
+      ...(q.owner === 'unassigned' ? { assignedStaffId: null } : {}),
       ...this.searchWhere(q.q, true),
       ...this.dateWhere(q.from, q.to),
     };
@@ -352,9 +357,12 @@ export class BookingsService {
       }),
       this.prisma.booking.count({ where }),
     ]);
-    const names = await this.userNames(
-      rows.map((r) => ({ realm: 'PARTNER' as Realm, id: r.createdByUserId })),
-    );
+    const names = await this.userNames([
+      ...rows.map((r) => ({ realm: 'PARTNER' as Realm, id: r.createdByUserId })),
+      ...rows.flatMap((r) =>
+        r.assignedStaffId ? [{ realm: 'STAFF' as Realm, id: r.assignedStaffId }] : [],
+      ),
+    ]);
     return paginated(
       rows.map((r) => this.mapper.toAdminListItem(r, names, actor)),
       total,
@@ -673,6 +681,7 @@ export class BookingsService {
         });
       }
     });
+    await this.changed(b.id, b.accountId);
     await this.audit.log({
       actor: { realm: 'STAFF', userId: actor.userId },
       action: 'booking.cancel',
@@ -848,6 +857,7 @@ export class BookingsService {
         },
       });
     });
+    await this.changed(id);
     const b = await this.prisma.booking.findUniqueOrThrow({
       where: { id },
       include: { product: true },
@@ -898,7 +908,54 @@ export class BookingsService {
         },
       });
     };
-    return tx ? run(tx) : this.prisma.$transaction(run);
+    if (tx) return run(tx); // the caller publishes once its transaction commits
+    await this.prisma.$transaction(run);
+    await this.changed(id);
+  }
+
+  /** Tells the partner's users and staff that a booking changed (after commit). */
+  async changed(id: string, accountId?: string) {
+    const owner =
+      accountId ??
+      (await this.prisma.booking.findUnique({ where: { id }, select: { accountId: true } }))
+        ?.accountId;
+    if (owner)
+      this.realtime.publish({ topic: 'booking', id }, { realm: 'PARTNER', accountId: owner });
+    this.realtime.publish(
+      { topic: 'booking', id },
+      { realm: 'STAFF', permission: 'bookings:read' },
+    );
+    this.realtime.publish({ topic: 'queues' }, { realm: 'STAFF' });
+  }
+
+  /** Takes (or releases) ownership of a booking request on the operations desk. */
+  async assign(actor: StaffActor, id: string, staffId: string | null, meta: RequestMeta) {
+    const b = await this.prisma.booking.findUnique({ where: { id } });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (staffId) {
+      const staff = await this.prisma.staffUser.findUnique({ where: { id: staffId } });
+      if (!staff || staff.status !== 'ACTIVE' || staff.deletedAt)
+        throw new BadRequestException('Choose an active staff member');
+    }
+    await this.prisma.booking.update({ where: { id }, data: { assignedStaffId: staffId } });
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'booking.assign',
+      entityType: 'Booking',
+      entityId: id,
+      before: { assignedStaffId: b.assignedStaffId },
+      after: { assignedStaffId: staffId },
+      meta,
+    });
+    if (staffId && staffId !== actor.userId)
+      await this.notifications.notifyStaffUser(staffId, {
+        type: 'BOOKING_ASSIGNED',
+        title: `${b.reference} assigned to you`,
+        body: `${actor.fullName} assigned booking ${b.reference} to you.`,
+        link: `/bookings/${id}`,
+      });
+    await this.changed(id, b.accountId);
+    return this.adminGet(actor, id);
   }
 
   private searchWhere(q: string | undefined, admin = false): Prisma.BookingWhereInput {
@@ -939,6 +996,7 @@ export class BookingsService {
         .filter((e) => e.actorId && e.actorRealm)
         .map((e) => ({ realm: e.actorRealm!, id: e.actorId! })),
       ...b.payments.flatMap((p) => [{ realm: 'PARTNER' as Realm, id: p.submittedById }]),
+      ...(b.assignedStaffId ? [{ realm: 'STAFF' as Realm, id: b.assignedStaffId }] : []),
     ]);
   }
 

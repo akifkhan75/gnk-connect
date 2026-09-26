@@ -1,30 +1,63 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LedgerAccountType, Prisma } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, type LedgerAccount, type VoucherType } from '@prisma/client';
 import type { BalanceDto, StatementDto } from '@gnk/types';
-import { todayPk } from '@gnk/validation';
-import { Decimal, num } from '../../core/money';
+import { todayPk, type VoucherLine } from '@gnk/validation';
+import { Decimal, isoDate, num } from '../../core/money';
 import { SequencesService } from '../../core/sequences.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
-type Tx = Prisma.TransactionClient;
+export type Tx = Prisma.TransactionClient;
 
-interface EntryInput {
+/** A resolved posting line. Amounts are PKR; foreign lines also carry fcAmount and rate. */
+export interface PostLine {
   ledgerAccountId: string;
   debit?: Prisma.Decimal | number;
   credit?: Prisma.Decimal | number;
+  currency?: string;
+  fcAmount?: Prisma.Decimal | number | null;
+  rate?: Prisma.Decimal | number | null;
+  narration?: string | null;
 }
 
-const SYSTEM_NAMES: Record<Exclude<LedgerAccountType, 'PARTNER_RECEIVABLE'>, string> = {
-  BANK: 'GNK bank accounts',
-  CASH: 'GNK cash',
-  GNK_REVENUE: 'GNK margin revenue',
-  SUPPLIER_PAYABLE: 'Supplier payable',
-};
+export interface PostInput {
+  type: VoucherType;
+  /** Accounting date (YYYY-MM-DD, Asia/Karachi). Defaults to today. */
+  date?: string;
+  description: string;
+  bookingId?: string;
+  paymentId?: string;
+  partnerAccountId?: string | null;
+  createdById?: string | null;
+  approvedById?: string | null;
+  reversalOfId?: string;
+  attachmentIds?: string[];
+  lines: PostLine[];
+}
+
+/** System accounts seeded with the chart of accounts (migration 20260927000000). */
+export type SystemKey =
+  | 'CASH'
+  | 'BANK'
+  | 'AR_CONTROL'
+  | 'SUPPLIER_PAYABLE'
+  | 'REVENUE'
+  | 'FX'
+  | 'BANK_CHARGES'
+  | 'ADJUSTMENTS';
+
+export const BASE = 'PKR';
+export const toDate = (d: string) => new Date(`${d}T00:00:00Z`);
+const round2 = (d: Prisma.Decimal) => d.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
 /**
- * Double-entry ledger (plan 03, 06 §P6). Balances are derived from entries, never stored.
- * A partner's balance is Σcredit − Σdebit on their PARTNER_RECEIVABLE account:
- * positive = money held for them, negative = they owe GNK (used credit).
+ * Double-entry ledger and the single posting path for every voucher (plan 03, 06 §P6).
+ * Balances are derived from posted entries, never stored. A partner's balance is
+ * Σcredit − Σdebit on their receivable: positive = funds held, negative = owed to GNK.
  */
 @Injectable()
 export class LedgerService {
@@ -35,75 +68,221 @@ export class LedgerService {
 
   // ---------- Accounts ----------
 
+  /** The partner's receivable account under 1200, created on first use. */
   async partnerAccount(tx: Tx, accountId: string) {
     const existing = await tx.ledgerAccount.findUnique({ where: { accountId } });
     if (existing) return existing;
     const partner = await tx.partnerAccount.findUniqueOrThrow({ where: { id: accountId } });
+    const control = await this.systemAccount(tx, 'AR_CONTROL');
     return tx.ledgerAccount.create({
-      data: { type: 'PARTNER_RECEIVABLE', accountId, name: `${partner.code} ${partner.legalName}` },
-    });
-  }
-
-  async systemAccount(tx: Tx, type: keyof typeof SYSTEM_NAMES) {
-    const existing = await tx.ledgerAccount.findFirst({ where: { type, accountId: null } });
-    return existing ?? tx.ledgerAccount.create({ data: { type, name: SYSTEM_NAMES[type] } });
-  }
-
-  // ---------- Posting ----------
-
-  async post(
-    tx: Tx,
-    input: {
-      description: string;
-      bookingId?: string;
-      paymentId?: string;
-      createdById?: string;
-      entries: EntryInput[];
-    },
-  ) {
-    const debit = input.entries.reduce((s, e) => s.plus(e.debit ?? 0), new Decimal(0));
-    const credit = input.entries.reduce((s, e) => s.plus(e.credit ?? 0), new Decimal(0));
-    if (!debit.equals(credit) || debit.lte(0))
-      throw new Error(`Unbalanced ledger posting: ${debit} ≠ ${credit}`);
-
-    return tx.ledgerTransaction.create({
       data: {
-        reference: await this.sequences.next('LEDGER', tx),
-        description: input.description,
-        bookingId: input.bookingId,
-        paymentId: input.paymentId,
-        createdById: input.createdById,
-        entries: {
-          create: input.entries.map((e) => ({
-            ledgerAccountId: e.ledgerAccountId,
-            debit: e.debit ?? 0,
-            credit: e.credit ?? 0,
-          })),
-        },
+        code: `${control.code}-${partner.code}`,
+        name: `${partner.code} ${partner.tradeName || partner.legalName}`,
+        class: 'ASSET',
+        parentId: control.id,
+        accountId,
       },
     });
   }
 
-  /** Verified deposit: Dr bank/cash, Cr partner. */
+  async systemAccount(tx: Tx, key: SystemKey) {
+    const account = await tx.ledgerAccount.findUnique({ where: { systemKey: key } });
+    if (!account)
+      throw new Error(
+        `System account ${key} is missing from the chart of accounts. Run migrations.`,
+      );
+    return account;
+  }
+
+  // ---------- Posting ----------
+
+  /** Posts a balanced voucher. Every automatic and manual posting goes through here. */
+  async post(tx: Tx, input: PostInput) {
+    const date = input.date ?? todayPk();
+    const lines = await this.checkLines(tx, input.lines);
+    await this.assertPeriodOpen(tx, date);
+    return tx.ledgerTransaction.create({
+      data: {
+        reference: await this.sequences.voucher(input.type, tx),
+        type: input.type,
+        status: 'POSTED',
+        date: toDate(date),
+        description: input.description,
+        bookingId: input.bookingId,
+        paymentId: input.paymentId,
+        partnerAccountId: input.partnerAccountId ?? (await this.partnerOf(tx, lines)),
+        createdById: input.createdById ?? null,
+        approvedById: input.approvedById ?? null,
+        approvedAt: input.approvedById ? new Date() : null,
+        reversalOfId: input.reversalOfId,
+        postedAt: new Date(),
+        entries: { create: lines },
+        ...(input.attachmentIds?.length
+          ? { attachments: { create: input.attachmentIds.map((fileId) => ({ fileId })) } }
+          : {}),
+      },
+    });
+  }
+
+  /** Posts an existing draft/submitted voucher in place (keeps its id and attachments). */
+  async postDraft(
+    tx: Tx,
+    voucher: { id: string; type: VoucherType; date: Date; status: string },
+    lines: PostLine[],
+    approvedById: string | null,
+  ) {
+    const checked = await this.checkLines(tx, lines);
+    await this.assertPeriodOpen(tx, isoDate(voucher.date)!);
+    // Status first: the entry guard trigger only accepts entries on POSTED vouchers.
+    const updated = await tx.ledgerTransaction.updateMany({
+      where: { id: voucher.id, status: voucher.status as never },
+      data: {
+        status: 'POSTED',
+        reference: await this.sequences.voucher(voucher.type, tx),
+        partnerAccountId: await this.partnerOf(tx, checked),
+        approvedById,
+        approvedAt: approvedById ? new Date() : null,
+        postedAt: new Date(),
+        draftLines: Prisma.DbNull,
+      },
+    });
+    if (!updated.count)
+      throw new ConflictException(
+        'This voucher was changed by someone else. Refresh and try again.',
+      );
+    await tx.ledgerEntry.createMany({
+      data: checked.map((l) => ({ ...l, transactionId: voucher.id })),
+    });
+    return tx.ledgerTransaction.findUniqueOrThrow({ where: { id: voucher.id } });
+  }
+
+  /**
+   * Turns editor lines (side + PKR amount, or foreign amount × rate) into posting lines.
+   * PKR for a foreign line is fcAmount × rate rounded half-up, the same as toBaseAmount().
+   */
+  async resolveLines(tx: Tx, lines: VoucherLine[]): Promise<PostLine[]> {
+    const accounts = await this.accountsById(
+      tx,
+      lines.map((l) => l.accountId),
+    );
+    return lines.map((l, i) => {
+      const account = accounts.get(l.accountId);
+      if (!account) throw this.lineError(i, 'accountId', 'Account not found');
+      let amount: Prisma.Decimal;
+      let fc: { currency: string; fcAmount: Prisma.Decimal; rate: Prisma.Decimal } | null = null;
+      if (account.currency !== BASE) {
+        if (l.fcAmount == null || l.rate == null)
+          throw this.lineError(
+            i,
+            'fcAmount',
+            `${account.code} is a ${account.currency} account: enter the ${account.currency} amount and rate`,
+          );
+        const fcAmount = new Decimal(l.fcAmount);
+        const rate = new Decimal(l.rate);
+        amount = round2(fcAmount.times(rate));
+        fc = { currency: account.currency, fcAmount, rate };
+      } else {
+        if (l.amount == null) throw this.lineError(i, 'amount', 'Enter an amount');
+        amount = new Decimal(l.amount);
+      }
+      return {
+        ledgerAccountId: account.id,
+        debit: l.side === 'DEBIT' ? amount : 0,
+        credit: l.side === 'CREDIT' ? amount : 0,
+        currency: fc?.currency ?? BASE,
+        fcAmount: fc?.fcAmount ?? null,
+        rate: fc?.rate ?? null,
+        narration: l.narration ?? null,
+      };
+    });
+  }
+
+  /** Validates accounts, currency fields and the PKR balance of a set of lines. */
+  async checkLines(tx: Tx, lines: PostLine[]) {
+    if (lines.length < 2) throw new BadRequestException('A voucher needs at least two lines');
+    const accounts = await this.accountsById(
+      tx,
+      lines.map((l) => l.ledgerAccountId),
+    );
+    let debit = new Decimal(0);
+    let credit = new Decimal(0);
+    const out = lines.map((l, i) => {
+      const account = accounts.get(l.ledgerAccountId);
+      if (!account) throw this.lineError(i, 'accountId', 'Account not found');
+      if (account.isGroup)
+        throw this.lineError(
+          i,
+          'accountId',
+          `${account.code} is a group; pick an account under it`,
+        );
+      if (!account.isActive) throw this.lineError(i, 'accountId', `${account.code} is inactive`);
+      const d = new Decimal(l.debit ?? 0);
+      const c = new Decimal(l.credit ?? 0);
+      if (d.lt(0) || c.lt(0) || (d.gt(0) && c.gt(0)) || (d.isZero() && c.isZero()))
+        throw this.lineError(i, 'amount', 'Each line is either a debit or a credit');
+      const currency = l.currency ?? BASE;
+      if (currency !== account.currency)
+        throw this.lineError(i, 'accountId', `${account.code} is kept in ${account.currency}`);
+      if (currency !== BASE && (l.fcAmount == null || l.rate == null))
+        throw this.lineError(i, 'fcAmount', 'Enter the foreign amount and rate');
+      debit = debit.plus(d);
+      credit = credit.plus(c);
+      return {
+        ledgerAccountId: account.id,
+        debit: d,
+        credit: c,
+        currency,
+        fcAmount: currency === BASE ? null : new Decimal(l.fcAmount!),
+        rate: currency === BASE ? null : new Decimal(l.rate!),
+        narration: l.narration ?? null,
+      };
+    });
+    if (!debit.equals(credit))
+      throw new BadRequestException({
+        message: `Debits (${debit.toFixed(2)}) and credits (${credit.toFixed(2)}) must be equal`,
+        code: 'VOUCHER_UNBALANCED',
+      });
+    if (debit.lte(0)) throw new BadRequestException('A voucher must move a positive amount');
+    return out;
+  }
+
+  async assertPeriodOpen(tx: Tx, date: string) {
+    const month = date.slice(0, 7);
+    if (await tx.closedPeriod.findUnique({ where: { month } }))
+      throw new ConflictException({
+        message: `The accounting period ${month} is closed. Use a date in an open period.`,
+        code: 'PERIOD_CLOSED',
+      });
+  }
+
+  // ---------- Automatic postings ----------
+
+  /** Approved deposit (receipt voucher): Dr bank/cash, Cr partner. */
   async postPayment(
     tx: Tx,
     p: { id: string; accountId: string; amount: Prisma.Decimal; method: string; reference: string },
     staffId: string,
+    depositAccountId?: string | null,
   ) {
     const partner = await this.partnerAccount(tx, p.accountId);
-    const cash = await this.systemAccount(tx, p.method === 'CASH' ? 'CASH' : 'BANK');
+    const deposit = depositAccountId
+      ? await this.cashOrBankAccount(tx, depositAccountId)
+      : await this.systemAccount(tx, p.method === 'CASH' ? 'CASH' : 'BANK');
     return this.post(tx, {
+      type: 'RECEIPT',
       description: `Payment received ${p.reference}`,
       paymentId: p.id,
+      partnerAccountId: p.accountId,
       createdById: staffId,
-      entries: [
-        { ledgerAccountId: cash.id, debit: p.amount },
+      approvedById: staffId,
+      lines: [
+        { ledgerAccountId: deposit.id, debit: p.amount },
         { ledgerAccountId: partner.id, credit: p.amount },
       ],
     });
   }
 
-  /** Confirmed booking: Dr partner (total), Cr supplier payable (net), Cr GNK revenue (margin). */
+  /** Confirmed booking (sale voucher): Dr partner (total), Cr supplier payable (net), Cr revenue (margin). */
   async postBookingCharge(
     tx: Tx,
     b: {
@@ -119,14 +298,16 @@ export class LedgerService {
   ) {
     const partner = await this.partnerAccount(tx, b.accountId);
     const payable = await this.systemAccount(tx, 'SUPPLIER_PAYABLE');
-    const revenue = await this.systemAccount(tx, 'GNK_REVENUE');
+    const revenue = await this.systemAccount(tx, 'REVENUE');
     const net = b.supplierNetUnit.times(b.seats);
     const margin = b.totalPrice.minus(net);
     return this.post(tx, {
+      type: 'SALE',
       description: `Booking ${b.reference} (${b.seats} seat${b.seats > 1 ? 's' : ''})`,
       bookingId: b.id,
+      partnerAccountId: b.accountId,
       createdById: actorId,
-      entries: [
+      lines: [
         { ledgerAccountId: partner.id, debit: b.totalPrice },
         { ledgerAccountId: payable.id, credit: net },
         ...(margin.gt(0) ? [{ ledgerAccountId: revenue.id, credit: margin }] : []),
@@ -134,33 +315,54 @@ export class LedgerService {
     });
   }
 
-  /** Reverses a booking charge in full (cancellation after confirmation). */
-  async reverseBookingCharge(
-    tx: Tx,
-    b: {
-      id: string;
-      reference: string;
-      accountId: string;
-      seats: number;
-      supplierNetUnit: Prisma.Decimal;
-      totalPrice: Prisma.Decimal;
-    },
-    actorId?: string,
-  ) {
-    const partner = await this.partnerAccount(tx, b.accountId);
-    const payable = await this.systemAccount(tx, 'SUPPLIER_PAYABLE');
-    const revenue = await this.systemAccount(tx, 'GNK_REVENUE');
-    const net = b.supplierNetUnit.times(b.seats);
-    const margin = b.totalPrice.minus(net);
-    return this.post(tx, {
+  /** Reverses a booking's sale voucher in full (cancellation after confirmation). */
+  async reverseBookingCharge(tx: Tx, b: { id: string; reference: string }, actorId?: string) {
+    const sale = await tx.ledgerTransaction.findFirst({
+      where: { bookingId: b.id, type: 'SALE', status: 'POSTED', reversedBy: { is: null } },
+      orderBy: { postedAt: 'desc' },
+    });
+    if (!sale) throw new ConflictException(`No posted sale found for booking ${b.reference}`);
+    return this.reverse(tx, sale.id, {
+      date: todayPk(),
       description: `Refund for cancelled booking ${b.reference}`,
-      bookingId: b.id,
-      createdById: actorId,
-      entries: [
-        { ledgerAccountId: payable.id, debit: net },
-        ...(margin.gt(0) ? [{ ledgerAccountId: revenue.id, debit: margin }] : []),
-        { ledgerAccountId: partner.id, credit: b.totalPrice },
-      ],
+      createdById: actorId ?? null,
+    });
+  }
+
+  /** Posts the mirror image of a posted voucher and links the two. */
+  async reverse(
+    tx: Tx,
+    voucherId: string,
+    opts: { date: string; description: string; createdById: string | null },
+  ) {
+    const original = await tx.ledgerTransaction.findUnique({
+      where: { id: voucherId },
+      include: { entries: true, reversedBy: true },
+    });
+    if (!original || original.status !== 'POSTED')
+      throw new NotFoundException('Only posted vouchers can be reversed');
+    if (original.reversedBy)
+      throw new ConflictException(`Already reversed by ${original.reversedBy.reference}`);
+    if (original.type === 'REVERSAL') throw new ConflictException('A reversal cannot be reversed');
+    return this.post(tx, {
+      type: 'REVERSAL',
+      date: opts.date,
+      description: opts.description,
+      bookingId: original.bookingId ?? undefined,
+      paymentId: original.paymentId ?? undefined,
+      partnerAccountId: original.partnerAccountId,
+      createdById: opts.createdById,
+      approvedById: opts.createdById,
+      reversalOfId: original.id,
+      lines: original.entries.map((e) => ({
+        ledgerAccountId: e.ledgerAccountId,
+        debit: e.credit,
+        credit: e.debit,
+        currency: e.currency,
+        fcAmount: e.fcAmount,
+        rate: e.rate,
+        narration: e.narration,
+      })),
     });
   }
 
@@ -174,11 +376,14 @@ export class LedgerService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       const partner = await this.partnerAccount(tx, accountId);
-      const contra = await this.systemAccount(tx, 'GNK_REVENUE');
+      const contra = await this.systemAccount(tx, 'ADJUSTMENTS');
       return this.post(tx, {
+        type: 'ADJUSTMENT',
         description: `Adjustment: ${description}`,
+        partnerAccountId: accountId,
         createdById: staffId,
-        entries:
+        approvedById: staffId,
+        lines:
           direction === 'CREDIT'
             ? [
                 { ledgerAccountId: contra.id, debit: amount },
@@ -236,33 +441,36 @@ export class LedgerService {
       new Date(new Date(`${end}T00:00:00Z`).getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
     if (start > end) throw new BadRequestException('The start date must be before the end date');
 
-    const fromDate = new Date(`${start}T00:00:00+05:00`); // statements follow Asia/Karachi days
-    const toDate = new Date(`${end}T23:59:59.999+05:00`);
     const ledger = await this.prisma.ledgerAccount.findUnique({ where: { accountId } });
-
     let opening = new Decimal(0);
     let lines: StatementDto['lines'] = [];
     if (ledger) {
       const before = await this.prisma.ledgerEntry.aggregate({
-        where: { ledgerAccountId: ledger.id, transaction: { postedAt: { lt: fromDate } } },
+        where: { ledgerAccountId: ledger.id, transaction: { date: { lt: toDate(start) } } },
         _sum: { debit: true, credit: true },
       });
       opening = new Decimal(before._sum.credit ?? 0).minus(before._sum.debit ?? 0);
       const entries = await this.prisma.ledgerEntry.findMany({
         where: {
           ledgerAccountId: ledger.id,
-          transaction: { postedAt: { gte: fromDate, lte: toDate } },
+          transaction: { date: { gte: toDate(start), lte: toDate(end) } },
         },
         include: { transaction: true },
-        orderBy: [{ transaction: { postedAt: 'asc' } }, { id: 'asc' }],
+        orderBy: [
+          { transaction: { date: 'asc' } },
+          { transaction: { postedAt: 'asc' } },
+          { id: 'asc' },
+        ],
       });
       let running = opening;
       lines = entries.map((e) => {
         running = running.plus(e.credit).minus(e.debit);
         return {
-          date: e.transaction.postedAt.toISOString(),
+          date: isoDate(e.transaction.date)!,
           reference: e.transaction.reference,
-          description: e.transaction.description,
+          description: e.narration
+            ? `${e.transaction.description} — ${e.narration}`
+            : e.transaction.description,
           debit: num(e.debit),
           credit: num(e.credit),
           balance: num(running),
@@ -288,5 +496,45 @@ export class LedgerService {
       availableFunds: current.availableFunds,
       lines,
     };
+  }
+
+  // ---------- internals ----------
+
+  /** A postable bank or cash account (under 1100), for deposits and payouts. */
+  async cashOrBankAccount(tx: Tx, id: string) {
+    const account = await tx.ledgerAccount.findUnique({ where: { id }, include: { parent: true } });
+    const cashGroup = await tx.ledgerAccount.findUnique({ where: { code: '1100' } });
+    const underCash =
+      account && (account.parentId === cashGroup?.id || account.parent?.parentId === cashGroup?.id);
+    if (!account || account.isGroup || !account.isActive || !underCash || account.currency !== BASE)
+      throw new BadRequestException({
+        message: 'Choose an active PKR bank or cash account',
+        code: 'VALIDATION_FAILED',
+        errors: [{ path: 'depositAccountId', message: 'Choose a bank or cash account' }],
+      });
+    return account;
+  }
+
+  private async accountsById(tx: Tx, ids: string[]) {
+    const rows = await tx.ledgerAccount.findMany({ where: { id: { in: [...new Set(ids)] } } });
+    return new Map<string, LedgerAccount>(rows.map((a) => [a.id, a]));
+  }
+
+  /** The partner whose receivable a set of lines touches, if exactly one. */
+  async partnerOf(tx: Tx, lines: { ledgerAccountId: string }[]) {
+    const rows = await tx.ledgerAccount.findMany({
+      where: { id: { in: lines.map((l) => l.ledgerAccountId) }, accountId: { not: null } },
+      select: { accountId: true },
+    });
+    const partners = [...new Set(rows.map((r) => r.accountId!))];
+    return partners.length === 1 ? partners[0] : null;
+  }
+
+  private lineError(index: number, field: string, message: string) {
+    return new BadRequestException({
+      message,
+      code: 'VALIDATION_FAILED',
+      errors: [{ path: `lines.${index}.${field}`, message }],
+    });
   }
 }

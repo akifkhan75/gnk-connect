@@ -13,6 +13,7 @@ const STAFF_READ: Record<FilePurpose, Permission> = {
   PASSPORT_COPY: 'bookings:read',
   INVOICE: 'bookings:read',
   LOGO: 'partners:read',
+  VOUCHER: 'ledger:read',
 };
 
 export interface UploadedBlob {

@@ -32,6 +32,7 @@ const listInclude = {
     take: 1,
     orderBy: { id: 'asc' },
   },
+  statusHistory: { orderBy: { createdAt: 'desc' }, take: 1 },
 } satisfies Prisma.BookingInclude;
 
 const detailInclude = {
@@ -40,11 +41,28 @@ const detailInclude = {
   statusHistory: { orderBy: { createdAt: 'asc' } },
   invoice: true,
   payments: { orderBy: { createdAt: 'desc' } },
+  allocations: { include: { payment: true } },
   supplierCalls: { orderBy: { createdAt: 'desc' }, take: 20 },
 } satisfies Prisma.BookingInclude;
 
 export type BookingListRow = Prisma.BookingGetPayload<{ include: typeof listInclude }>;
 export type BookingDetailRow = Prisma.BookingGetPayload<{ include: typeof detailInclude }>;
+
+const staffRef = (id: string | null, names: Map<string, string>) =>
+  id ? { id, name: (names.get(id) ?? 'GNK staff').replace(/ \(GNK\)$/, '') } : null;
+
+/** Payments linked to a booking: legacy single-booking payments and allocations. */
+export function bookingPayments(b: BookingDetailRow): PaymentDto[] {
+  const byId = new Map<string, PaymentDto>();
+  for (const p of b.payments)
+    byId.set(p.id, paymentDto({ ...p, Booking: { reference: b.reference } }));
+  for (const a of b.allocations)
+    byId.set(a.payment.id, {
+      ...paymentDto({ ...a.payment, Booking: null }),
+      allocations: [{ bookingId: b.id, bookingReference: b.reference, amount: num(a.amount) }],
+    });
+  return [...byId.values()].sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+}
 
 export function paymentDto(
   p:
@@ -63,9 +81,13 @@ export function paymentDto(
     bookingId: p.bookingId,
     bookingReference: p.Booking?.reference ?? null,
     proofFileId: p.proofFileId,
+    attachments: [],
+    allocations: [],
+    notes: p.notes,
     rejectionReason: p.rejectionReason,
     createdAt: iso(p.createdAt)!,
     verifiedAt: iso(p.verifiedAt),
+    receipt: null,
   };
 }
 
@@ -111,6 +133,8 @@ export class BookingMapper {
       margin: actor.permissions.has('bookings:view_supplier_net')
         ? num(b.markupUnit) * b.seats
         : null,
+      assignedTo: staffRef(b.assignedStaffId, names),
+      statusSince: iso(b.statusHistory[0]?.createdAt ?? b.createdAt)!,
     };
   }
 
@@ -203,6 +227,7 @@ export class BookingMapper {
         phone: b.account.phone,
         email: b.account.email,
       },
+      assignedTo: staffRef(b.assignedStaffId, names),
       balance: extra.balance,
       supplierName: extra.supplierName,
       supplierBookingRef: b.supplierBookingRef,
@@ -217,7 +242,7 @@ export class BookingMapper {
           }
         : null,
       internalNotes: b.internalNotes,
-      payments: b.payments.map((p) => paymentDto({ ...p, Booking: { reference: b.reference } })),
+      payments: bookingPayments(b),
       supplierCalls:
         actor.permissions.has('suppliers:read') || actor.permissions.has('bookings:push_supplier')
           ? b.supplierCalls.map((c) => ({

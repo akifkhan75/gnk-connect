@@ -43,6 +43,7 @@ export class ActorResolverService {
       accountType: membership.account.type,
       accountStatus: membership.account.status,
       role: membership.role,
+      mustChangePassword: user.mustChangePassword,
     };
     this.cache.set(key, actor);
     return actor;
@@ -77,6 +78,7 @@ export class ActorResolverService {
       fullName: user.fullName,
       roles: user.roles.map((r) => r.role.key),
       permissions,
+      mustChangePassword: user.mustChangePassword,
     };
     this.cache.set(key, actor);
     return actor;

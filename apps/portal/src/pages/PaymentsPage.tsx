@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, Landmark, Plus, Wallet } from 'lucide-react';
-import { submitPaymentSchema, todayPk, type SubmitPaymentInput } from '@gnk/validation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { ApiError } from '@gnk/api-client';
+import { Eye, FileText, Landmark, Plus, ReceiptText, Wallet, X } from 'lucide-react';
+import { todayPk } from '@gnk/validation';
 import {
   Alert,
   Button,
@@ -25,19 +25,20 @@ import {
   StatCard,
   StatusBadge,
   formatDate,
+  formatMoney,
+  statusLabel,
   titleCase,
   useToast,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { applyServerErrors } from '@/lib/forms';
 import { openBlob } from '@/lib/useFileUrl';
-import { ApprovedGate, RoleGate } from '@/components/guards';
+import { ApprovedGate, RoleGate, rolesWith } from '@/components/guards';
 
 export function PaymentsPage() {
   return (
     <ApprovedGate>
-      <RoleGate roles={['OWNER', 'MANAGER', 'ACCOUNTANT']}>
+      <RoleGate roles={rolesWith('payments:view')}>
         <Payments />
       </RoleGate>
     </ApprovedGate>
@@ -64,11 +65,11 @@ function Payments() {
   return (
     <>
       <PageHeader
-        title="Payments"
-        description="Deposit funds by bank transfer or cash, then record the payment here with the slip. GNK verifies it and credits your account."
+        title="Payments and receipts"
+        description="Deposit by bank transfer or cash, then submit the payment here with the slip. Once GNK approves it, your balance is credited and a receipt is issued."
         actions={
           <Button onClick={() => setOpen(true)}>
-            <Plus /> Record a payment
+            <Plus /> Submit a payment
           </Button>
         }
       />
@@ -88,11 +89,7 @@ function Payments() {
           icon={<Wallet />}
           tone="gold"
         />
-        <StatCard
-          label="Awaiting verification"
-          value={<Money value={pending} />}
-          icon={<Landmark />}
-        />
+        <StatCard label="Awaiting approval" value={<Money value={pending} />} icon={<Landmark />} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -138,13 +135,15 @@ function Payments() {
                 },
                 {
                   key: 'bk',
-                  header: 'For booking',
+                  header: 'Applied to',
                   hideBelow: 'lg',
                   cell: (p) =>
-                    p.bookingReference ? (
-                      <span className="tabular">{p.bookingReference}</span>
+                    p.allocations.length ? (
+                      <span className="tabular text-[13px]">
+                        {p.allocations.map((a) => a.bookingReference).join(', ')}
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground">Account deposit</span>
+                      <span className="text-muted-foreground">Account balance</span>
                     ),
                 },
                 {
@@ -159,7 +158,16 @@ function Payments() {
                   align: 'right',
                   cell: (p) => (
                     <div className="flex flex-col items-end gap-1">
-                      <StatusBadge status={p.status} />
+                      <StatusBadge
+                        status={p.status}
+                        label={
+                          p.status === 'VERIFIED'
+                            ? 'Approved'
+                            : p.status === 'SUBMITTED'
+                              ? 'Awaiting approval'
+                              : undefined
+                        }
+                      />
                       {p.rejectionReason && (
                         <span className="max-w-48 text-right text-xs text-danger">
                           {p.rejectionReason}
@@ -172,17 +180,29 @@ function Payments() {
                   key: 'proof',
                   header: <span className="sr-only">Proof</span>,
                   align: 'right',
-                  cell: (p) =>
-                    p.proofFileId && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => openBlob(() => api.files.blob(p.proofFileId!))}
-                        aria-label="View payment slip"
-                      >
-                        <Eye />
-                      </Button>
-                    ),
+                  cell: (p) => (
+                    <div className="flex justify-end gap-1">
+                      {p.receipt && (
+                        <Button asChild variant="ghost" size="sm">
+                          <Link to={`/payments/${p.id}/receipt`}>
+                            <ReceiptText /> {p.receipt.number}
+                          </Link>
+                        </Button>
+                      )}
+                      {(p.attachments[0]?.id ?? p.proofFileId) && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() =>
+                            openBlob(() => api.files.blob((p.attachments[0]?.id ?? p.proofFileId)!))
+                          }
+                          aria-label="View payment slip"
+                        >
+                          <Eye />
+                        </Button>
+                      )}
+                    </div>
+                  ),
                 },
               ]}
             />
@@ -234,9 +254,6 @@ function Payments() {
   );
 }
 
-const paymentFormSchema = submitPaymentSchema.omit({ proofFileId: true });
-type PaymentForm = Omit<SubmitPaymentInput, 'proofFileId'>;
-
 function RecordPaymentDialog({
   open,
   onOpenChange,
@@ -246,61 +263,108 @@ function RecordPaymentDialog({
 }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string>();
+  const [files, setFiles] = useState<File[]>([]);
+  const [form, setForm] = useState({
+    method: 'BANK_TRANSFER',
+    amount: '',
+    bankName: '',
+    transactionRef: '',
+    paidAt: todayPk(),
+    notes: '',
+  });
+  const [alloc, setAlloc] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>();
-  const approved = useQuery({
-    queryKey: ['bookings', { tab: 'APPROVED' }],
-    queryFn: () => api.bookings.list({ tab: 'APPROVED', pageSize: 100 }),
+  const [busy, setBusy] = useState(false);
+  const bookings = useQuery({
+    queryKey: ['bookings', { tab: 'payable' }],
+    queryFn: async () => {
+      const [pending, approved] = await Promise.all([
+        api.bookings.list({ tab: 'PENDING_APPROVAL', pageSize: 50 }),
+        api.bookings.list({ tab: 'APPROVED', pageSize: 50 }),
+      ]);
+      return [...approved.items, ...pending.items];
+    },
     enabled: open,
   });
-  const form = useForm<PaymentForm>({
-    resolver: zodResolver(paymentFormSchema),
-    defaultValues: {
-      method: 'BANK_TRANSFER',
-      bankName: '',
-      transactionRef: '',
-      paidAt: todayPk(),
-      bookingId: '',
-    },
-  });
-  const { register, handleSubmit, formState, reset, setError: setFieldError, setValue } = form;
 
   useEffect(() => {
     if (open) {
-      reset();
-      setFile(null);
+      setFiles([]);
+      setForm({
+        method: 'BANK_TRANSFER',
+        amount: '',
+        bankName: '',
+        transactionRef: '',
+        paidAt: todayPk(),
+        notes: '',
+      });
+      setAlloc({});
+      setErrors({});
       setError(undefined);
-      setFileError(undefined);
     }
-  }, [open, reset]);
+  }, [open]);
 
-  const submit = useMutation({
-    mutationFn: async (values: PaymentForm) => {
-      const uploaded = await api.files.upload(file!, 'PAYMENT_PROOF');
-      return api.payments.submit({ ...values, proofFileId: uploaded.id });
-    },
-    onSuccess: (p) => {
+  const allocated = Object.values(alloc).reduce((s, v) => s + (Number(v) || 0), 0);
+  const amount = Number(form.amount) || 0;
+  const over = Math.round(allocated * 100) > Math.round(amount * 100);
+
+  const toggleBooking = (id: string, total: number, on: boolean) =>
+    setAlloc((a) => {
+      const next = { ...a };
+      if (on) {
+        next[id] = String(total);
+        const sum = Object.values(next).reduce((s, v) => s + (Number(v) || 0), 0);
+        if (!form.amount || Number(form.amount) < sum)
+          setForm((f) => ({ ...f, amount: String(sum) }));
+      } else delete next[id];
+      return next;
+    });
+
+  const submit = async () => {
+    setErrors({});
+    setError(undefined);
+    if (!files.length)
+      return setErrors({ attachmentIds: 'Attach the deposit slip or transfer screenshot' });
+    if (over) return setErrors({ allocations: 'Applied amounts are more than the payment' });
+    setBusy(true);
+    try {
+      const attachmentIds: string[] = [];
+      for (const f of files) attachmentIds.push((await api.files.upload(f, 'PAYMENT_PROOF')).id);
+      const p = await api.payments.submit({
+        method: form.method,
+        amount: form.amount,
+        bankName: form.bankName,
+        transactionRef: form.transactionRef,
+        paidAt: form.paidAt,
+        notes: form.notes,
+        attachmentIds,
+        allocations: Object.entries(alloc)
+          .filter(([, v]) => Number(v) > 0)
+          .map(([bookingId, v]) => ({ bookingId, amount: Number(v) })),
+      });
       void qc.invalidateQueries({ queryKey: keys.payments });
       toast.success(
         `Payment ${p.reference} submitted`,
-        'GNK will verify it and credit your account.',
+        'GNK will check it and you will get a receipt here.',
       );
       onOpenChange(false);
-    },
-    onError: (e) => setError(applyServerErrors(e, setFieldError)),
-  });
+    } catch (e) {
+      if (e instanceof ApiError) setErrors(e.fieldErrors);
+      setError(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  };
 
-  const onSubmit = handleSubmit((values) => {
-    if (!file) return setFileError('Attach the deposit slip or transfer receipt');
-    submit.mutate(values as PaymentForm);
-  });
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm({ ...form, [k]: e.target.value });
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Record a payment"
+      title="Submit a payment"
       description="Enter the deposit exactly as it appears on your bank slip."
       size="lg"
       footer={
@@ -308,71 +372,131 @@ function RecordPaymentDialog({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSubmit} loading={submit.isPending}>
-            Submit for verification
+          <Button onClick={submit} loading={busy}>
+            Submit for approval
           </Button>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
-        {error && (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {error && !Object.keys(errors).length && (
           <Alert tone="danger" className="sm:col-span-2">
             {error}
           </Alert>
         )}
-        <Field label="Method" error={formState.errors.method?.message}>
-          <Select {...register('method')}>
+        <Field label="Method" error={errors.method}>
+          <Select value={form.method} onChange={set('method')}>
             <option value="BANK_TRANSFER">Bank transfer / deposit</option>
             <option value="CASH">Cash at GNK office</option>
           </Select>
         </Field>
-        <Field label="Amount (PKR)" required error={formState.errors.amount?.message}>
-          <Input type="number" inputMode="decimal" min={1} step="0.01" {...register('amount')} />
-        </Field>
-        <Field label="Bank or branch" required error={formState.errors.bankName?.message}>
-          <Input placeholder="e.g. Meezan Bank, Blue Area" {...register('bankName')} />
-        </Field>
-        <Field
-          label="Transaction / slip number"
-          required
-          error={formState.errors.transactionRef?.message}
-        >
-          <Input {...register('transactionRef')} />
-        </Field>
-        <Field label="Payment date" required error={formState.errors.paidAt?.message}>
-          <Input type="date" max={todayPk()} {...register('paidAt')} />
-        </Field>
-        <Field
-          label="For booking"
-          hint="Optional: link it to an approved booking"
-          error={formState.errors.bookingId?.message}
-        >
-          <Select
-            {...register('bookingId')}
-            onChange={(e) => {
-              setValue('bookingId', e.target.value);
-              const b = approved.data?.items.find((x) => x.id === e.target.value);
-              if (b) setValue('amount', b.totalPrice as never);
-            }}
-          >
-            <option value="">General account deposit</option>
-            {approved.data?.items.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.reference} · {b.sector} · PKR {b.totalPrice.toLocaleString('en-PK')}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Deposit slip" required className="sm:col-span-2" error={fileError}>
-          <FileDrop
-            value={file}
-            onChange={(f) => {
-              setFile(f);
-              setFileError(undefined);
-            }}
+        <Field label="Amount (PKR)" required error={errors.amount}>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={1}
+            step="0.01"
+            value={form.amount}
+            onChange={set('amount')}
+            className="tabular"
           />
         </Field>
-      </form>
+        <Field label="Bank or branch" required error={errors.bankName}>
+          <Input
+            placeholder="e.g. Meezan Bank, Blue Area"
+            value={form.bankName}
+            onChange={set('bankName')}
+          />
+        </Field>
+        <Field label="Transaction / slip number" required error={errors.transactionRef}>
+          <Input value={form.transactionRef} onChange={set('transactionRef')} />
+        </Field>
+        <Field label="Payment date" required error={errors.paidAt}>
+          <Input type="date" max={todayPk()} value={form.paidAt} onChange={set('paidAt')} />
+        </Field>
+        <Field label="Note to GNK" error={errors.notes}>
+          <Input value={form.notes} onChange={set('notes')} placeholder="Optional" />
+        </Field>
+
+        <Field
+          label="Apply to bookings"
+          className="sm:col-span-2"
+          hint={
+            bookings.data?.length
+              ? `Anything not applied stays on your account balance. Applied ${formatMoney(allocated)} of ${formatMoney(amount)}.`
+              : 'No bookings are waiting for payment; this will be an account deposit.'
+          }
+          error={errors.allocations}
+        >
+          {!!bookings.data?.length && (
+            <div className="max-h-56 divide-y divide-border/60 overflow-y-auto rounded-xl border">
+              {bookings.data.map((b) => {
+                const on = b.id in alloc;
+                return (
+                  <label
+                    key={b.id}
+                    className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm hover:bg-muted/40"
+                  >
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-[hsl(var(--primary))]"
+                      checked={on}
+                      onChange={(e) => toggleBooking(b.id, b.totalPrice, e.target.checked)}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="tabular font-medium">{b.reference}</span>
+                      <span className="ml-2 text-muted-foreground">{b.sector ?? b.title}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {statusLabel(b.status)} · total {formatMoney(b.totalPrice)}
+                      </span>
+                    </span>
+                    {on && (
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="h-8 w-32 text-right tabular"
+                        value={alloc[b.id]}
+                        onClick={(e) => e.preventDefault()}
+                        onChange={(e) => setAlloc({ ...alloc, [b.id]: e.target.value })}
+                        aria-label={`Amount for ${b.reference}`}
+                      />
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </Field>
+
+        <Field
+          label="Deposit slip or screenshots"
+          required
+          className="sm:col-span-2"
+          error={errors.attachmentIds}
+          hint="Up to 5 files"
+        >
+          <div className="space-y-2">
+            {files.map((f, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
+                <FileText className="size-4 text-muted-foreground" />
+                <span className="flex-1 truncate">{f.name}</span>
+                <button
+                  type="button"
+                  className="rounded p-1 text-muted-foreground hover:bg-muted"
+                  onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                  aria-label={`Remove ${f.name}`}
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ))}
+            {files.length < 5 && (
+              <FileDrop value={null} onChange={(f) => f && setFiles([...files, f])} />
+            )}
+          </div>
+        </Field>
+      </div>
     </Dialog>
   );
 }

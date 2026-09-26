@@ -4,6 +4,7 @@ import type { z } from 'zod';
 import {
   adminPaymentListSchema,
   paymentRejectSchema,
+  paymentVerifySchema,
   recordPaymentSchema,
   submitPaymentSchema,
 } from '@gnk/validation';
@@ -14,7 +15,7 @@ import type { PartnerActor, StaffActor } from '../auth/auth.types';
 import {
   CurrentActor,
   RequireApproved,
-  RequirePartnerRole,
+  RequirePartnerCapability,
   RequirePermission,
 } from '../auth/decorators';
 import { PaymentsService } from './payments.service';
@@ -24,15 +25,21 @@ export class PartnerPaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
   @Get()
-  @RequirePartnerRole('OWNER', 'MANAGER', 'ACCOUNTANT')
+  @RequirePartnerCapability('payments:view')
   list(@CurrentActor() actor: PartnerActor) {
     return this.payments.partnerList(actor);
+  }
+
+  @Get(':id/receipt')
+  @RequirePartnerCapability('payments:view')
+  receipt(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
+    return this.payments.receipt(id, actor.accountId);
   }
 
   @Post()
   @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
   @RequireApproved()
-  @RequirePartnerRole('OWNER', 'MANAGER', 'ACCOUNTANT')
+  @RequirePartnerCapability('payments:submit')
   submit(
     @CurrentActor() actor: PartnerActor,
     @Body(new ZodPipe(submitPaymentSchema)) dto: z.output<typeof submitPaymentSchema>,
@@ -58,6 +65,18 @@ export class AdminPaymentsController {
     return this.payments.adminCounts();
   }
 
+  @Get(':id')
+  @RequirePermission('payments:read')
+  get(@Param('id', UUID) id: string) {
+    return this.payments.adminGet(id);
+  }
+
+  @Get(':id/receipt')
+  @RequirePermission('payments:read')
+  receipt(@Param('id', UUID) id: string) {
+    return this.payments.receipt(id);
+  }
+
   @Post()
   @RequirePermission('payments:verify')
   record(
@@ -74,9 +93,11 @@ export class AdminPaymentsController {
   verify(
     @CurrentActor() actor: StaffActor,
     @Param('id', UUID) id: string,
+    @Body(new ZodPipe(paymentVerifySchema, { optional: true }))
+    dto: z.output<typeof paymentVerifySchema>,
     @Meta() meta: RequestMeta,
   ) {
-    return this.payments.verify(actor, id, meta);
+    return this.payments.verify(actor, id, dto.depositAccountId, meta);
   }
 
   @Post(':id/reject')

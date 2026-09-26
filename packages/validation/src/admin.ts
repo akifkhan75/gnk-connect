@@ -1,16 +1,29 @@
 import { z } from 'zod';
 import {
+  ALL_PERMISSIONS,
   KYC_DOC_STATUSES,
   MARKUP_TYPES,
   PARTNER_ACCOUNT_STATUSES,
+  PARTNER_ROLES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
   PRICING_SCOPES,
   PRODUCT_TYPES,
   ROUNDING_MODES,
-  STAFF_ROLE_KEYS,
+  type Permission,
 } from '@gnk/types';
-import { emailSchema, isoDateSchema, moneySchema, optionalText, uuidSchema } from './common';
+import {
+  allocationSchema,
+  allocationsMessage,
+  allocationsWithinAmount,
+  emailSchema,
+  isoDateSchema,
+  moneySchema,
+  optionalText,
+  passwordSchema,
+  phonePkSchema,
+  uuidSchema,
+} from './common';
 
 const page = {
   page: z.coerce.number().int().min(1).default(1),
@@ -83,6 +96,8 @@ export const adminBookingListSchema = z.object({
   accountId: uuidSchema.optional(),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
+  /** Operations desk: my requests, or ones nobody has picked up. */
+  owner: z.enum(['me', 'unassigned']).optional(),
 });
 export type AdminBookingListInput = z.input<typeof adminBookingListSchema>;
 
@@ -100,19 +115,32 @@ export const adminPaymentListSchema = z.object({
   accountId: uuidSchema.optional(),
 });
 
+export const paymentVerifySchema = z
+  .object({
+    /** Bank or cash account in the chart the money landed in. Defaults by method. */
+    depositAccountId: uuidSchema.optional(),
+  })
+  .default({});
+
 export const paymentRejectSchema = z.object({
   reason: z.string().trim().min(3, 'Give a reason').max(500),
 });
 
-export const recordPaymentSchema = z.object({
-  accountId: uuidSchema,
-  method: z.enum(PAYMENT_METHODS),
-  amount: moneySchema,
-  bankName: optionalText(80),
-  transactionRef: z.string().trim().min(3, 'Enter a reference').max(60),
-  paidAt: isoDateSchema,
-  bookingId: uuidSchema.optional().or(z.literal('').transform(() => undefined)),
-});
+export const recordPaymentSchema = z
+  .object({
+    accountId: uuidSchema,
+    method: z.enum(PAYMENT_METHODS),
+    amount: moneySchema,
+    bankName: optionalText(80),
+    transactionRef: z.string().trim().min(3, 'Enter a reference').max(60),
+    paidAt: isoDateSchema,
+    depositAccountId: uuidSchema,
+    bookingId: uuidSchema.optional().or(z.literal('').transform(() => undefined)),
+    allocations: z.array(allocationSchema).max(20).default([]),
+    attachmentIds: z.array(uuidSchema).max(5).default([]),
+    notes: optionalText(500),
+  })
+  .refine(allocationsWithinAmount, { path: ['allocations'], message: allocationsMessage });
 export type RecordPaymentInput = z.input<typeof recordPaymentSchema>;
 
 // ---------- Ledger ----------
@@ -244,22 +272,75 @@ export const productVisibilitySchema = z.object({
 
 // ---------- Staff ----------
 
-export const staffInviteSchema = z.object({
-  email: emailSchema,
-  fullName: z.string().trim().min(2, 'Enter the full name').max(120),
-  roles: z
-    .array(z.enum(STAFF_ROLE_KEYS as [string, ...string[]]))
-    .min(1, 'Select at least one role'),
-});
+const roleKeys = z.array(z.string().trim().min(2).max(60)).min(1, 'Select at least one role');
+
+/** Add a staff member: send an invite link, or set a temporary password they must change. */
+export const staffInviteSchema = z
+  .object({
+    email: emailSchema,
+    fullName: z.string().trim().min(2, 'Enter the full name').max(120),
+    roles: roleKeys,
+    mode: z.enum(['invite', 'password']).default('invite'),
+    password: passwordSchema.optional().or(z.literal('').transform(() => undefined)),
+  })
+  .refine((v) => v.mode === 'invite' || !!v.password, {
+    path: ['password'],
+    message: 'Set a temporary password',
+  });
 export type StaffInviteInput = z.input<typeof staffInviteSchema>;
 
 export const staffUpdateSchema = z.object({
-  roles: z
-    .array(z.enum(STAFF_ROLE_KEYS as [string, ...string[]]))
-    .min(1, 'Select at least one role')
-    .optional(),
+  fullName: z.string().trim().min(2).max(120).optional(),
+  roles: roleKeys.optional(),
   status: z.enum(['ACTIVE', 'DISABLED']).optional(),
 });
+
+/** Admin password reset: email a reset link, or set a temporary password. */
+export const adminPasswordResetSchema = z
+  .object({
+    mode: z.enum(['link', 'password']),
+    password: passwordSchema.optional().or(z.literal('').transform(() => undefined)),
+  })
+  .refine((v) => v.mode === 'link' || !!v.password, {
+    path: ['password'],
+    message: 'Set a temporary password',
+  });
+export type AdminPasswordResetInput = z.input<typeof adminPasswordResetSchema>;
+
+export const roleSchema = z.object({
+  name: z.string().trim().min(2, 'Enter a role name').max(60),
+  description: optionalText(200),
+  permissions: z
+    .array(z.enum(ALL_PERMISSIONS as [Permission, ...Permission[]]))
+    .min(1, 'Grant at least one permission'),
+});
+export type RoleInput = z.input<typeof roleSchema>;
+
+// ---------- Partner users (admin) ----------
+
+export const adminPartnerUserCreateSchema = z
+  .object({
+    email: emailSchema,
+    fullName: z.string().trim().min(2, 'Enter the full name').max(120),
+    phone: phonePkSchema,
+    role: z.enum(PARTNER_ROLES),
+    mode: z.enum(['invite', 'password']).default('invite'),
+    password: passwordSchema.optional().or(z.literal('').transform(() => undefined)),
+  })
+  .refine((v) => v.mode === 'invite' || !!v.password, {
+    path: ['password'],
+    message: 'Set a temporary password',
+  });
+export type AdminPartnerUserCreateInput = z.input<typeof adminPartnerUserCreateSchema>;
+
+export const adminPartnerUserUpdateSchema = z.object({
+  role: z.enum(PARTNER_ROLES).optional(),
+  status: z.enum(['ACTIVE', 'DISABLED']).optional(),
+});
+
+// ---------- Booking desk ----------
+
+export const bookingAssignSchema = z.object({ staffId: uuidSchema.nullable() });
 
 // ---------- Audit ----------
 
@@ -297,5 +378,6 @@ export const settingsSchema = z.object({
     quoteTtlMinutes: z.coerce.number().int().min(5).max(240),
     paymentTermsNote: z.string().trim().max(500),
   }),
+  accounting: z.object({ requireJvApproval: z.boolean() }).default({ requireJvApproval: true }),
 });
 export type SettingsInput = z.input<typeof settingsSchema>;

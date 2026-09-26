@@ -13,9 +13,14 @@ import {
 import { z } from 'zod';
 import type { PartnerRole } from '@prisma/client';
 import {
+  addMemberSchema,
   adminPartnerListSchema,
+  adminPartnerUserCreateSchema,
+  adminPartnerUserUpdateSchema,
+  adminPasswordResetSchema,
   creditLimitSchema,
   inviteMemberSchema,
+  memberStatusSchema,
   kycReviewSchema,
   kycUploadSchema,
   partnerReviewSchema,
@@ -26,7 +31,8 @@ import { UUID } from '../../core/http/parse-uuid';
 import { Meta, type RequestMeta } from '../../core/http/request-meta';
 import { ZodPipe } from '../../core/http/zod.pipe';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
-import { CurrentActor, RequirePartnerRole, RequirePermission } from '../auth/decorators';
+import { CurrentActor, RequirePartnerCapability, RequirePermission } from '../auth/decorators';
+import { PartnerUsersService } from './partner-users.service';
 import { PartnersService } from './partners.service';
 
 const addDocumentSchema = kycUploadSchema.extend({ fileId: z.uuid() });
@@ -41,7 +47,7 @@ export class PartnerAccountController {
   }
 
   @Patch()
-  @RequirePartnerRole('OWNER')
+  @RequirePartnerCapability('account:manage')
   update(
     @CurrentActor() actor: PartnerActor,
     @Body(new ZodPipe(updateAccountProfileSchema)) dto: z.output<typeof updateAccountProfileSchema>,
@@ -51,7 +57,7 @@ export class PartnerAccountController {
   }
 
   @Put('documents')
-  @RequirePartnerRole('OWNER')
+  @RequirePartnerCapability('account:manage')
   addDocument(
     @CurrentActor() actor: PartnerActor,
     @Body(new ZodPipe(addDocumentSchema)) dto: z.output<typeof addDocumentSchema>,
@@ -60,14 +66,14 @@ export class PartnerAccountController {
   }
 
   @Delete('documents/:id')
-  @RequirePartnerRole('OWNER')
+  @RequirePartnerCapability('account:manage')
   removeDocument(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
     return this.partners.removeDocument(actor, id);
   }
 
   @Post('submit')
   @HttpCode(200)
-  @RequirePartnerRole('OWNER')
+  @RequirePartnerCapability('account:manage')
   submit(@CurrentActor() actor: PartnerActor, @Meta() meta: RequestMeta) {
     return this.partners.submit(actor, meta);
   }
@@ -75,7 +81,32 @@ export class PartnerAccountController {
 
 @Controller('partner/team')
 export class PartnerTeamController {
-  constructor(private readonly partners: PartnersService) {}
+  constructor(
+    private readonly partners: PartnersService,
+    private readonly users: PartnerUsersService,
+  ) {}
+
+  /** Add a member directly with a temporary password (they change it at first sign-in). */
+  @Post('members')
+  @RequirePartnerCapability('team:manage')
+  addMember(
+    @CurrentActor() actor: PartnerActor,
+    @Body(new ZodPipe(addMemberSchema)) dto: z.output<typeof addMemberSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.addMember(actor, dto, meta);
+  }
+
+  @Patch('members/:userId/status')
+  @RequirePartnerCapability('team:manage')
+  setStatus(
+    @CurrentActor() actor: PartnerActor,
+    @Param('userId', UUID) userId: string,
+    @Body(new ZodPipe(memberStatusSchema)) dto: z.output<typeof memberStatusSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.setMemberStatus(actor, userId, dto.status, meta);
+  }
 
   @Get()
   get(@CurrentActor() actor: PartnerActor) {
@@ -83,7 +114,7 @@ export class PartnerTeamController {
   }
 
   @Post('invites')
-  @RequirePartnerRole('OWNER', 'MANAGER')
+  @RequirePartnerCapability('team:manage')
   invite(
     @CurrentActor() actor: PartnerActor,
     @Body(new ZodPipe(inviteMemberSchema)) dto: z.output<typeof inviteMemberSchema>,
@@ -94,13 +125,13 @@ export class PartnerTeamController {
 
   @Delete('invites/:id')
   @HttpCode(204)
-  @RequirePartnerRole('OWNER', 'MANAGER')
+  @RequirePartnerCapability('team:manage')
   async revokeInvite(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
     await this.partners.revokeInvite(actor, id);
   }
 
   @Patch('members/:userId')
-  @RequirePartnerRole('OWNER', 'MANAGER')
+  @RequirePartnerCapability('team:manage')
   updateRole(
     @CurrentActor() actor: PartnerActor,
     @Param('userId', UUID) userId: string,
@@ -111,7 +142,7 @@ export class PartnerTeamController {
   }
 
   @Delete('members/:userId')
-  @RequirePartnerRole('OWNER', 'MANAGER')
+  @RequirePartnerCapability('team:manage')
   remove(
     @CurrentActor() actor: PartnerActor,
     @Param('userId', UUID) userId: string,
@@ -123,7 +154,67 @@ export class PartnerTeamController {
 
 @Controller('admin/partners')
 export class AdminPartnersController {
-  constructor(private readonly partners: PartnersService) {}
+  constructor(
+    private readonly partners: PartnersService,
+    private readonly users: PartnerUsersService,
+  ) {}
+
+  // ---------- Partner users ----------
+
+  @Get(':id/users')
+  @RequirePermission('partners:read')
+  listUsers(@Param('id', UUID) id: string) {
+    return this.users.adminList(id);
+  }
+
+  @Post(':id/users')
+  @RequirePermission('partner_users:manage')
+  createUser(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(adminPartnerUserCreateSchema))
+    dto: z.output<typeof adminPartnerUserCreateSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.adminCreate(actor, id, dto, meta);
+  }
+
+  @Patch(':id/users/:userId')
+  @RequirePermission('partner_users:manage')
+  updateUser(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Param('userId', UUID) userId: string,
+    @Body(new ZodPipe(adminPartnerUserUpdateSchema))
+    dto: z.output<typeof adminPartnerUserUpdateSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.adminUpdate(actor, id, userId, dto, meta);
+  }
+
+  @Post(':id/users/:userId/reset-password')
+  @HttpCode(200)
+  @RequirePermission('partner_users:manage')
+  resetUserPassword(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Param('userId', UUID) userId: string,
+    @Body(new ZodPipe(adminPasswordResetSchema)) dto: z.output<typeof adminPasswordResetSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.adminResetPassword(actor, id, userId, dto, meta);
+  }
+
+  @Delete(':id/invites/:inviteId')
+  @RequirePermission('partner_users:manage')
+  revokeInvite(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Param('inviteId', UUID) inviteId: string,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.users.adminRevokeInvite(actor, id, inviteId, meta);
+  }
 
   @Get()
   @RequirePermission('partners:read')

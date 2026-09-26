@@ -16,6 +16,7 @@ import { z } from 'zod';
 import {
   acceptInviteSchema,
   changePasswordSchema,
+  forcedPasswordChangeSchema,
   forgotPasswordSchema,
   loginSchema,
   partnerRegisterSchema,
@@ -200,6 +201,17 @@ export class PartnerAuthController {
     @Meta() meta: RequestMeta,
   ) {
     return this.auth.changePassword(actor, dto, meta);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60 * MIN } })
+  @Post('set-password')
+  @HttpCode(200)
+  setPassword(
+    @CurrentActor() actor: PartnerActor,
+    @Body(new ZodPipe(forcedPasswordChangeSchema)) dto: z.output<typeof forcedPasswordChangeSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.auth.setInitialPassword(actor, dto, meta);
   }
 
   @Patch('preferences')

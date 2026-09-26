@@ -50,6 +50,9 @@ const VoucherPage = lazy(() =>
 const InvoicesPage = lazy(() =>
   import('@/pages/InvoicesPage').then((m) => ({ default: m.InvoicesPage })),
 );
+const ReceiptPage = lazy(() =>
+  import('@/pages/ReceiptPage').then((m) => ({ default: m.ReceiptPage })),
+);
 const InvoicePage = lazy(() =>
   import('@/pages/InvoicePage').then((m) => ({ default: m.InvoicePage })),
 );
@@ -92,6 +95,7 @@ const router = createBrowserRouter([
       // Printable documents render without the app chrome.
       { path: '/bookings/:id/voucher', element: <VoucherPage /> },
       { path: '/invoices/:id', element: <InvoicePage /> },
+      { path: '/payments/:id/receipt', element: <ReceiptPage /> },
       {
         element: <PortalLayout />,
         children: [

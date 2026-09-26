@@ -35,10 +35,10 @@ export function Tabs({
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={cn(
-              'inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors',
+              'inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-[13px] font-medium tracking-[-0.01em] transition-colors',
               active
-                ? 'border-accent text-foreground'
-                : 'border-transparent text-muted-foreground hover:border-border-strong hover:text-foreground',
+                ? 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             {t.label}
@@ -46,7 +46,7 @@ export function Tabs({
               <span
                 className={cn(
                   'tabular rounded-full px-1.5 text-[11px] font-semibold',
-                  active ? 'bg-accent-soft text-link' : 'bg-muted text-muted-foreground',
+                  active ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground',
                 )}
               >
                 {t.count}
@@ -100,18 +100,20 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        'mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between',
+        'mb-6 flex flex-col gap-3 animate-[gnk-rise_240ms_var(--ease)] sm:flex-row sm:items-end sm:justify-between',
         className,
       )}
     >
       <div className="min-w-0 space-y-1">
         {breadcrumbs}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-[22px]">{title}</h1>
+          <h1 className="text-[22px] font-semibold tracking-[-0.025em] sm:text-[28px] sm:leading-9">
+            {title}
+          </h1>
           {meta}
         </div>
         {description && (
-          <p className="max-w-3xl text-[13px] text-muted-foreground">{description}</p>
+          <p className="max-w-3xl text-[14px] text-muted-foreground">{description}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -209,5 +211,57 @@ export function Timeline({ items, className }: { items: TimelineItem[]; classNam
         </li>
       ))}
     </ol>
+  );
+}
+
+/** iOS-style segmented control for switching views or filters. */
+export function SegmentedControl<T extends string>({
+  items,
+  value,
+  onChange,
+  className,
+  size = 'md',
+}: {
+  items: { value: T; label: React.ReactNode; count?: number }[];
+  value: T;
+  onChange: (v: T) => void;
+  className?: string;
+  size?: 'sm' | 'md';
+}) {
+  return (
+    <div
+      role="tablist"
+      className={cn(
+        'inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-[10px] bg-muted p-[3px] [scrollbar-width:none]',
+        className,
+      )}
+    >
+      {items.map((item) => {
+        const active = item.value === value;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(item.value)}
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1.5 rounded-[8px] font-medium tracking-[-0.01em] transition-[background-color,box-shadow,color] duration-200 ease-[var(--ease)]',
+              size === 'sm' ? 'h-7 px-2.5 text-[12.5px]' : 'h-8 px-3 text-[13px]',
+              active
+                ? 'bg-surface text-foreground shadow-[0_0_0_0.5px_hsl(240_6%_10%/0.06),0_1px_3px_hsl(240_6%_10%/0.1)] dark:bg-border-strong'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {item.label}
+            {item.count !== undefined && item.count > 0 && (
+              <span className="tabular text-[11px] font-semibold text-muted-foreground">
+                {item.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

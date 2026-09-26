@@ -4,7 +4,7 @@ import { cn } from '../lib/cn';
 import { formatBytes } from '../lib/format';
 
 const control =
-  'w-full rounded-md border border-input bg-surface px-3 text-sm text-foreground shadow-xs transition-colors placeholder:text-muted-foreground/70 hover:border-border-strong focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 aria-invalid:border-danger aria-invalid:focus-visible:ring-danger/20';
+  'w-full rounded-lg border border-input bg-surface px-3 text-sm text-foreground shadow-[0_1px_1px_hsl(240_6%_10%/0.03)] transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/60 hover:border-border-strong focus-visible:border-ring focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 aria-invalid:border-danger aria-invalid:focus-visible:ring-danger/15';
 
 export const Input = React.forwardRef<
   HTMLInputElement,
@@ -71,7 +71,10 @@ export function Label({
   ...props
 }: React.LabelHTMLAttributes<HTMLLabelElement> & { required?: boolean }) {
   return (
-    <label className={cn('text-[13px] font-medium text-foreground', className)} {...props}>
+    <label
+      className={cn('text-[13px] font-medium tracking-[-0.01em] text-foreground', className)}
+      {...props}
+    >
       {children}
       {required && (
         <span className="ml-0.5 text-danger" aria-hidden>
@@ -210,7 +213,7 @@ export function FileDrop({
 
   if (value) {
     return (
-      <div className="flex items-center gap-3 rounded-md border bg-surface px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-lg border bg-surface px-3 py-2.5">
         <FileText className="size-5 shrink-0 text-link" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{value.name}</p>
@@ -246,7 +249,7 @@ export function FileDrop({
           pick(e.dataTransfer.files?.[0]);
         }}
         className={cn(
-          'flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed border-border-strong bg-surface-sunken px-4 py-5 text-center transition-colors hover:border-ring hover:bg-accent-soft/60 disabled:opacity-60',
+          'flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed border-border-strong bg-surface-sunken/70 px-4 py-6 text-center transition-colors hover:border-ring hover:bg-accent-soft/60 disabled:opacity-60',
           drag && 'border-ring bg-accent-soft',
           (error || localError) && 'border-danger',
         )}

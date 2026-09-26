@@ -12,6 +12,7 @@ import {
   CardFooter,
   CardHeader,
   Field,
+  NotificationPreferences,
   PageHeader,
   PasswordInput,
   ThemeToggle,
@@ -28,6 +29,14 @@ export function ProfilePage() {
   const qc = useQueryClient();
   const [error, setError] = useState<string>();
   const sessions = useQuery({ queryKey: ['sessions'], queryFn: api.auth.sessions });
+  const prefs = useQuery({
+    queryKey: ['notification-prefs'],
+    queryFn: api.notifications.preferences,
+  });
+  const setPrefs = useMutation({
+    mutationFn: api.notifications.setPreferences,
+    onSuccess: (p) => qc.setQueryData(['notification-prefs'], p),
+  });
   const revoke = useMutation({
     mutationFn: api.auth.revokeSession,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sessions'] }),
@@ -113,6 +122,19 @@ export function ProfilePage() {
             </li>
           ))}
         </ul>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Email notifications"
+          description="Choose which updates also arrive by email."
+        />
+        <CardBody className="py-1">
+          <NotificationPreferences
+            value={prefs.data}
+            categories={['bookings', 'payments', 'accounting', 'team']}
+            onChange={(c, email) => setPrefs.mutate({ [c]: { email } })}
+          />
+        </CardBody>
       </Card>
       <Card>
         <CardHeader title="Appearance" />

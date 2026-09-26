@@ -91,11 +91,24 @@ export class MailerService {
     });
   }
 
-  notification(to: string, title: string, body: string, link?: string | null) {
+  /** Someone created the account with a temporary password (shared with the user separately). */
+  accountCreated(to: string, name: string, realm: 'PARTNER' | 'STAFF', createdBy: string) {
+    const url = realm === 'PARTNER' ? this.portalUrl('/login') : this.adminUrl('/login');
     return this.send({
       to,
-      subject: title,
-      text: `${body}${link ? `\n\n${this.portalUrl(link)}` : ''}`,
+      subject: 'Your GNK Connect account is ready',
+      text: `Hi ${name},\n\n${createdBy} created a GNK Connect account for you. Sign in with this email and the temporary password they gave you:\n${url}\n\nYou'll be asked to choose your own password the first time you sign in.`,
     });
+  }
+
+  notification(
+    to: string,
+    title: string,
+    body: string,
+    link?: string | null,
+    realm: 'PARTNER' | 'STAFF' = 'PARTNER',
+  ) {
+    const url = link ? (realm === 'PARTNER' ? this.portalUrl(link) : this.adminUrl(link)) : null;
+    return this.send({ to, subject: title, text: `${body}${url ? `\n\n${url}` : ''}` });
   }
 }

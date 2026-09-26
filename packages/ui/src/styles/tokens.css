@@ -1,92 +1,98 @@
 /*
  * GNK Connect design tokens (HSL channels). Components use semantic tokens only.
- * Brand: navy #00205B, cyan #00A3E0, gold #F59E0B.
+ * Quiet neutrals, one blue accent, hairline borders and soft layered shadows.
+ * Brand navy #00205B stays in the logo; gold marks highlights (featured, filling fast).
  */
 :root {
   color-scheme: light;
-  --background: 216 33% 97%;
-  --foreground: 222 47% 11%;
+  --background: 240 11% 97.5%;
+  --foreground: 240 6% 10%;
   --surface: 0 0% 100%;
-  --surface-sunken: 216 30% 95%;
-  --muted: 214 32% 94%;
-  --muted-foreground: 215 16% 40%;
-  --border: 214 28% 88%;
-  --border-strong: 214 22% 78%;
-  --input: 214 24% 82%;
-  --ring: 197 100% 44%;
+  --surface-sunken: 240 9% 96.5%;
+  --muted: 240 8% 94.5%;
+  --muted-foreground: 240 3% 43%;
+  --border: 240 6% 90%;
+  --border-strong: 240 5% 81%;
+  --input: 240 5% 85%;
+  --ring: 211 100% 50%;
 
-  --primary: 218 100% 18%; /* navy */
-  --primary-hover: 218 90% 24%;
+  --primary: 211 100% 44%;
+  --primary-hover: 211 100% 39%;
   --primary-foreground: 0 0% 100%;
-  --accent: 197 100% 44%; /* cyan */
-  --accent-soft: 197 90% 95%;
+  --accent: 211 100% 50%;
+  --accent-soft: 211 100% 96%;
   --accent-foreground: 0 0% 100%;
-  --link: 199 100% 31%; /* cyan darkened for 4.5:1 text contrast */
-  --highlight: 38 92% 50%; /* gold */
+  --link: 211 100% 40%;
+  --highlight: 38 92% 50%;
   --highlight-soft: 45 100% 94%;
-  --highlight-strong: 32 95% 36%;
+  --highlight-strong: 32 95% 34%;
 
-  --success: 152 62% 32%;
-  --success-soft: 145 60% 94%;
-  --warning: 32 95% 38%;
-  --warning-soft: 45 100% 93%;
-  --danger: 0 70% 46%;
-  --danger-soft: 0 86% 96%;
-  --info: 207 85% 40%;
-  --info-soft: 206 100% 95%;
+  --success: 145 63% 32%;
+  --success-soft: 140 55% 95%;
+  --warning: 30 95% 37%;
+  --warning-soft: 42 100% 94%;
+  --danger: 358 72% 47%;
+  --danger-soft: 0 86% 96.5%;
+  --info: 211 85% 42%;
+  --info-soft: 211 100% 96%;
 
-  --sidebar: 218 100% 18%;
-  --sidebar-hover: 218 70% 25%;
-  --sidebar-foreground: 214 40% 88%;
-  --sidebar-muted: 216 30% 64%;
-  --sidebar-active: 197 100% 50%;
-  --sidebar-border: 218 60% 26%;
+  --sidebar: 240 7% 95.5%;
+  --sidebar-hover: 240 6% 91%;
+  --sidebar-foreground: 240 6% 18%;
+  --sidebar-muted: 240 3% 48%;
+  --sidebar-active: 211 100% 45%;
+  --sidebar-border: 240 6% 88%;
 
-  --radius: 0.625rem;
-  --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.05), 0 1px 3px hsl(222 47% 11% / 0.06);
-  --shadow-pop: 0 10px 30px -10px hsl(222 47% 11% / 0.25), 0 2px 6px hsl(222 47% 11% / 0.08);
+  --radius: 0.75rem;
+  --shadow-card:
+    0 0 0 0.5px hsl(240 6% 10% / 0.05), 0 1px 2px hsl(240 6% 10% / 0.04),
+    0 3px 8px -2px hsl(240 6% 10% / 0.04);
+  --shadow-pop:
+    0 0 0 0.5px hsl(240 6% 10% / 0.08), 0 8px 16px -6px hsl(240 6% 10% / 0.12),
+    0 24px 48px -12px hsl(240 6% 10% / 0.18);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .dark {
   color-scheme: dark;
-  --background: 222 47% 6%;
-  --foreground: 213 31% 93%;
-  --surface: 222 38% 9.5%;
-  --surface-sunken: 222 45% 7.5%;
-  --muted: 220 30% 15%;
-  --muted-foreground: 215 18% 66%;
-  --border: 219 28% 18%;
-  --border-strong: 218 24% 27%;
-  --input: 218 26% 24%;
-  --ring: 197 100% 55%;
+  --background: 240 5% 6.5%;
+  --foreground: 240 11% 96%;
+  --surface: 240 4% 11%;
+  --surface-sunken: 240 5% 8.5%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 4% 62%;
+  --border: 240 4% 19%;
+  --border-strong: 240 4% 28%;
+  --input: 240 4% 25%;
+  --ring: 211 100% 58%;
 
-  --primary: 197 100% 48%; /* cyan becomes the primary action colour on dark */
-  --primary-hover: 197 100% 56%;
-  --primary-foreground: 222 60% 8%;
-  --accent: 197 100% 52%;
-  --accent-soft: 200 60% 15%;
-  --accent-foreground: 222 60% 8%;
-  --link: 197 100% 62%;
+  --primary: 211 100% 52%;
+  --primary-hover: 211 100% 58%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 211 100% 58%;
+  --accent-soft: 211 60% 16%;
+  --accent-foreground: 0 0% 100%;
+  --link: 211 100% 66%;
   --highlight: 40 96% 56%;
-  --highlight-soft: 36 60% 14%;
+  --highlight-soft: 36 50% 14%;
   --highlight-strong: 42 96% 64%;
 
-  --success: 150 55% 48%;
-  --success-soft: 150 40% 13%;
-  --warning: 40 92% 56%;
-  --warning-soft: 38 50% 13%;
-  --danger: 0 80% 64%;
+  --success: 142 60% 50%;
+  --success-soft: 145 35% 13%;
+  --warning: 38 92% 58%;
+  --warning-soft: 36 45% 13%;
+  --danger: 3 90% 64%;
   --danger-soft: 0 45% 15%;
-  --info: 205 90% 64%;
-  --info-soft: 207 50% 15%;
+  --info: 211 100% 66%;
+  --info-soft: 211 50% 15%;
 
-  --sidebar: 222 50% 7%;
-  --sidebar-hover: 222 35% 12%;
-  --sidebar-foreground: 214 30% 85%;
-  --sidebar-muted: 216 16% 55%;
-  --sidebar-active: 197 100% 55%;
-  --sidebar-border: 220 30% 14%;
+  --sidebar: 240 5% 9%;
+  --sidebar-hover: 240 4% 15%;
+  --sidebar-foreground: 240 8% 88%;
+  --sidebar-muted: 240 4% 56%;
+  --sidebar-active: 211 100% 62%;
+  --sidebar-border: 240 4% 16%;
 
-  --shadow-card: 0 0 0 1px hsl(219 28% 18%);
-  --shadow-pop: 0 12px 32px -8px hsl(0 0% 0% / 0.6), 0 0 0 1px hsl(219 28% 20%);
+  --shadow-card: 0 0 0 1px hsl(240 4% 17%);
+  --shadow-pop: 0 0 0 1px hsl(240 4% 22%), 0 24px 48px -12px hsl(0 0% 0% / 0.7);
 }

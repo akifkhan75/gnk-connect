@@ -39,18 +39,16 @@ export function PortalAuthLayout(props: {
       }
       panel={
         <div>
-          <h2 className="text-3xl font-semibold leading-tight tracking-tight">
-            Wholesale travel for Pakistan's travel agents.
-          </h2>
+          <h2>Wholesale travel for Pakistan's travel agents.</h2>
           <ul className="mt-8 space-y-6">
             {POINTS.map(({ icon: Icon, title, body }) => (
               <li key={title} className="flex gap-4">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#00A3E0]">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white">
                   <Icon className="size-5" />
                 </span>
                 <div>
                   <p className="font-medium">{title}</p>
-                  <p className="mt-0.5 text-sm text-white/65">{body}</p>
+                  <p className="mt-0.5 text-sm text-white/55">{body}</p>
                 </div>
               </li>
             ))}

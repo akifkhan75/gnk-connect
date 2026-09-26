@@ -12,6 +12,7 @@ import type { AuthResponse, MessageResponse, PartnerMembership, PartnerSession }
 import type {
   AcceptInviteInput,
   ChangePasswordInput,
+  ForcedPasswordChangeInput,
   PartnerRegisterData,
   ResetPasswordInput,
   UpdateMyProfileInput,
@@ -234,6 +235,7 @@ export class PartnerAuthService {
         phone: user.phone,
         emailVerified: !!user.emailVerifiedAt,
         themePreference: user.themePreference,
+        mustChangePassword: user.mustChangePassword,
       },
       account,
       memberships,
@@ -268,6 +270,7 @@ export class PartnerAuthService {
       where: { id: user.id },
       data: {
         passwordHash: await this.passwords.hash(dto.password),
+        mustChangePassword: false,
         failedLoginCount: 0,
         lockedUntil: null,
       },
@@ -327,6 +330,7 @@ export class PartnerAuthService {
           fullName: full.fullName.trim(),
           phone: (full.phone as string | undefined) ?? '',
           passwordHash: await this.passwords.hash(full.password),
+          mustChangePassword: false,
           emailVerifiedAt: new Date(), // the invite link proves the address
           status: 'ACTIVE',
         },
@@ -395,7 +399,7 @@ export class PartnerAuthService {
     this.assertStrong(dto.password, user.email, user.fullName);
     await this.prisma.partnerUser.update({
       where: { id: user.id },
-      data: { passwordHash: await this.passwords.hash(dto.password) },
+      data: { passwordHash: await this.passwords.hash(dto.password), mustChangePassword: false },
     });
     // End every other session; the current one keeps working.
     const current = await this.prisma.session.findUnique({ where: { id: actor.sessionId } });
@@ -411,6 +415,37 @@ export class PartnerAuthService {
       meta,
     });
     return { message: 'Password changed. Other devices have been signed out.' };
+  }
+
+  /** First sign-in after an admin or team owner set the password: choose a new one. */
+  async setInitialPassword(
+    actor: PartnerActor,
+    dto: ForcedPasswordChangeInput,
+    meta: RequestMeta,
+  ): Promise<MessageResponse> {
+    const user = await this.prisma.partnerUser.findUniqueOrThrow({ where: { id: actor.userId } });
+    if (!user.mustChangePassword)
+      throw new ForbiddenException('Use "Change password" in your profile instead');
+    this.assertStrong(dto.password, user.email, user.fullName);
+    if (await this.passwords.verify(user.passwordHash, dto.password))
+      throw new UnprocessableEntityException({
+        message: 'Choose a password different from the temporary one',
+        code: 'VALIDATION_FAILED',
+        errors: [{ path: 'password', message: 'Choose a new password' }],
+      });
+    await this.prisma.partnerUser.update({
+      where: { id: user.id },
+      data: { passwordHash: await this.passwords.hash(dto.password), mustChangePassword: false },
+    });
+    this.cache.invalidateUser(user.id);
+    await this.audit.log({
+      actor: { realm: 'PARTNER', userId: user.id },
+      action: 'auth.initial_password_set',
+      entityType: 'PartnerUser',
+      entityId: user.id,
+      meta,
+    });
+    return { message: 'Your password is set.' };
   }
 
   async setTheme(actor: PartnerActor, theme: 'LIGHT' | 'DARK' | 'SYSTEM') {

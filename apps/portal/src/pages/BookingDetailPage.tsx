@@ -17,6 +17,7 @@ import {
   KeyValue,
   Money,
   PageHeader,
+  Stepper,
   Spinner,
   StatusBadge,
   Timeline,
@@ -32,6 +33,16 @@ import { keys } from '@/lib/query';
 import { errorMessage } from '@/lib/forms';
 import { FlightLeg } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
+
+// Where an active booking is in its journey. Closed states (rejected, cancelled) show no stepper.
+const PROGRESS = ['Requested', 'Approved', 'Issuing', 'Confirmed', 'Travelled'];
+const PROGRESS_INDEX: Partial<Record<string, number>> = {
+  PENDING_APPROVAL: 0,
+  APPROVED: 1,
+  SUBMITTED_TO_SUPPLIER: 2,
+  CONFIRMED: 3,
+  COMPLETED: 5,
+};
 
 export function BookingDetailPage() {
   const { id = '' } = useParams();
@@ -117,6 +128,12 @@ export function BookingDetailPage() {
           </>
         }
       />
+
+      {PROGRESS_INDEX[b.status] !== undefined && (
+        <Card className="mb-5 px-5 py-4">
+          <Stepper steps={PROGRESS} current={PROGRESS_INDEX[b.status]!} />
+        </Card>
+      )}
 
       <div className="mb-5 space-y-3">
         {b.status === 'PENDING_APPROVAL' && (

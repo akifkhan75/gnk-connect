@@ -6,5 +6,5 @@ export const API_URL: string = import.meta.env.VITE_API_URL || 'http://localhost
 export const ENV_NAME: string =
   import.meta.env.VITE_ENV_NAME || (import.meta.env.DEV ? 'LOCAL' : '');
 
-export const { http, AuthProvider, useAuth } = createAuthClient('staff', API_URL);
+export const { http, AuthProvider, useAuth, useEvents } = createAuthClient('staff', API_URL);
 export const api = adminApi(http);

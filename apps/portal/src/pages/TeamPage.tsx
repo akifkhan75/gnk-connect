@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MailPlus, Trash2, UserPlus } from 'lucide-react';
-import { INVITABLE_ROLES, inviteMemberSchema, type InviteMemberInput } from '@gnk/validation';
+import { Copy, MailPlus, MoreHorizontal, UserPlus } from 'lucide-react';
+import { INVITABLE_ROLES } from '@gnk/validation';
+import { ApiError } from '@gnk/api-client';
 import type { PartnerRole, TeamMemberDto } from '@gnk/types';
 import {
   Alert,
@@ -15,10 +15,17 @@ import {
   ConfirmDialog,
   DataTable,
   Dialog,
+  DropdownContent,
+  DropdownItem,
+  DropdownMenu,
+  DropdownSeparator,
+  DropdownTrigger,
   ErrorState,
   Field,
   Input,
   PageHeader,
+  PasswordInput,
+  SegmentedControl,
   Select,
   StatusBadge,
   formatDate,
@@ -27,13 +34,13 @@ import {
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { applyServerErrors, errorMessage } from '@/lib/forms';
+import { errorMessage } from '@/lib/forms';
 import { ROLE_HINT, ROLE_LABEL } from '@/lib/labels';
-import { RoleGate } from '@/components/guards';
+import { RoleGate, rolesWith } from '@/components/guards';
 
 export function TeamPage() {
   return (
-    <RoleGate roles={['OWNER', 'MANAGER']}>
+    <RoleGate roles={rolesWith('team:manage')}>
       <Team />
     </RoleGate>
   );
@@ -43,7 +50,11 @@ function Team() {
   const { session } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [inviteOpen, setInviteOpen] = useState(params.get('add') === '1');
+  useEffect(() => {
+    if (!inviteOpen && params.get('add')) setParams({}, { replace: true });
+  }, [inviteOpen, params, setParams]);
   const [removing, setRemoving] = useState<TeamMemberDto | null>(null);
   const team = useQuery({ queryKey: keys.team, queryFn: api.team.get });
   const myRole = session!.account.role;
@@ -59,6 +70,15 @@ function Team() {
     onSuccess: (t) => {
       qc.setQueryData(keys.team, t);
       toast.success('Role updated');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const setStatus = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: 'ACTIVE' | 'DISABLED' }) =>
+      api.team.setStatus(userId, status),
+    onSuccess: (t, v) => {
+      qc.setQueryData(keys.team, t);
+      toast.success(v.status === 'DISABLED' ? 'Member disabled' : 'Member enabled');
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -85,7 +105,7 @@ function Team() {
         description="Give your staff their own logins. Each role sees only what it needs."
         actions={
           <Button onClick={() => setInviteOpen(true)}>
-            <UserPlus /> Invite member
+            <UserPlus /> Add member
           </Button>
         }
       />
@@ -153,14 +173,41 @@ function Team() {
                 align: 'right',
                 cell: (m) =>
                   canManage(m) && (
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setRemoving(m)}
-                      aria-label={`Remove ${m.fullName}`}
-                    >
-                      <Trash2 />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Actions for ${m.fullName}`}
+                        >
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownContent>
+                        {m.status === 'ACTIVE' && (
+                          <DropdownItem
+                            onSelect={() =>
+                              setStatus.mutate({ userId: m.userId, status: 'DISABLED' })
+                            }
+                          >
+                            Disable sign-in
+                          </DropdownItem>
+                        )}
+                        {m.status === 'DISABLED' && (
+                          <DropdownItem
+                            onSelect={() =>
+                              setStatus.mutate({ userId: m.userId, status: 'ACTIVE' })
+                            }
+                          >
+                            Enable sign-in
+                          </DropdownItem>
+                        )}
+                        <DropdownSeparator />
+                        <DropdownItem danger onSelect={() => setRemoving(m)}>
+                          Remove from team
+                        </DropdownItem>
+                      </DropdownContent>
+                    </DropdownMenu>
                   ),
               },
             ]}
@@ -241,60 +288,156 @@ function InviteDialog({
 }) {
   const qc = useQueryClient();
   const toast = useToast();
+  const [mode, setMode] = useState<'invite' | 'password'>('invite');
+  const [form, setForm] = useState({
+    email: '',
+    fullName: '',
+    phone: '',
+    role: 'STAFF',
+    password: '',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string>();
-  const {
-    register,
-    handleSubmit,
-    formState,
-    reset,
-    setError: setFieldError,
-  } = useForm<InviteMemberInput>({
-    resolver: zodResolver(inviteMemberSchema),
-    defaultValues: { email: '', role: 'STAFF' },
-  });
-  const invite = useMutation({
-    mutationFn: api.team.invite,
-    onSuccess: (i) => {
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setForm({ email: '', fullName: '', phone: '', role: 'STAFF', password: '' });
+      setErrors({});
+      setError(undefined);
+    }
+  }, [open]);
+  const save = async () => {
+    setBusy(true);
+    setErrors({});
+    setError(undefined);
+    try {
+      if (mode === 'invite') {
+        const i = await api.team.invite({ email: form.email, role: form.role });
+        toast.success('Invite sent', `${i.email} will receive a link to join.`);
+      } else {
+        await api.team.addMember(form);
+        toast.success(
+          `${form.fullName} added`,
+          'Share the temporary password with them. They choose their own at first sign-in.',
+        );
+      }
       void qc.invalidateQueries({ queryKey: keys.team });
-      toast.success('Invite sent', `${i.email} will receive a link to join.`);
-      reset();
       onOpenChange(false);
-    },
-    onError: (e) => setError(applyServerErrors(e, setFieldError)),
-  });
-  const onSubmit = handleSubmit((v) => invite.mutate(v));
+    } catch (e) {
+      if (e instanceof ApiError) setErrors(e.fieldErrors);
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const generate = () => {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    const p = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+    const pretty = `${p.slice(0, 4)}-${p.slice(4, 8)}-${p.slice(8)}`;
+    setForm((f) => ({ ...f, password: pretty }));
+    void navigator.clipboard?.writeText(pretty);
+    toast.info('Password generated and copied');
+  };
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Invite a team member"
-      description="They'll get an email link to set their own password."
+      title="Add a team member"
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onSubmit} loading={invite.isPending}>
-            Send invite
+          <Button onClick={save} loading={busy}>
+            {mode === 'invite' ? 'Send invite' : 'Add member'}
           </Button>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        {error && <Alert tone="danger">{error}</Alert>}
-        <Field label="Email" required error={formState.errors.email?.message}>
-          <Input type="email" autoFocus {...register('email')} />
-        </Field>
-        <Field label="Role" error={formState.errors.role?.message}>
-          <Select {...register('role')}>
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABEL[r]}: {ROLE_HINT[r]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </form>
+      <div className="space-y-4">
+        <SegmentedControl
+          value={mode}
+          onChange={setMode}
+          items={[
+            { value: 'invite', label: 'Email an invite' },
+            { value: 'password', label: 'Add with a password' },
+          ]}
+        />
+        <p className="text-[13px] text-muted-foreground">
+          {mode === 'invite'
+            ? "They'll get an email link to set up their own login."
+            : 'Their login works right away with the password you set. They must change it the first time they sign in.'}
+        </p>
+        {error && !Object.keys(errors).length && <Alert tone="danger">{error}</Alert>}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {mode === 'password' && (
+            <Field label="Full name" required error={errors.fullName}>
+              <Input
+                value={form.fullName}
+                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+              />
+            </Field>
+          )}
+          <Field
+            label="Email"
+            required
+            error={errors.email}
+            className={mode === 'invite' ? 'sm:col-span-2' : undefined}
+          >
+            <Input
+              type="email"
+              autoFocus
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </Field>
+          {mode === 'password' && (
+            <Field label="Mobile" required error={errors.phone}>
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="+92 300 1234567"
+              />
+            </Field>
+          )}
+          <Field
+            label="Role"
+            error={errors.role}
+            className={mode === 'invite' ? 'sm:col-span-2' : undefined}
+          >
+            <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              {roles.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}: {ROLE_HINT[r]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {mode === 'password' && (
+            <Field
+              label="Temporary password"
+              required
+              error={errors.password}
+              className="sm:col-span-2"
+              hint="At least 10 characters"
+            >
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <PasswordInput
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <Button variant="secondary" onClick={generate}>
+                  <Copy /> Generate
+                </Button>
+              </div>
+            </Field>
+          )}
+        </div>
+      </div>
     </Dialog>
   );
 }

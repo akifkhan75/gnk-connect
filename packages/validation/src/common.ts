@@ -74,3 +74,17 @@ export const todayPk = (): string =>
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+
+/** Applies part of a payment to a booking. */
+export const allocationSchema = z.object({ bookingId: uuidSchema, amount: moneySchema });
+
+const cents = (n: number) => Math.round(n * 100);
+/** Allocations must not exceed the payment and each booking may appear once. */
+export const allocationsWithinAmount = (v: {
+  amount: number;
+  allocations: { bookingId: string; amount: number }[];
+}) =>
+  v.allocations.reduce((s, a) => s + cents(a.amount), 0) <= cents(v.amount) &&
+  new Set(v.allocations.map((a) => a.bookingId)).size === v.allocations.length;
+export const allocationsMessage =
+  'Allocations cannot exceed the payment amount or repeat a booking';

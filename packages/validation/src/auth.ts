@@ -109,3 +109,17 @@ export type PartnerRegisterInput = z.input<typeof partnerRegisterSchema>;
 export type PartnerRegisterData = z.output<typeof partnerRegisterSchema>;
 
 export const themePreferenceSchema = z.object({ theme: z.enum(['LIGHT', 'DARK', 'SYSTEM']) });
+
+/** First sign-in after someone else set the password: choose a new one. */
+export const forcedPasswordChangeSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, passwordsMatch);
+export type ForcedPasswordChangeInput = z.input<typeof forcedPasswordChangeSchema>;
+
+export const notificationPrefsSchema = z.record(
+  z.enum(['bookings', 'payments', 'accounting', 'team', 'account']),
+  z.object({ email: z.boolean() }),
+);

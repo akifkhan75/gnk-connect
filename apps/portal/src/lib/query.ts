@@ -24,6 +24,8 @@ export const keys = {
   bookingCounts: ['booking-counts'] as const,
   booking: (id: string) => ['booking', id] as const,
   payments: ['payments'] as const,
+  receipt: (id: string) => ['payments', id, 'receipt'] as const,
+  notificationPrefs: ['notification-prefs'] as const,
   instructions: ['payment-instructions'] as const,
   balance: ['balance'] as const,
   statement: (q: object) => ['statement', q] as const,

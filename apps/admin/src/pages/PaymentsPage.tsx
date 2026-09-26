@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CreditCard, Plus, TriangleAlert, X } from 'lucide-react';
+import { Check, CreditCard, FileText, Plus, ReceiptText, TriangleAlert, X } from 'lucide-react';
 import type { AdminPaymentListItem } from '@gnk/types';
 import { recordPaymentSchema, todayPk, type RecordPaymentInput } from '@gnk/validation';
 import {
@@ -17,6 +17,7 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  FileDrop,
   Input,
   KeyValue,
   Money,
@@ -40,7 +41,7 @@ import { RequirePerm } from '@/components/guards';
 
 const TABS = [
   { value: 'SUBMITTED', label: 'To verify' },
-  { value: 'VERIFIED', label: 'Verified' },
+  { value: 'VERIFIED', label: 'Approved' },
   { value: 'REJECTED', label: 'Rejected' },
   { value: 'all', label: 'All' },
 ];
@@ -57,7 +58,7 @@ function Payments() {
   const can = useCan();
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string | null>(params.get('id'));
-  const [recordOpen, setRecordOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(params.get('record') === '1');
   const q = {
     status: params.get('status') ?? 'SUBMITTED',
     q: params.get('q') || undefined,
@@ -69,7 +70,6 @@ function Payments() {
     queryKey: ['payments', q],
     queryFn: () => api.payments.list(q),
     placeholderData: keepPreviousData,
-    refetchInterval: 30_000,
   });
   const set = (k: string, v?: string) => {
     const next = new URLSearchParams(params);
@@ -84,7 +84,7 @@ function Payments() {
     <>
       <PageHeader
         title="Payments"
-        description="Verify partner deposits against the bank statement. Verified payments are credited to the partner's ledger."
+        description="Check partner deposits against the bank statement. Approving credits the partner's balance and issues a receipt."
         actions={
           can('payments:verify') && (
             <Button onClick={() => setRecordOpen(true)}>
@@ -211,20 +211,29 @@ function PaymentDrawer({
   const qc = useQueryClient();
   const toast = useToast();
   const [rejecting, setRejecting] = useState(false);
+  const [deposit, setDeposit] = useState('');
+  const [fileIndex, setFileIndex] = useState(0);
+  const accounts = useQuery({
+    queryKey: ['accounting', 'options'],
+    queryFn: api.accounting.options,
+    enabled: !!p && can('ledger:read'),
+  });
+  const cashBank = (accounts.data ?? []).filter(
+    (a) => a.path.includes('Cash and bank') && a.currency === 'PKR',
+  );
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['payments'] });
     void qc.invalidateQueries({ queryKey: ['payment-counts'] });
     void qc.invalidateQueries({ queryKey: ['queues'] });
   };
   const verify = useMutation({
-    mutationFn: () => api.payments.verify(p!.id),
+    mutationFn: () => api.payments.verify(p!.id, deposit || undefined),
     onSuccess: (x) => {
       refresh();
       toast.success(
-        `${x.reference} verified`,
+        `${x.reference} approved — receipt ${x.receipt?.number ?? ''}`,
         `PKR ${x.amount.toLocaleString('en-PK')} credited to ${x.accountName}.`,
       );
-      onClose();
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -249,8 +258,8 @@ function PaymentDrawer({
             <Button variant="danger-outline" onClick={() => setRejecting(true)}>
               <X /> Reject
             </Button>
-            <Button variant="success" onClick={() => verify.mutate()} loading={verify.isPending}>
-              <Check /> Verify & credit <Money value={p.amount} />
+            <Button onClick={() => verify.mutate()} loading={verify.isPending}>
+              <Check /> Approve and credit <Money value={p.amount} />
             </Button>
           </>
         )
@@ -258,20 +267,53 @@ function PaymentDrawer({
     >
       {p && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="min-h-64 rounded-lg border bg-surface-sunken">
-            {p.proofFileId ? (
-              <Proof id={p.proofFileId} />
-            ) : (
-              <p className="p-6 text-sm text-muted-foreground">
-                No slip attached (recorded by staff).
-              </p>
+          <div>
+            {p.attachments.length > 1 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {p.attachments.map((a, i) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setFileIndex(i)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${i === fileIndex ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}`}
+                  >
+                    <FileText className="size-3" /> {a.originalName}
+                  </button>
+                ))}
+              </div>
             )}
+            <div className="min-h-64 overflow-hidden rounded-xl bg-surface-sunken">
+              {(p.attachments[fileIndex] ?? p.proofFileId) ? (
+                <Proof
+                  key={(p.attachments[fileIndex]?.id ?? p.proofFileId)!}
+                  id={(p.attachments[fileIndex]?.id ?? p.proofFileId)!}
+                />
+              ) : (
+                <p className="p-6 text-sm text-muted-foreground">
+                  No slip attached (recorded by staff).
+                </p>
+              )}
+            </div>
           </div>
           <div className="space-y-4">
             {p.duplicateOf && (
               <Alert tone="warning" title="Possible duplicate">
                 The same bank reference was used on {p.duplicateOf}.
               </Alert>
+            )}
+            {p.status === 'SUBMITTED' && can('payments:verify') && cashBank.length > 0 && (
+              <Field label="Deposit into" hint="The bank or cash account that received the money">
+                <Select value={deposit} onChange={(e) => setDeposit(e.target.value)}>
+                  <option value="">
+                    {p.method === 'CASH' ? 'Cash in hand (default)' : 'Main bank account (default)'}
+                  </option>
+                  {cashBank.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.code} · {a.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
             )}
             <KeyValue
               columns={1}
@@ -295,7 +337,40 @@ function PaymentDrawer({
                   value: <span className="tabular">{p.transactionRef}</span>,
                 },
                 { label: 'Paid on', value: formatDate(p.paidAt) },
-                { label: 'For booking', value: p.bookingReference ?? 'Account deposit' },
+                {
+                  label: 'Applied to',
+                  value: p.allocations.length
+                    ? p.allocations
+                        .map(
+                          (a) => `${a.bookingReference} (PKR ${a.amount.toLocaleString('en-PK')})`,
+                        )
+                        .join(', ')
+                    : 'Account balance',
+                },
+                ...(p.notes ? [{ label: 'Partner note', value: p.notes }] : []),
+                ...(p.depositAccount
+                  ? [
+                      {
+                        label: 'Deposited to',
+                        value: `${p.depositAccount.code} ${p.depositAccount.name}`,
+                      },
+                    ]
+                  : []),
+                ...(p.receipt
+                  ? [
+                      {
+                        label: 'Receipt',
+                        value: (
+                          <Link
+                            to={`/payments/${p.id}/receipt`}
+                            className="inline-flex items-center gap-1 text-link hover:underline"
+                          >
+                            <ReceiptText className="size-3.5" /> {p.receipt.number}
+                          </Link>
+                        ),
+                      },
+                    ]
+                  : []),
                 {
                   label: 'Submitted by',
                   value: `${p.submittedByName ?? '—'} · ${formatDateTime(p.createdAt)}`,
@@ -355,6 +430,15 @@ function RecordPaymentDialog({
   const toast = useToast();
   const [error, setError] = useState<string>();
   const options = useQuery({ queryKey: ['options'], queryFn: api.catalog.options, enabled: open });
+  const accounts = useQuery({
+    queryKey: ['accounting', 'options'],
+    queryFn: api.accounting.options,
+    enabled: open,
+  });
+  const cashBank = (accounts.data ?? []).filter(
+    (a) => a.path.includes('Cash and bank') && a.currency === 'PKR',
+  );
+  const [file, setFile] = useState<File | null>(null);
   const {
     register,
     handleSubmit,
@@ -366,11 +450,20 @@ function RecordPaymentDialog({
     defaultValues: { method: 'CASH', transactionRef: '', paidAt: todayPk(), accountId: '' },
   });
   const record = useMutation({
-    mutationFn: api.payments.record,
+    mutationFn: async (v: RecordPaymentInput) => {
+      const attachmentIds = file
+        ? [(await api.files.upload(file, 'PAYMENT_PROOF', v.accountId)).id]
+        : [];
+      return api.payments.record({ ...v, attachmentIds });
+    },
     onSuccess: (p) => {
       void qc.invalidateQueries({ queryKey: ['payments'] });
-      toast.success(`${p.reference} recorded`, `Credited to ${p.accountName}.`);
+      toast.success(
+        `${p.reference} recorded — receipt ${p.receipt?.number ?? ''}`,
+        `Credited to ${p.accountName}.`,
+      );
       reset();
+      setFile(null);
       onOpenChange(false);
     },
     onError: (e) => setError(applyServerErrors(e, setFieldError)),
@@ -436,6 +529,26 @@ function RecordPaymentDialog({
         </Field>
         <Field label="Received on" required error={formState.errors.paidAt?.message}>
           <Input type="date" max={todayPk()} {...register('paidAt')} />
+        </Field>
+        <Field label="Deposited into" required error={formState.errors.depositAccountId?.message}>
+          <Select {...register('depositAccountId')}>
+            <option value="">Choose bank or cash…</option>
+            {cashBank.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.code} · {a.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Note" className="sm:col-span-2" error={formState.errors.notes?.message}>
+          <Input {...register('notes')} placeholder="Optional" />
+        </Field>
+        <Field
+          label="Attachment"
+          className="sm:col-span-2"
+          hint="Deposit slip or cash receipt (optional)"
+        >
+          <FileDrop value={file} onChange={setFile} />
         </Field>
       </form>
     </Dialog>

@@ -21,6 +21,7 @@ import {
   Field,
   Input,
   MaskedInput,
+  NotificationPreferences,
   PageHeader,
   PasswordInput,
   ThemeToggle,
@@ -44,6 +45,7 @@ export function ProfilePage() {
         <ProfileCard />
         <PasswordCard />
         <SessionsCard />
+        <EmailPrefsCard />
         <Card>
           <CardHeader title="Appearance" description="Choose light, dark, or follow your device." />
           <CardBody>
@@ -52,6 +54,33 @@ export function ProfilePage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function EmailPrefsCard() {
+  const qc = useQueryClient();
+  const prefs = useQuery({
+    queryKey: keys.notificationPrefs,
+    queryFn: api.notifications.preferences,
+  });
+  const save = useMutation({
+    mutationFn: api.notifications.setPreferences,
+    onSuccess: (p) => qc.setQueryData(keys.notificationPrefs, p),
+  });
+  return (
+    <Card>
+      <CardHeader
+        title="Email notifications"
+        description="Choose which updates also arrive by email."
+      />
+      <CardBody className="py-1">
+        <NotificationPreferences
+          value={prefs.data}
+          categories={['bookings', 'payments', 'team', 'account']}
+          onChange={(c, email) => save.mutate({ [c]: { email } })}
+        />
+      </CardBody>
+    </Card>
   );
 }
 

@@ -11,7 +11,7 @@ export const ROLE_HINT: Record<PartnerRole, string> = {
   OWNER: 'Full access, including account details and documents',
   MANAGER: 'Bookings, payments, ledger and team (staff and accountants)',
   STAFF: 'Search groups and manage their own bookings',
-  ACCOUNTANT: 'Payments, ledger and invoices',
+  ACCOUNTANT: 'Payments, receipts, statement, invoices and all bookings (read only)',
 };
 
 export const DOC_LABEL: Record<KycDocType, string> = {

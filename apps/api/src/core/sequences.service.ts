@@ -1,21 +1,42 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type VoucherType } from '@prisma/client';
 import { PrismaService } from '../infra/prisma/prisma.service';
 
-type SequenceKind = 'BOOKING' | 'PAYMENT' | 'INVOICE' | 'LEDGER' | 'PARTNER';
+type SequenceKind =
+  | 'BOOKING'
+  | 'PAYMENT'
+  | 'INVOICE'
+  | 'PARTNER'
+  // Vouchers, one series per type
+  | 'SALE'
+  | 'RECEIPT'
+  | 'PAYMENT_VOUCHER'
+  | 'JOURNAL'
+  | 'REVERSAL'
+  | 'ADJUSTMENT';
 
 const PREFIX: Record<SequenceKind, string> = {
   BOOKING: 'GNK',
   PAYMENT: 'PAY',
   INVOICE: 'INV',
-  LEDGER: 'TXN',
   PARTNER: 'AGT',
+  SALE: 'SV',
+  RECEIPT: 'RV',
+  PAYMENT_VOUCHER: 'PV',
+  JOURNAL: 'JV',
+  REVERSAL: 'REV',
+  ADJUSTMENT: 'ADJ',
 };
 
 /** Human-readable references backed by an atomic counter row per kind and year. */
 @Injectable()
 export class SequencesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Voucher number for a voucher type, e.g. JV-2026-000012. */
+  voucher(type: VoucherType, tx: Prisma.TransactionClient = this.prisma) {
+    return this.next(type === 'PAYMENT' ? 'PAYMENT_VOUCHER' : type, tx);
+  }
 
   async next(kind: SequenceKind, tx: Prisma.TransactionClient = this.prisma): Promise<string> {
     if (kind === 'PARTNER') {

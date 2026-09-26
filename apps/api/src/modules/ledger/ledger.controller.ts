@@ -14,7 +14,7 @@ import { num } from '../../core/money';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
-import { CurrentActor, RequirePartnerRole, RequirePermission } from '../auth/decorators';
+import { CurrentActor, RequirePartnerCapability, RequirePermission } from '../auth/decorators';
 import { LedgerService } from './ledger.service';
 
 type StatementQuery = z.output<typeof statementQuerySchema>;
@@ -29,7 +29,7 @@ export class PartnerLedgerController {
   }
 
   @Get('statement')
-  @RequirePartnerRole('OWNER', 'MANAGER', 'ACCOUNTANT')
+  @RequirePartnerCapability('ledger:view')
   statement(
     @CurrentActor() actor: PartnerActor,
     @Query(new ZodPipe(statementQuerySchema)) q: StatementQuery,

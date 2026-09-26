@@ -1,5 +1,8 @@
-import { Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common';
+import type { NotificationPrefsDto } from '@gnk/types';
+import { notificationPrefsSchema } from '@gnk/validation';
 import { UUID } from '../../core/http/parse-uuid';
+import { ZodPipe } from '../../core/http/zod.pipe';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
 import { CurrentActor } from '../auth/decorators';
 import { NotificationsService } from './notifications.service';
@@ -11,6 +14,19 @@ export class PartnerNotificationsController {
   @Get()
   list(@CurrentActor() actor: PartnerActor, @Query('unread') unread?: string) {
     return this.notifications.list('PARTNER', actor.userId, unread === 'true');
+  }
+
+  @Get('preferences')
+  preferences(@CurrentActor() actor: PartnerActor) {
+    return this.notifications.getPrefs('PARTNER', actor.userId);
+  }
+
+  @Put('preferences')
+  setPreferences(
+    @CurrentActor() actor: PartnerActor,
+    @Body(new ZodPipe(notificationPrefsSchema)) prefs: Partial<NotificationPrefsDto>,
+  ) {
+    return this.notifications.setPrefs('PARTNER', actor.userId, prefs);
   }
 
   @Post('read-all')
@@ -33,6 +49,19 @@ export class AdminNotificationsController {
   @Get()
   list(@CurrentActor() actor: StaffActor, @Query('unread') unread?: string) {
     return this.notifications.list('STAFF', actor.userId, unread === 'true');
+  }
+
+  @Get('preferences')
+  preferences(@CurrentActor() actor: StaffActor) {
+    return this.notifications.getPrefs('STAFF', actor.userId);
+  }
+
+  @Put('preferences')
+  setPreferences(
+    @CurrentActor() actor: StaffActor,
+    @Body(new ZodPipe(notificationPrefsSchema)) prefs: Partial<NotificationPrefsDto>,
+  ) {
+    return this.notifications.setPrefs('STAFF', actor.userId, prefs);
   }
 
   @Post('read-all')

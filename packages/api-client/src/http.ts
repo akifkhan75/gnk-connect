@@ -71,6 +71,38 @@ export class HttpClient {
     return this.request<T>('POST', path, { query, form });
   }
 
+  /**
+   * Opens a Server-Sent Events stream with the bearer token (EventSource can't send headers)
+   * and calls onMessage for each event until the stream ends or the signal aborts.
+   */
+  async stream(
+    path: string,
+    onMessage: (event: string, data: string) => void,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const res = await this.raw('GET', path, { headers: { Accept: 'text/event-stream' }, signal });
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      buffer += decoder.decode(value, { stream: true });
+      let end: number;
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        let event = 'message';
+        const data: string[] = [];
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+        }
+        if (data.length) onMessage(event, data.join('\n'));
+      }
+    }
+  }
+
   /** Fetches a protected file as a Blob (images/PDFs can't send bearer tokens via <img src>). */
   async blob(path: string): Promise<Blob> {
     const res = await this.raw('GET', path, {});
@@ -91,7 +123,13 @@ export class HttpClient {
   private async raw(
     method: string,
     path: string,
-    init: { query?: Query; body?: unknown; form?: FormData; headers?: Record<string, string> },
+    init: {
+      query?: Query;
+      body?: unknown;
+      form?: FormData;
+      headers?: Record<string, string>;
+      signal?: AbortSignal;
+    },
     retried = false,
   ): Promise<Response> {
     const token = this.options.getToken();
@@ -108,8 +146,10 @@ export class HttpClient {
           ...(init.headers ?? {}),
         },
         body: init.form ?? (init.body !== undefined ? JSON.stringify(init.body) : undefined),
+        signal: init.signal,
       });
-    } catch {
+    } catch (e) {
+      if (init.signal?.aborted) throw e;
       throw new ApiError({
         status: 0,
         detail: 'Cannot reach GNK Connect. Check your internet connection and try again.',

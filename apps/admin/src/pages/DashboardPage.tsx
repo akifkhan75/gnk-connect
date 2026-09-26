@@ -34,7 +34,7 @@ export function DashboardPage() {
   const { session } = useAuth();
   const can = useCan();
   const navigate = useNavigate();
-  const q = useQuery({ queryKey: ['dashboard'], queryFn: api.dashboard, refetchInterval: 60_000 });
+  const q = useQuery({ queryKey: ['dashboard'], queryFn: api.dashboard });
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data;
   const k = d?.kpis;

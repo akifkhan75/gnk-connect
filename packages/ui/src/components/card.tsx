@@ -2,7 +2,7 @@ import * as React from 'react';
 import { cn } from '../lib/cn';
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-lg border bg-surface shadow-card', className)} {...props} />;
+  return <div className={cn('rounded-xl bg-surface shadow-card', className)} {...props} />;
 }
 
 export function CardHeader({
@@ -19,11 +19,16 @@ export function CardHeader({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className={cn('flex items-start justify-between gap-4 border-b px-5 py-3.5', className)}>
+    <div
+      className={cn(
+        'flex items-start justify-between gap-4 border-b border-border/70 px-5 py-4',
+        className,
+      )}
+    >
       <div className="flex min-w-0 items-start gap-3">
         {icon && <div className="mt-0.5 text-muted-foreground">{icon}</div>}
         <div className="min-w-0">
-          <h3 className="text-[15px] font-semibold leading-6">{title}</h3>
+          <h3 className="text-[15px] font-semibold leading-6 tracking-[-0.015em]">{title}</h3>
           {description && <p className="text-[13px] text-muted-foreground">{description}</p>}
         </div>
       </div>
@@ -40,7 +45,7 @@ export function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDiv
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-2 border-t bg-surface-sunken/60 px-5 py-3',
+        'flex items-center justify-end gap-2 border-t border-border/70 px-5 py-3',
         className,
       )}
       {...props}
@@ -80,16 +85,15 @@ export function StatCard({
     <Comp
       onClick={onClick}
       className={cn(
-        'flex w-full items-start justify-between gap-3 rounded-lg border bg-surface p-4 text-left shadow-card',
-        onClick && 'transition-colors hover:border-border-strong',
+        'flex w-full items-start justify-between gap-3 rounded-xl bg-surface p-4 text-left shadow-card',
+        onClick &&
+          'transition-[box-shadow,transform] duration-200 ease-[var(--ease)] hover:shadow-pop active:scale-[0.99]',
         className,
       )}
     >
       <div className="min-w-0">
-        <p className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-        <p className="tabular mt-1.5 text-[22px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">
+        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+        <p className="tabular mt-1 text-[24px] font-semibold leading-tight tracking-[-0.025em] [overflow-wrap:anywhere]">
           {value}
         </p>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
@@ -97,7 +101,7 @@ export function StatCard({
       {icon && (
         <div
           className={cn(
-            'flex size-9 shrink-0 items-center justify-center rounded-md [&_svg]:size-[18px]',
+            'flex size-9 shrink-0 items-center justify-center rounded-full [&_svg]:size-[17px]',
             tones[tone],
           )}
         >

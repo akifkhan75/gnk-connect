@@ -28,6 +28,7 @@ export interface PartnerActor {
   accountType: PartnerAccountType;
   accountStatus: PartnerAccountStatus;
   role: PartnerRole;
+  mustChangePassword: boolean;
 }
 
 export interface StaffActor {
@@ -38,6 +39,7 @@ export interface StaffActor {
   fullName: string;
   roles: string[];
   permissions: Set<Permission>;
+  mustChangePassword: boolean;
 }
 
 export type Actor = PartnerActor | StaffActor;

@@ -19,13 +19,11 @@ export function AdminAuthLayout(props: {
       }
       panel={
         <div>
-          <span className="inline-flex size-11 items-center justify-center rounded-lg bg-white/10 text-[#00A3E0]">
-            <ShieldCheck className="size-6" />
+          <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur">
+            <ShieldCheck className="size-5" />
           </span>
-          <h2 className="mt-6 text-3xl font-semibold leading-tight tracking-tight">
-            GNK Connect operations
-          </h2>
-          <p className="mt-3 text-white/70">
+          <h2 className="mt-6">GNK Connect operations.</h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-white/60">
             Partner approvals, bookings, payments, pricing and supplier operations. Access is
             restricted to GNK staff. Every action is logged.
           </p>

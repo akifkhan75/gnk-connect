@@ -17,14 +17,14 @@ import {
 import { api } from '@/lib/api';
 import { keys } from '@/lib/query';
 import { downloadCsv } from '@/lib/csv';
-import { ApprovedGate, RoleGate } from '@/components/guards';
+import { ApprovedGate, RoleGate, rolesWith } from '@/components/guards';
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
 
 export function LedgerPage() {
   return (
     <ApprovedGate>
-      <RoleGate roles={['OWNER', 'MANAGER', 'ACCOUNTANT']}>
+      <RoleGate roles={rolesWith('ledger:view')}>
         <Ledger />
       </RoleGate>
     </ApprovedGate>

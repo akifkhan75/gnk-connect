@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { AdminPartnerDetailDto, KycDocType, KycDocumentDto } from '@gnk/types';
 import type { PartnerReviewAction } from '@gnk/validation';
+import { PartnerUsers } from '@/components/PartnerUsers';
 import {
   Alert,
   Badge,
@@ -38,7 +39,6 @@ import {
   StatusBadge,
   formatDate,
   formatRelative,
-  titleCase,
   useToast,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
@@ -295,29 +295,7 @@ function PartnerDetail() {
             />
           </Card>
 
-          <Card>
-            <CardHeader title={`Team (${p.members.length})`} />
-            <DataTable
-              dense
-              rows={p.members}
-              rowKey={(m) => m.userId}
-              columns={[
-                {
-                  key: 'n',
-                  header: 'Name',
-                  cell: (m) => <span className="font-medium">{m.fullName}</span>,
-                },
-                { key: 'e', header: 'Email', cell: (m) => m.email },
-                { key: 'r', header: 'Role', cell: (m) => titleCase(m.role) },
-                {
-                  key: 'l',
-                  header: 'Last sign-in',
-                  hideBelow: 'md',
-                  cell: (m) => (m.lastLoginAt ? formatRelative(m.lastLoginAt) : 'Never'),
-                },
-              ]}
-            />
-          </Card>
+          <PartnerUsers accountId={p.id} individual={p.type === 'INDIVIDUAL'} />
         </div>
 
         <div className="space-y-6">

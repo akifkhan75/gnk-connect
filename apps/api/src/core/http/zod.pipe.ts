@@ -7,10 +7,15 @@ import type { ZodType } from 'zod';
  * Unknown keys are dropped (Zod objects strip by default), which blocks mass assignment.
  */
 export class ZodPipe<T extends ZodType> implements PipeTransform {
-  constructor(private readonly schema: T) {}
+  /** `optional`: a missing body is parsed as undefined, so the schema's default applies. */
+  constructor(
+    private readonly schema: T,
+    private readonly options: { optional?: boolean } = {},
+  ) {}
 
   transform(value: unknown) {
-    if (value === undefined) throw new BadRequestException('Request body is required');
+    if (value === undefined && !this.options.optional)
+      throw new BadRequestException('Request body is required');
     const result = this.schema.safeParse(value);
     if (!result.success) {
       throw new UnprocessableEntityException({

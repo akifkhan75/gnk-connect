@@ -14,7 +14,7 @@ export function PrintSheet({
   onBack: () => void;
 }) {
   return (
-    <div className="min-h-dvh bg-muted/60 py-6 print:bg-white print:py-0">
+    <div className="min-h-dvh bg-background py-6 print:bg-white print:py-0">
       <div className="no-print mx-auto mb-4 flex max-w-[210mm] items-center justify-between px-4">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft /> Back
@@ -25,13 +25,13 @@ export function PrintSheet({
       </div>
       <article
         aria-label={title}
-        className="mx-auto min-h-[297mm] max-w-[210mm] bg-white p-[14mm] text-[13px] text-slate-900 shadow-pop [color-scheme:light] print:min-h-0 print:p-0 print:shadow-none"
+        className="mx-auto min-h-[297mm] max-w-[210mm] rounded-sm bg-white p-[14mm] text-[13px] text-slate-900 shadow-pop [color-scheme:light] print:min-h-0 print:rounded-none print:p-0 print:shadow-none"
       >
         <header className="mb-8 flex items-start justify-between border-b border-slate-200 pb-6">
           <span className="[&_*]:!text-slate-900">
             <Logo />
           </span>
-          <p className="text-right text-xl font-semibold uppercase tracking-wide text-[#00205B]">
+          <p className="text-right text-[22px] font-semibold tracking-[-0.02em] text-slate-900">
             {title}
           </p>
         </header>

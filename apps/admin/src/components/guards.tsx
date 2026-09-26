@@ -5,6 +5,7 @@ import type { Permission } from '@gnk/types';
 import { Button, EmptyState, Spinner } from '@gnk/ui';
 import { useAuth } from '@/lib/api';
 import { useCan } from '@/lib/useCan';
+import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
 
 export function FullPageSpinner() {
   return (
@@ -15,11 +16,12 @@ export function FullPageSpinner() {
 }
 
 export function RequireAuth() {
-  const { status } = useAuth();
+  const { status, session } = useAuth();
   const location = useLocation();
   if (status === 'loading') return <FullPageSpinner />;
   if (status === 'anonymous')
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  if (session?.user.mustChangePassword) return <SetPasswordPage />;
   return <Outlet />;
 }
 

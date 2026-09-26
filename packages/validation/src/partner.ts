@@ -8,11 +8,15 @@ import {
   TITLES,
 } from '@gnk/types';
 import {
+  allocationSchema,
+  allocationsMessage,
+  allocationsWithinAmount,
   emailSchema,
   isoDateSchema,
   moneySchema,
   optionalText,
   passportSchema,
+  passwordSchema,
   phonePkSchema,
   todayPk,
   uuidSchema,
@@ -50,6 +54,18 @@ export const inviteMemberSchema = z.object({
   role: z.enum(INVITABLE_ROLES as [string, ...string[]]),
 });
 export type InviteMemberInput = z.input<typeof inviteMemberSchema>;
+
+/** Add a team member directly with a temporary password they must change at first sign-in. */
+export const addMemberSchema = z.object({
+  email: emailSchema,
+  fullName: z.string().trim().min(2, 'Enter the full name').max(120),
+  phone: phonePkSchema,
+  role: z.enum(INVITABLE_ROLES as [string, ...string[]]),
+  password: passwordSchema,
+});
+export type AddMemberInput = z.input<typeof addMemberSchema>;
+
+export const memberStatusSchema = z.object({ status: z.enum(['ACTIVE', 'DISABLED']) });
 
 export const updateMemberRoleSchema = z.object({
   role: z.enum(INVITABLE_ROLES as [string, ...string[]]),
@@ -151,15 +167,30 @@ export const PARTNER_PAYMENT_METHODS = PAYMENT_METHODS.filter(
   (m) => m === 'BANK_TRANSFER' || m === 'CASH',
 );
 
-export const submitPaymentSchema = z.object({
-  method: z.enum(PARTNER_PAYMENT_METHODS as [string, ...string[]]),
-  amount: moneySchema,
-  bankName: z.string().trim().min(2, 'Enter the bank name').max(80),
-  transactionRef: z.string().trim().min(3, 'Enter the transaction or deposit slip number').max(60),
-  paidAt: isoDateSchema.refine((d) => d <= today(), 'Payment date cannot be in the future'),
-  bookingId: uuidSchema.optional().or(z.literal('').transform(() => undefined)),
-  proofFileId: uuidSchema,
-});
+export const submitPaymentSchema = z
+  .object({
+    method: z.enum(PARTNER_PAYMENT_METHODS as [string, ...string[]]),
+    amount: moneySchema,
+    bankName: z.string().trim().min(2, 'Enter the bank name').max(80),
+    transactionRef: z
+      .string()
+      .trim()
+      .min(3, 'Enter the transaction or deposit slip number')
+      .max(60),
+    paidAt: isoDateSchema.refine((d) => d <= today(), 'Payment date cannot be in the future'),
+    /** Legacy single-booking link; prefer allocations. */
+    bookingId: uuidSchema.optional().or(z.literal('').transform(() => undefined)),
+    allocations: z.array(allocationSchema).max(20).default([]),
+    /** Legacy single proof; prefer attachmentIds. */
+    proofFileId: uuidSchema.optional(),
+    attachmentIds: z.array(uuidSchema).max(5).default([]),
+    notes: optionalText(500),
+  })
+  .refine((v) => !!v.proofFileId || v.attachmentIds.length > 0, {
+    path: ['attachmentIds'],
+    message: 'Attach the deposit slip or transfer screenshot',
+  })
+  .refine(allocationsWithinAmount, { path: ['allocations'], message: allocationsMessage });
 export type SubmitPaymentInput = z.input<typeof submitPaymentSchema>;
 
 export const statementQuerySchema = z.object({

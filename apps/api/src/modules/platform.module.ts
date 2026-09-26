@@ -20,8 +20,15 @@ import {
 } from './dashboard/dashboard.controller';
 import { AdminFilesController, PartnerFilesController } from './files/files.controller';
 import { FilesService } from './files/files.service';
+import { AdminAccountingController } from './ledger/accounting.controller';
+import { ChartService } from './ledger/chart.service';
+import { CurrenciesService } from './ledger/currencies.service';
 import { AdminLedgerController, PartnerLedgerController } from './ledger/ledger.controller';
 import { LedgerService } from './ledger/ledger.service';
+import { ReportsService } from './ledger/reports.service';
+import { VouchersService } from './ledger/vouchers.service';
+import { AdminEventsController, PartnerEventsController } from './realtime/realtime.controller';
+import { RealtimeService } from './realtime/realtime.service';
 import {
   AdminNotificationsController,
   PartnerNotificationsController,
@@ -32,6 +39,7 @@ import {
   PartnerAccountController,
   PartnerTeamController,
 } from './partners/partners.controller';
+import { PartnerUsersService } from './partners/partner-users.service';
 import { PartnersService } from './partners/partners.service';
 import { AdminPaymentsController, PartnerPaymentsController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
@@ -48,6 +56,8 @@ import {
   AdminRolesController,
   AdminStaffController,
 } from './staff/staff.controller';
+import { PermissionsSyncService } from './staff/permissions-sync.service';
+import { StaffService } from './staff/staff.service';
 import { SupplierGatewayService } from './suppliers/supplier-gateway.service';
 import { SupplierSyncService } from './suppliers/supplier-sync.service';
 import { AdminSuppliersController } from './suppliers/suppliers.controller';
@@ -70,6 +80,7 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     PartnerLedgerController,
     PartnerNotificationsController,
     PartnerFilesController,
+    PartnerEventsController,
     // staff realm
     AdminDashboardController,
     AdminPartnersController,
@@ -77,6 +88,7 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     AdminInvoicesController,
     AdminPaymentsController,
     AdminLedgerController,
+    AdminAccountingController,
     AdminPricingController,
     AdminCatalogController,
     AdminSuppliersController,
@@ -86,6 +98,7 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     AdminSettingsController,
     AdminNotificationsController,
     AdminFilesController,
+    AdminEventsController,
   ],
   providers: [
     BookingMapper,
@@ -94,11 +107,19 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     CatalogService,
     FilesService,
     LedgerService,
+    ChartService,
+    VouchersService,
+    ReportsService,
+    CurrenciesService,
+    RealtimeService,
     NotificationsService,
     PartnersService,
+    PartnerUsersService,
     PaymentsService,
     PricingService,
     SettingsService,
+    StaffService,
+    PermissionsSyncService,
     SupplierGatewayService,
     SupplierSyncService,
   ],

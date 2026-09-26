@@ -13,6 +13,7 @@ const DEFAULTS: SettingsDto = {
   },
   bankAccounts: [],
   booking: { quoteTtlMinutes: 30, paymentTermsNote: '' },
+  accounting: { requireJvApproval: true },
 };
 
 @Injectable()
@@ -28,6 +29,7 @@ export class SettingsService {
       company: { ...DEFAULTS.company, ...(map.company as object) },
       bankAccounts: (map.bankAccounts as unknown as SettingsDto['bankAccounts']) ?? [],
       booking: { ...DEFAULTS.booking, ...(map.booking as object) },
+      accounting: { ...DEFAULTS.accounting, ...(map.accounting as object) },
     };
   }
 

@@ -5,6 +5,7 @@ import { BookOpen, Check, Download, Eye, FileText, RefreshCw, Send, X } from 'lu
 import type { AdminBookingDetailDto, AdminBookingListItem } from '@gnk/types';
 import {
   Alert,
+  Avatar,
   Button,
   Card,
   CardBody,
@@ -20,6 +21,7 @@ import {
   PageHeader,
   Pagination,
   SearchInput,
+  SegmentedControl,
   Spinner,
   StatusBadge,
   Tabs,
@@ -33,11 +35,44 @@ import {
   useToast,
   type Column,
 } from '@gnk/ui';
-import { api } from '@/lib/api';
+import { api, useAuth } from '@/lib/api';
 import { downloadCsv } from '@/lib/csv';
 import { errorMessage } from '@/lib/forms';
 import { useCan } from '@/lib/useCan';
 import { RequirePerm } from '@/components/guards';
+
+// Statuses where someone is waiting on us: show how long.
+const WAITING = [
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'SUPPLIER_FAILED',
+  'SUBMITTED_TO_SUPPLIER',
+  'SUPPLIER_PENDING',
+];
+
+/** "3h 20m" since the booking entered its status; amber after 2h, red after 8h. */
+function Waiting({ since }: { since: string }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const mins = Math.max(0, Math.floor((now - new Date(since).getTime()) / 60_000));
+  const text =
+    mins < 60
+      ? `${mins}m`
+      : mins < 1440
+        ? `${Math.floor(mins / 60)}h ${mins % 60}m`
+        : `${Math.floor(mins / 1440)}d`;
+  return (
+    <span
+      className={`tabular text-[11px] ${mins >= 480 ? 'text-danger' : mins >= 120 ? 'text-warning' : 'text-muted-foreground'}`}
+      title="Time in this status"
+    >
+      {text}
+    </span>
+  );
+}
 
 const TABS = [
   { value: 'PENDING_APPROVAL', label: 'Pending approval' },
@@ -71,6 +106,7 @@ function Bookings() {
     accountId: params.get('accountId') || undefined,
     from: params.get('from') || undefined,
     to: params.get('to') || undefined,
+    owner: (params.get('owner') || undefined) as 'me' | 'unassigned' | undefined,
     page: Number(params.get('page') ?? 1),
     pageSize: 25,
   };
@@ -79,7 +115,6 @@ function Bookings() {
     queryKey: ['bookings', q],
     queryFn: () => api.bookings.list(q),
     placeholderData: keepPreviousData,
-    refetchInterval: 30_000,
   });
 
   const set = (k: string, v?: string) => {
@@ -186,7 +221,31 @@ function Bookings() {
           },
         ]
       : []),
-    { key: 's', header: 'Status', align: 'right', cell: (b) => <StatusBadge status={b.status} /> },
+    {
+      key: 'o',
+      header: 'Owner',
+      hideBelow: 'xl',
+      cell: (b) =>
+        b.assignedTo ? (
+          <span className="inline-flex items-center gap-1.5 text-[13px]">
+            <Avatar name={b.assignedTo.name} className="size-5 text-[9px]" />{' '}
+            {b.assignedTo.name.split(' ')[0]}
+          </span>
+        ) : (
+          <span className="text-[13px] text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: 's',
+      header: 'Status',
+      align: 'right',
+      cell: (b) => (
+        <div className="flex flex-col items-end gap-0.5">
+          <StatusBadge status={b.status} />
+          {WAITING.includes(b.status) && <Waiting since={b.statusSince} />}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -208,7 +267,18 @@ function Bookings() {
             items={TABS.map((t) => ({ ...t, count: counts.data?.[t.value] }))}
           />
         </div>
-        <div className="grid gap-3 border-b p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <div className="grid gap-3 border-b border-border/70 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
+          <SegmentedControl
+            size="sm"
+            className="self-center"
+            value={q.owner ?? 'all'}
+            onChange={(v) => set('owner', v === 'all' ? undefined : v)}
+            items={[
+              { value: 'all', label: 'Everyone' },
+              { value: 'me', label: 'Mine' },
+              { value: 'unassigned', label: 'Unassigned' },
+            ]}
+          />
           <SearchInput
             placeholder="Reference, PNR, supplier ref, partner or surname"
             value={text}
@@ -363,6 +433,10 @@ function BookingDetail({ id }: { id: string }) {
 
   return (
     <div className="space-y-5">
+      <Owner
+        booking={b}
+        onChanged={(x) => onDone(x, x.assignedTo ? `Assigned to ${x.assignedTo.name}` : 'Released')}
+      />
       {/* Action bar */}
       {b.allowedActions.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -714,6 +788,56 @@ function BookingDetail({ id }: { id: string }) {
         reasonLabel="Reason (sent to partner)"
         onConfirm={(r) => run('cancel', r)}
       />
+    </div>
+  );
+}
+
+function Owner({
+  booking: b,
+  onChanged,
+}: {
+  booking: AdminBookingDetailDto;
+  onChanged: (b: AdminBookingDetailDto) => void;
+}) {
+  const { session } = useAuth();
+  const toast = useToast();
+  const me = session!.user.id;
+  const assign = useMutation({
+    mutationFn: (staffId: string | null) => api.bookings.assign(b.id, staffId),
+    onSuccess: onChanged,
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken px-4 py-2.5 text-[13px]">
+      {b.assignedTo ? (
+        <span className="flex items-center gap-2">
+          <Avatar name={b.assignedTo.name} className="size-6 text-[10px]" />
+          {b.assignedTo.id === me
+            ? 'You own this request'
+            : `${b.assignedTo.name} owns this request`}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">Nobody has picked this up yet</span>
+      )}
+      {b.assignedTo?.id === me ? (
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={() => assign.mutate(null)}
+          loading={assign.isPending}
+        >
+          Release
+        </Button>
+      ) : (
+        <Button
+          size="xs"
+          variant="secondary"
+          onClick={() => assign.mutate(me)}
+          loading={assign.isPending}
+        >
+          {b.assignedTo ? 'Take over' : 'Take it'}
+        </Button>
+      )}
     </div>
   );
 }

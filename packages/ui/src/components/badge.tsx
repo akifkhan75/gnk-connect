@@ -5,13 +5,13 @@ import { titleCase } from '../lib/format';
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'primary' | 'gold';
 
 const toneClass: Record<Tone, string> = {
-  neutral: 'bg-muted text-muted-foreground ring-border',
-  info: 'bg-info-soft text-info ring-info/20',
-  success: 'bg-success-soft text-success ring-success/20',
-  warning: 'bg-warning-soft text-warning ring-warning/25',
-  danger: 'bg-danger-soft text-danger ring-danger/20',
-  primary: 'bg-accent-soft text-link ring-accent/25',
-  gold: 'bg-highlight-soft text-highlight-strong ring-highlight/30',
+  neutral: 'bg-muted text-muted-foreground',
+  info: 'bg-info-soft text-info',
+  success: 'bg-success-soft text-success',
+  warning: 'bg-warning-soft text-warning',
+  danger: 'bg-danger-soft text-danger',
+  primary: 'bg-accent-soft text-link',
+  gold: 'bg-highlight-soft text-highlight-strong',
 };
 
 const dotClass: Record<Tone, string> = {
@@ -38,7 +38,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-[3px] text-[11.5px] font-medium leading-none tracking-[-0.005em]',
         toneClass[tone],
         className,
       )}
@@ -73,6 +73,8 @@ const STATUS: Record<string, [string, Tone]> = {
   // payments
   PENDING: ['Pending', 'warning'],
   VERIFIED: ['Verified', 'success'],
+  // vouchers
+  POSTED: ['Posted', 'success'],
   FAILED: ['Failed', 'danger'],
   REFUNDED: ['Refunded', 'neutral'],
   // booking payment state

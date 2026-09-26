@@ -28,6 +28,7 @@ import type {
   Title,
   UserStatus,
 } from './enums';
+import type { FileRef, UserRef } from './accounting';
 import type { Permission } from './permissions';
 
 export interface Paginated<T> {
@@ -68,6 +69,8 @@ export interface PartnerSession {
     phone: string;
     emailVerified: boolean;
     themePreference: ThemePreference;
+    /** Someone else set this user's password; they must choose their own before continuing. */
+    mustChangePassword: boolean;
   };
   account: PartnerMembership;
   memberships: PartnerMembership[];
@@ -75,7 +78,13 @@ export interface PartnerSession {
 
 export interface StaffSession {
   realm: 'STAFF';
-  user: { id: string; email: string; fullName: string; themePreference: ThemePreference };
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    themePreference: ThemePreference;
+    mustChangePassword: boolean;
+  };
   roles: string[];
   permissions: Permission[];
 }
@@ -357,9 +366,32 @@ export interface PaymentDto {
   bookingId: string | null;
   bookingReference: string | null;
   proofFileId: string | null;
+  attachments: FileRef[];
+  allocations: { bookingId: string; bookingReference: string; amount: number }[];
+  notes: string | null;
   rejectionReason: string | null;
   createdAt: string;
   verifiedAt: string | null;
+  /** Receipt voucher issued when the payment was approved. */
+  receipt: { id: string; number: string } | null;
+}
+
+/** A printable receipt for an approved payment. */
+export interface ReceiptDto {
+  number: string;
+  date: string;
+  payment: PaymentDto;
+  company: CompanyInfoDto;
+  receivedFrom: {
+    name: string;
+    code: string;
+    address: string | null;
+    city: string;
+    phone: string;
+    email: string;
+  };
+  depositAccount: string | null;
+  approvedBy: string | null;
 }
 
 export interface StatementLine {
@@ -476,6 +508,9 @@ export interface AdminBookingListItem extends BookingListItem {
   accountCode: string;
   supplierBookingRef: string | null;
   margin: number | null; // null without bookings:view_supplier_net
+  assignedTo: UserRef | null;
+  /** When the booking entered its current status (for SLA timers). */
+  statusSince: string;
 }
 
 export interface SupplierCallDto {
@@ -491,6 +526,7 @@ export interface SupplierCallDto {
 
 export interface AdminBookingDetailDto extends Omit<BookingDetailDto, 'canCancel'> {
   account: { id: string; code: string; name: string; phone: string; email: string };
+  assignedTo: UserRef | null;
   balance: BalanceDto;
   supplierName: string;
   supplierBookingRef: string | null;
@@ -518,6 +554,7 @@ export interface AdminPaymentListItem extends PaymentDto {
   submittedByName: string | null;
   verifiedByName: string | null;
   duplicateOf: string | null;
+  depositAccount: { id: string; code: string; name: string } | null;
 }
 
 export interface PricingRuleDto {
@@ -632,13 +669,22 @@ export interface StaffUserDto {
   lastLoginAt: string | null;
   createdAt: string;
   isYou: boolean;
+  mustChangePassword: boolean;
 }
 
 export interface RoleDto {
+  id: string;
   key: string;
   name: string;
+  description: string | null;
+  isSystem: boolean;
   permissions: Permission[];
   usersCount: number;
+}
+
+/** A partner user as seen by GNK staff. */
+export interface AdminPartnerUserDto extends Omit<TeamMemberDto, 'isYou'> {
+  mustChangePassword: boolean;
 }
 
 export interface AuditLogDto {
@@ -658,6 +704,7 @@ export interface SettingsDto {
   company: CompanyInfoDto;
   bankAccounts: BankAccountDto[];
   booking: { quoteTtlMinutes: number; paymentTermsNote: string };
+  accounting: { requireJvApproval: boolean };
 }
 
 export interface AdminDashboardDto {
@@ -693,6 +740,8 @@ export interface AdminQueueCounts {
   partners: number;
   bookings: number;
   payments: number;
+  /** Journal vouchers waiting for approval. */
+  vouchers: number;
 }
 
 // ---------- Public website ----------
