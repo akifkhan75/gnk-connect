@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
@@ -32,6 +33,8 @@ export default tseslint.config(
       'packages/ui/**/*.{ts,tsx}',
     ],
     languageOptions: { globals: { ...globals.browser } },
+    plugins: { 'react-hooks': reactHooks },
+    rules: { 'react-hooks/rules-of-hooks': 'error', 'react-hooks/exhaustive-deps': 'warn' },
   },
   {
     // CLI scripts, seeds and smoke tests print to the console by design.

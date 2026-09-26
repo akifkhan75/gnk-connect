@@ -1,135 +1,94 @@
-import * as React from 'react';
-import { Bell, Check } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { notificationsApi } from '@gnk/api-client';
-import { Button } from './Button';
-import { cn } from './Button';
+import { Bell, CheckCheck } from 'lucide-react';
+import type { NotificationDto } from '@gnk/types';
+import { cn } from '../lib/cn';
+import { formatRelative } from '../lib/format';
+import { DropdownContent, DropdownMenu, DropdownTrigger } from './overlay';
+import * as M from '@radix-ui/react-dropdown-menu';
 
-// Simple Popover implementation since we don't have Radix imported
-export function NotificationBell({ userId, realm }: { userId: string, realm: 'PARTNER' | 'ADMIN' }) {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const popoverRef = React.useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
-
-  const { data: notifications } = useQuery({
-    queryKey: ['notifications', userId, realm],
-    queryFn: () => notificationsApi.getMyNotifications(userId, realm),
-    refetchInterval: 30000,
-  });
-
-  const { data: unreadCount = 0 } = useQuery({
-    queryKey: ['notifications-unread', userId, realm],
-    queryFn: () => notificationsApi.getUnreadCount(userId, realm),
-    refetchInterval: 30000,
-  });
-
-  const markAsRead = useMutation({
-    mutationFn: (id: string) => notificationsApi.markAsRead(id, userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  const markAllAsRead = useMutation({
-    mutationFn: () => notificationsApi.markAllAsRead(userId, realm),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
-    },
-  });
-
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
+export function NotificationBell({
+  items,
+  unread,
+  onOpenItem,
+  onReadAll,
+  onViewAll,
+}: {
+  items: NotificationDto[];
+  unread: number;
+  onOpenItem: (n: NotificationDto) => void;
+  onReadAll: () => void;
+  onViewAll?: () => void;
+}) {
   return (
-    <div className="relative" ref={popoverRef}>
-      <button 
-        className="relative p-2 rounded-full hover:bg-muted transition-colors"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <Bell className="w-5 h-5 text-muted-foreground" />
-        {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border bg-card shadow-lg z-50 overflow-hidden flex flex-col max-h-[85vh]">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="font-semibold">Notifications</h3>
-            {unreadCount > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-xs h-7 gap-1 text-primary"
-                onClick={() => markAllAsRead.mutate()}
-                disabled={markAllAsRead.isPending}
-              >
-                <Check className="w-3 h-3" /> Mark all read
-              </Button>
-            )}
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-0">
-            {!notifications || notifications.length === 0 ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                You have no notifications yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-border/50">
-                {notifications.map((notif: any) => (
-                  <div 
-                    key={notif.id}
-                    className={cn(
-                      "p-4 transition-colors hover:bg-muted/50 cursor-default",
-                      !notif.readAt ? "bg-primary/5" : ""
-                    )}
-                    onClick={() => {
-                      if (!notif.readAt) markAsRead.mutate(notif.id);
-                      if (notif.link) {
-                        window.location.href = notif.link;
-                      }
-                    }}
-                  >
-                    <div className="flex gap-3">
-                      <div className="mt-0.5">
-                        <div className={cn(
-                          "w-2 h-2 rounded-full",
-                          !notif.readAt ? "bg-primary" : "bg-transparent"
-                        )} />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <p className={cn(
-                          "text-sm", 
-                          !notif.readAt ? "font-semibold text-foreground" : "font-medium text-foreground/90"
-                        )}>
-                          {notif.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                          {notif.body}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground/80 mt-2">
-                          {new Date(notif.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+    <DropdownMenu>
+      <DropdownTrigger asChild>
+        <button
+          type="button"
+          className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
+        >
+          <Bell className="size-[18px]" />
+          {unread > 0 && (
+            <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </button>
+      </DropdownTrigger>
+      <DropdownContent className="w-[min(22rem,calc(100vw-1.5rem))] p-0">
+        <div className="flex items-center justify-between border-b px-3.5 py-2.5">
+          <p className="text-sm font-semibold">Notifications</p>
+          {unread > 0 && (
+            <button
+              type="button"
+              onClick={onReadAll}
+              className="inline-flex items-center gap-1 text-xs text-link hover:underline"
+            >
+              <CheckCheck className="size-3.5" /> Mark all read
+            </button>
+          )}
         </div>
-      )}
-    </div>
+        <div className="max-h-96 overflow-y-auto">
+          {items.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              You're all caught up.
+            </p>
+          ) : (
+            items.slice(0, 12).map((n) => (
+              <M.Item
+                key={n.id}
+                onSelect={() => onOpenItem(n)}
+                className={cn(
+                  'flex cursor-pointer gap-3 border-b px-3.5 py-3 outline-none last:border-0 data-[highlighted]:bg-muted',
+                  !n.readAt && 'bg-accent-soft/40',
+                )}
+              >
+                <span
+                  className={cn(
+                    'mt-1.5 size-2 shrink-0 rounded-full',
+                    n.readAt ? 'bg-transparent' : 'bg-accent',
+                  )}
+                  aria-hidden
+                />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium">{n.title}</p>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{n.body}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {formatRelative(n.createdAt)}
+                  </p>
+                </div>
+              </M.Item>
+            ))
+          )}
+        </div>
+        {onViewAll && (
+          <M.Item
+            onSelect={onViewAll}
+            className="block cursor-pointer border-t px-3.5 py-2.5 text-center text-xs font-medium text-link outline-none data-[highlighted]:bg-muted"
+          >
+            View all notifications
+          </M.Item>
+        )}
+      </DropdownContent>
+    </DropdownMenu>
   );
 }

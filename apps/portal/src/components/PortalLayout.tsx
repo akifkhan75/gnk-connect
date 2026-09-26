@@ -1,226 +1,290 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Compass, 
-  Layers, 
-  CalendarDays, 
-  FileText, 
-  Building2, 
-  LogOut, 
-  AlertCircle, 
-  CheckCircle2,
-  Wallet,
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  BookOpen,
+  Building2,
+  ChevronDown,
+  ClipboardCheck,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Plane,
+  ReceiptText,
+  ScrollText,
+  UserRound,
   Users,
-  Search,
-  PlusCircle,
-  Bell
+  Wallet,
 } from 'lucide-react';
-import { ThemeToggle } from '@gnk/ui';
+import {
+  AppShell,
+  Avatar,
+  DropdownContent,
+  DropdownItem,
+  DropdownLabel,
+  DropdownMenu,
+  DropdownSeparator,
+  DropdownTrigger,
+  Logo,
+  NotificationBell,
+  SearchInput,
+  StatusBadge,
+  ThemeToggle,
+  formatMoney,
+  type NavGroup,
+} from '@gnk/ui';
+import { api, useAuth } from '@/lib/api';
+import { keys } from '@/lib/query';
+import { ROLE_LABEL } from '@/lib/labels';
+import { can } from './guards';
 
-export function PortalLayout({ children }: { children?: React.ReactNode }) {
+export function PortalLayout() {
+  const { session, logout, switchAccount } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
+  const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const account = session!.account;
+  const approved = account.accountStatus === 'APPROVED';
+  const role = account.role;
 
-  // Dummy auth state for now
-  const canViewFinances = true;
-  const canManageTeam = true;
-  const currentAgency = { name: 'ABC Travels', walletBalancePKR: 500000, creditLimitPKR: 0 };
-  const currentUser = { fullName: 'Tariq Mansoor' };
-  const isApprovedAgent = true;
-  const isPendingAgent = false;
-  const availableFloat = 500000;
+  const balance = useQuery({
+    queryKey: keys.balance,
+    queryFn: api.ledger.balance,
+    enabled: approved,
+    refetchInterval: 60_000,
+  });
+  const notifications = useQuery({
+    queryKey: keys.notifications,
+    queryFn: api.notifications.list,
+    refetchInterval: 45_000,
+  });
+  const counts = useQuery({
+    queryKey: keys.bookingCounts,
+    queryFn: api.bookings.counts,
+    enabled: approved,
+  });
 
-  const handleGlobalSearch = (e: React.FormEvent) => {
+  const nav: NavGroup[] = [
+    {
+      items: [
+        { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+        { label: 'Groups & fares', href: '/groups', icon: Plane },
+      ],
+    },
+    ...(approved
+      ? [
+          {
+            label: 'Bookings',
+            items: [
+              {
+                label: 'My bookings',
+                href: '/bookings',
+                icon: BookOpen,
+                badge: counts.data?.APPROVED || null,
+              },
+              { label: 'Invoices', href: '/invoices', icon: FileText },
+              ...(can.money(role)
+                ? [
+                    { label: 'Payments', href: '/payments', icon: Wallet },
+                    { label: 'Ledger', href: '/ledger', icon: ScrollText },
+                  ]
+                : []),
+            ],
+          },
+        ]
+      : []),
+    {
+      label: 'Account',
+      items: [
+        ...(!approved ? [{ label: 'Application', href: '/onboarding', icon: ClipboardCheck }] : []),
+        { label: 'Agency profile', href: '/account', icon: Building2 },
+        ...(can.team(role) && account.accountType === 'AGENCY'
+          ? [{ label: 'Team', href: '/team', icon: Users }]
+          : []),
+        { label: 'My profile', href: '/profile', icon: UserRound },
+      ],
+    },
+  ];
+
+  const onSearch = (e: FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/bookings?q=${encodeURIComponent(searchQuery.trim())}`);
-    }
+    if (search.trim()) navigate(`/bookings?q=${encodeURIComponent(search.trim())}`);
   };
 
-  const navLinks = [
-    { name: 'AirDesk Dashboard', path: '/', icon: Layers, show: true },
-    { name: 'Group Inventory', path: '/groups', icon: CalendarDays, show: true, badge: 'Live Series' },
-    { name: 'Bookings & PNRs', path: '/bookings', icon: FileText, show: true },
-    { name: 'Wallet & Ledger', path: '/payments', icon: Wallet, show: canViewFinances },
-    { name: 'Team & RBAC', path: '/team', icon: Users, show: canManageTeam, badge: 'RBAC' },
-    { name: 'Agency Profile', path: '/profile', icon: Building2, show: true },
-  ].filter(link => link.show);
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950 font-sans">
-
-      {/* AirDesk Top Workspace Header */}
-      <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-4">
-            
-            {/* Left: Brand Logo & Sync Heartbeat */}
-            <div className="flex items-center gap-4">
-              <Link to="/" className="flex items-center gap-2.5 group">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
-                  <Compass className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lg font-black tracking-tight text-white">
-                      GNK <span className="text-cyan-400">ELITE</span>
-                    </span>
-                    <span className="text-[10px] uppercase font-extrabold tracking-wider bg-cyan-950 text-cyan-400 border border-cyan-800/60 px-1.5 py-0.5 rounded">
-                      AirDesk GDS
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium mt-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>AirDesk API: Connected</span>
-                  </div>
-                </div>
-              </Link>
-            </div>
-
-            {/* Center: Global PNR & Search Bar */}
-            <div className="hidden md:flex flex-1 max-w-md mx-2">
-              <form onSubmit={handleGlobalSearch} className="w-full relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search PNR, GNK ID (e.g. GNK-2026-00124), or passenger..."
-                  className="w-full bg-slate-950/80 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
-                />
-              </form>
-            </div>
-
-            {/* Right: Quick Float Widget & User Profile */}
-            <div className="flex items-center gap-3">
-              
-              {/* Financial Float Badge */}
-              {canViewFinances && currentAgency && (
-                <div 
-                  onClick={() => navigate('/payments')}
-                  className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 cursor-pointer transition-all"
-                  title="Click to view Statement of Account (SOA)"
-                >
-                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                    <Wallet size={14} />
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Available Float</div>
-                    <div className="text-xs font-mono font-black text-emerald-400">
-                      PKR {availableFloat.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <button className="relative p-2 text-slate-400 hover:text-cyan-400 transition-colors">
-                <Bell size={20} />
-              </button>
-              
-              <ThemeToggle />
-
-              {/* User Role & Profile Card */}
-              {currentUser && (
-                <div className="flex items-center gap-2.5 pl-2 border-l border-slate-800">
-                  <div className="text-right hidden sm:block">
-                    <div className="text-xs font-bold text-white leading-tight">
-                      {currentAgency?.name || currentUser.fullName}
-                    </div>
-                    <div className="flex items-center justify-end gap-1 text-[10px] mt-0.5">
-                      <span className="text-amber-300 font-bold bg-amber-500/10 px-1.5 rounded">👑 Owner</span>
-                      {isApprovedAgent ? (
-                        <span className="text-emerald-400 font-bold flex items-center">
-                          <CheckCircle2 size={10} className="ml-1" />
-                        </span>
-                      ) : (
-                        <span className="text-amber-400 font-bold">● Pending</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <Link to="/profile">
-                    <img
-                      src={`https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.fullName}`}
-                      alt={currentUser.fullName}
-                      className="w-9 h-9 rounded-xl border border-slate-700 bg-slate-800 object-cover hover:border-cyan-400 transition-colors"
-                    />
-                  </Link>
-
-                  <button
-                    title="Sign Out of Session"
-                    className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                  >
-                    <LogOut size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+    <AppShell
+      pathname={location.pathname}
+      nav={nav}
+      brand={
+        <Link to="/">
+          <Logo onDark product="Partner Portal" />
+        </Link>
+      }
+      renderLink={(item, props) => (
+        <NavLink
+          to={item.href}
+          end={item.href === '/'}
+          className={props.className}
+          onClick={props.onClick}
+          aria-current={props['aria-current']}
+        >
+          {props.children}
+        </NavLink>
+      )}
+      sidebarFooter={
+        <div className="rounded-md bg-white/5 px-3 py-2.5 text-xs">
+          <p className="truncate font-medium text-white">{account.accountName}</p>
+          <p className="mt-0.5 text-sidebar-muted">
+            {account.accountCode} · {ROLE_LABEL[role]}
+          </p>
         </div>
-
-        {/* Desktop Secondary AirDesk Sub-Nav Bar */}
-        <div className="border-t border-slate-800/80 bg-slate-900/60 hidden md:block">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-            <nav className="flex items-center gap-1 py-1.5">
-              {navLinks.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
-                return (
-                  <NavLink
-                    key={item.name}
-                    to={item.path}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      isActive
-                        ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shadow-sm'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <Icon size={14} />
-                    <span>{item.name}</span>
-                    {item.badge && (
-                      <span className={`text-[9px] px-1 py-0.5 rounded font-extrabold uppercase ${
-                        isActive ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-cyan-400'
-                      }`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </NavLink>
-                );
-              })}
-            </nav>
-
-            <div className="flex items-center gap-3 text-xs">
+      }
+      banner={
+        !approved && location.pathname !== '/onboarding' ? (
+          <div className="border-b border-warning/30 bg-warning-soft px-4 py-2.5 text-[13px] sm:px-6">
+            <span className="font-medium">
+              Your account is{' '}
+              {account.accountStatus === 'DRAFT' ? 'not yet submitted' : 'awaiting approval'}.
+            </span>{' '}
+            <span className="text-foreground/75">
+              Partner fares and booking unlock once GNK Connect approves it.
+            </span>{' '}
+            <Link to="/onboarding" className="font-medium text-link hover:underline">
+              View application →
+            </Link>
+          </div>
+        ) : null
+      }
+      topbar={
+        <>
+          {approved ? (
+            <form onSubmit={onSearch} className="hidden max-w-xs flex-1 md:block">
+              <SearchInput
+                placeholder="Search bookings, PNR or passenger"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Search bookings"
+              />
+            </form>
+          ) : (
+            <div className="flex-1" />
+          )}
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+            {approved && balance.data && can.money(role) && (
               <Link
-                to="/groups"
-                className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 font-bold"
+                to="/ledger"
+                className="hidden items-center gap-3 rounded-md border bg-surface-sunken px-3 py-1.5 text-xs sm:flex"
+                title="Balance and available credit"
               >
-                <PlusCircle size={13} />
-                <span>Quick Hold Seats</span>
+                <span>
+                  <span className="text-muted-foreground">Balance </span>
+                  <span
+                    className={`tabular font-semibold ${balance.data.balance < 0 ? 'text-danger' : ''}`}
+                  >
+                    {formatMoney(balance.data.balance)}
+                  </span>
+                </span>
+                <span className="h-4 w-px bg-border" />
+                <span>
+                  <span className="text-muted-foreground">Available </span>
+                  <span className="tabular font-semibold text-highlight-strong">
+                    {formatMoney(balance.data.availableFunds)}
+                  </span>
+                </span>
               </Link>
-            </div>
+            )}
+            {!approved && (
+              <StatusBadge status={account.accountStatus} className="hidden sm:inline-flex" />
+            )}
+            <NotificationBell
+              items={notifications.data?.items ?? []}
+              unread={notifications.data?.unread ?? 0}
+              onOpenItem={async (n) => {
+                if (!n.readAt) await api.notifications.read(n.id);
+                void qc.invalidateQueries({ queryKey: keys.notifications });
+                if (n.link) navigate(n.link);
+              }}
+              onReadAll={async () => {
+                await api.notifications.readAll();
+                void qc.invalidateQueries({ queryKey: keys.notifications });
+              }}
+              onViewAll={() => navigate('/notifications')}
+            />
+            <ThemeToggle className="hidden sm:inline-flex" />
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-md py-1 pl-1 pr-1.5 hover:bg-muted"
+                >
+                  <Avatar name={session!.user.fullName} />
+                  <span className="hidden text-left leading-tight lg:block">
+                    <span className="block max-w-36 truncate text-[13px] font-medium">
+                      {session!.user.fullName}
+                    </span>
+                    <span className="block max-w-36 truncate text-[11px] text-muted-foreground">
+                      {account.accountName}
+                    </span>
+                  </span>
+                  <ChevronDown className="size-4 text-muted-foreground" />
+                </button>
+              </DropdownTrigger>
+              <DropdownContent className="w-60">
+                <DropdownLabel>{session!.user.email}</DropdownLabel>
+                {session!.memberships.length > 1 && (
+                  <>
+                    <DropdownSeparator />
+                    <DropdownLabel>Switch account</DropdownLabel>
+                    {session!.memberships.map((m) => (
+                      <DropdownItem
+                        key={m.accountId}
+                        onSelect={async () => {
+                          if (m.accountId === account.accountId) return;
+                          await switchAccount(m.accountId);
+                          qc.clear();
+                          navigate('/');
+                        }}
+                      >
+                        <Building2 />
+                        <span className="flex-1 truncate">{m.accountName}</span>
+                        {m.accountId === account.accountId && (
+                          <span className="text-xs text-link">Current</span>
+                        )}
+                      </DropdownItem>
+                    ))}
+                  </>
+                )}
+                <DropdownSeparator />
+                <DropdownItem onSelect={() => navigate('/profile')}>
+                  <UserRound /> My profile
+                </DropdownItem>
+                {approved && (
+                  <DropdownItem onSelect={() => navigate('/invoices')}>
+                    <ReceiptText /> Invoices
+                  </DropdownItem>
+                )}
+                <div className="px-2.5 py-2 sm:hidden">
+                  <ThemeToggle showLabels />
+                </div>
+                <DropdownSeparator />
+                <DropdownItem
+                  danger
+                  onSelect={async () => {
+                    await logout();
+                    qc.clear();
+                    navigate('/login');
+                  }}
+                >
+                  <LogOut /> Sign out
+                </DropdownItem>
+              </DropdownContent>
+            </DropdownMenu>
           </div>
-        </div>
-      </header>
-
-      {/* Main Workspace Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {children || <Outlet />}
-      </main>
-
-      {/* Enterprise Footer */}
-      <footer className="border-t border-slate-800 bg-slate-950/90 py-5 text-center text-xs text-slate-500 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>AirDesk Groups Engine v2.4 • GNK Connect B2B Network</span>
-          </div>
-          <div className="flex items-center gap-4 text-[11px]">
-            <a href="http://localhost:3000" className="hover:text-cyan-400 transition-colors">Public Website</a>
-            <a href="http://localhost:3002" className="text-amber-400/80 hover:text-amber-300 transition-colors">GNK Command Gateway</a>
-          </div>
-        </div>
-      </footer>
-    </div>
+        </>
+      }
+    >
+      <Outlet />
+    </AppShell>
   );
 }

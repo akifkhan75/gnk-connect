@@ -1,52 +1,92 @@
-/* packages/ui/src/styles/tokens.css */
+/*
+ * GNK Connect design tokens (HSL channels). Components use semantic tokens only.
+ * Brand: navy #00205B, cyan #00A3E0, gold #F59E0B.
+ */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 84% 9%;
-  --surface: 210 40% 98%;
-  --surface-raised: 0 0% 100%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 42%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
+  color-scheme: light;
+  --background: 216 33% 97%;
+  --foreground: 222 47% 11%;
+  --surface: 0 0% 100%;
+  --surface-sunken: 216 30% 95%;
+  --muted: 214 32% 94%;
+  --muted-foreground: 215 16% 40%;
+  --border: 214 28% 88%;
+  --border-strong: 214 22% 78%;
+  --input: 214 24% 82%;
   --ring: 197 100% 44%;
-  --primary: 218 100% 18%;
-  --primary-foreground: 0 0% 100%; /* navy */
-  --accent: 197 100% 44%;
-  --accent-foreground: 0 0% 100%; /* cyan */
-  --highlight: 38 92% 50%;
-  --highlight-foreground: 222 84% 9%; /* gold */
-  --success: 142 71% 35%;
-  --warning: 38 92% 45%;
-  --danger: 0 72% 50%;
-  --info: 199 89% 45%;
+
+  --primary: 218 100% 18%; /* navy */
+  --primary-hover: 218 90% 24%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 197 100% 44%; /* cyan */
+  --accent-soft: 197 90% 95%;
+  --accent-foreground: 0 0% 100%;
+  --link: 199 100% 31%; /* cyan darkened for 4.5:1 text contrast */
+  --highlight: 38 92% 50%; /* gold */
+  --highlight-soft: 45 100% 94%;
+  --highlight-strong: 32 95% 36%;
+
+  --success: 152 62% 32%;
+  --success-soft: 145 60% 94%;
+  --warning: 32 95% 38%;
+  --warning-soft: 45 100% 93%;
+  --danger: 0 70% 46%;
+  --danger-soft: 0 86% 96%;
+  --info: 207 85% 40%;
+  --info-soft: 206 100% 95%;
+
   --sidebar: 218 100% 18%;
-  --sidebar-foreground: 210 40% 96%;
-  --sidebar-active: 197 100% 44%;
+  --sidebar-hover: 218 70% 25%;
+  --sidebar-foreground: 214 40% 88%;
+  --sidebar-muted: 216 30% 64%;
+  --sidebar-active: 197 100% 50%;
+  --sidebar-border: 218 60% 26%;
+
   --radius: 0.625rem;
-  --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.06), 0 1px 3px hsl(222 47% 11% / 0.08);
+  --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.05), 0 1px 3px hsl(222 47% 11% / 0.06);
+  --shadow-pop: 0 10px 30px -10px hsl(222 47% 11% / 0.25), 0 2px 6px hsl(222 47% 11% / 0.08);
 }
+
 .dark {
+  color-scheme: dark;
   --background: 222 47% 6%;
-  --foreground: 210 40% 96%;
-  --surface: 222 40% 9%;
-  --surface-raised: 222 35% 12%;
-  --muted: 217 33% 15%;
-  --muted-foreground: 215 20% 65%;
-  --border: 217 30% 20%;
-  --input: 217 30% 22%;
+  --foreground: 213 31% 93%;
+  --surface: 222 38% 9.5%;
+  --surface-sunken: 222 45% 7.5%;
+  --muted: 220 30% 15%;
+  --muted-foreground: 215 18% 66%;
+  --border: 219 28% 18%;
+  --border-strong: 218 24% 27%;
+  --input: 218 26% 24%;
   --ring: 197 100% 55%;
-  --primary: 197 100% 50%;
-  --primary-foreground: 222 84% 9%; /* cyan becomes primary on dark */
-  --accent: 197 90% 60%;
-  --accent-foreground: 222 84% 9%;
-  --highlight: 38 92% 55%;
-  --highlight-foreground: 222 84% 9%;
-  --success: 142 60% 45%;
-  --warning: 38 92% 55%;
-  --danger: 0 80% 62%;
-  --info: 199 89% 60%;
-  --sidebar: 222 47% 8%;
-  --sidebar-foreground: 210 40% 90%;
+
+  --primary: 197 100% 48%; /* cyan becomes the primary action colour on dark */
+  --primary-hover: 197 100% 56%;
+  --primary-foreground: 222 60% 8%;
+  --accent: 197 100% 52%;
+  --accent-soft: 200 60% 15%;
+  --accent-foreground: 222 60% 8%;
+  --link: 197 100% 62%;
+  --highlight: 40 96% 56%;
+  --highlight-soft: 36 60% 14%;
+  --highlight-strong: 42 96% 64%;
+
+  --success: 150 55% 48%;
+  --success-soft: 150 40% 13%;
+  --warning: 40 92% 56%;
+  --warning-soft: 38 50% 13%;
+  --danger: 0 80% 64%;
+  --danger-soft: 0 45% 15%;
+  --info: 205 90% 64%;
+  --info-soft: 207 50% 15%;
+
+  --sidebar: 222 50% 7%;
+  --sidebar-hover: 222 35% 12%;
+  --sidebar-foreground: 214 30% 85%;
+  --sidebar-muted: 216 16% 55%;
   --sidebar-active: 197 100% 55%;
-  --shadow-card: 0 0 0 1px hsl(217 30% 20%);
+  --sidebar-border: 220 30% 14%;
+
+  --shadow-card: 0 0 0 1px hsl(219 28% 18%);
+  --shadow-pop: 0 12px 32px -8px hsl(0 0% 0% / 0.6), 0 0 0 1px hsl(219 28% 20%);
 }

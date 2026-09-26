@@ -1,11 +1,77 @@
-@import './tokens.css';
-@import './theme.css';
-
 @layer base {
-  * {
-    @apply border-border;
+  *,
+  ::before,
+  ::after {
+    border-color: hsl(var(--border));
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'ss01';
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+  @media print {
+    body {
+      background: white !important;
+    }
+    .no-print {
+      display: none !important;
+    }
+  }
+}
+
+@keyframes gnk-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes gnk-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gnk-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes gnk-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
   }
 }
