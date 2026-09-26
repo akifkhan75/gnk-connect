@@ -16,3 +16,5 @@ export * from './components/NotificationBell';
 export * from './charts/BarChart';
 export * from './layouts/AppShell';
 export * from './layouts/AuthLayout';
+export * from './documents/PrintSheet';
+export * from './documents/InvoiceDocument';

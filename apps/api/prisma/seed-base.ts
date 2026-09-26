@@ -57,7 +57,7 @@ export async function seedBase(prisma: PrismaClient) {
 
   const supplier = await prisma.supplier.upsert({
     where: { code: 'airdesk' },
-    update: { adapterKey: 'airdesk' },
+    update: { adapterKey: 'airdesk', name: 'AirDesk' },
     create: { code: 'airdesk', name: 'AirDesk', adapterKey: 'airdesk', status: 'ACTIVE' },
   });
 

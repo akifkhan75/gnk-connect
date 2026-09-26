@@ -1,14 +1,22 @@
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Plane } from 'lucide-react';
-import { Alert, ErrorState, Spinner, formatDate, formatDateTime, titleCase } from '@gnk/ui';
+import {
+  Alert,
+  ErrorState,
+  PrintSheet,
+  Spinner,
+  formatDate,
+  formatDateTime,
+  titleCase,
+} from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { PrintSheet } from '@/components/PrintSheet';
 
 export function VoucherPage() {
   const { id = '' } = useParams();
   const { session } = useAuth();
+  const navigate = useNavigate();
   const q = useQuery({ queryKey: keys.booking(id), queryFn: () => api.bookings.get(id) });
   if (q.error) return <ErrorState error={q.error} />;
   if (!q.data) return <Spinner className="py-20" />;
@@ -21,7 +29,7 @@ export function VoucherPage() {
     );
   }
   return (
-    <PrintSheet title="Travel voucher" backTo={`/bookings/${b.id}`}>
+    <PrintSheet title="Travel voucher" onBack={() => navigate(`/bookings/${b.id}`)}>
       <section className="mb-6 grid grid-cols-3 gap-4 rounded-md bg-slate-50 p-4">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-500">Booking reference</p>

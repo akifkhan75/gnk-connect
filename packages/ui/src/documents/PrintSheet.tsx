@@ -1,23 +1,22 @@
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer } from 'lucide-react';
-import { Button, Logo } from '@gnk/ui';
+import { Button } from '../components/button';
+import { Logo } from '../components/misc';
 
 /** A4 document on a neutral background, always light (plan 08 §3), with print toolbar. */
 export function PrintSheet({
   title,
   children,
-  backTo,
+  onBack,
 }: {
   title: string;
   children: ReactNode;
-  backTo: string;
+  onBack: () => void;
 }) {
-  const navigate = useNavigate();
   return (
     <div className="min-h-dvh bg-muted/60 py-6 print:bg-white print:py-0">
       <div className="no-print mx-auto mb-4 flex max-w-[210mm] items-center justify-between px-4">
-        <Button variant="ghost" onClick={() => navigate(backTo)}>
+        <Button variant="ghost" onClick={onBack}>
           <ArrowLeft /> Back
         </Button>
         <Button onClick={() => window.print()}>
