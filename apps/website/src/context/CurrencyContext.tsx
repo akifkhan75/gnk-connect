@@ -40,13 +40,10 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const formatPrice = (priceUSDStr: string | number): string => {
-    let numeric = 0;
-    if (typeof priceUSDStr === 'number') {
-      numeric = priceUSDStr;
-    } else {
-      const match = priceUSDStr.replace(/[^0-9.]/g, '');
-      numeric = parseFloat(match) || 0;
-    }
+    const numeric =
+      typeof priceUSDStr === 'number'
+        ? priceUSDStr
+        : parseFloat(priceUSDStr.replace(/[^0-9.]/g, '')) || 0;
 
     const current = CURRENCIES[currency];
     const converted = Math.round(numeric * current.rate);

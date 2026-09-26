@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 
 const API = process.env.API_URL ?? 'http://localhost:4000/api/v1';
 const need = (k) => process.env[k] ?? (console.error(`Set ${k}`), process.exit(2));
-const ORIGIN = 'http://localhost:3001';
+const ORIGIN = process.env.ORIGIN ?? 'http://localhost:3001'; // must be in the API's CORS_ORIGINS
 const FORBIDDEN_KEYS = ['supplierNet', 'supplierNetUnit', 'markup', 'markupUnit', 'supplierBookingRef', 'internalNotes', 'pricingSnapshot', 'passportNumberEnc'];
 
 let passed = 0;

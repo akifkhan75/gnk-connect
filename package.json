@@ -18,7 +18,7 @@
     "build:local": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "lint": "turbo run lint",
+    "lint": "eslint apps packages --quiet",
     "db:migrate": "npm run db:migrate -w @gnk/api",
     "db:seed": "npm run db:seed -w @gnk/api",
     "prepare": "husky"

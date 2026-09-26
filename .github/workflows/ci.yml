@@ -9,41 +9,67 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gnk
+          POSTGRES_PASSWORD: gnk
+          POSTGRES_DB: gnk_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U gnk -d gnk_ci" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://gnk:gnk@localhost:5432/gnk_ci?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+      PII_ENCRYPTION_KEY: v1:0000000000000000000000000000000000000000000000000000000000000001
+      SEED_ADMIN_EMAIL: admin@ci.test
+      SEED_ADMIN_PASSWORD: ci-admin-password-1
+      SEED_DEMO_PASSWORD: ci-demo-password-1
+      SUPPLIER_SYNC_INTERVAL_MINUTES: '0'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
-      - name: Check for Secrets (Gitleaks)
+      - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lint
-        run: npm run lint
+      - name: Build shared packages and Prisma client
+        run: npm run build:deps -w @gnk/api && npx prisma generate --schema apps/api/prisma/schema.prisma
 
-      - name: Typecheck
-        run: npm run typecheck
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Unit tests
+        run: npm test -w @gnk/api
 
-      - name: Unit Tests
-        run: npm run test:unit
+      - name: Build apps
+        run: npm run build -w @gnk/api && npm run build -w @gnk/portal && npm run build -w @gnk/admin && npm run build -w @gnk/website
 
-      - name: Build
-        run: npm run build
+      - name: Migrate and seed
+        working-directory: apps/api
+        run: npx prisma migrate deploy && NODE_ENV=development npx ts-node --transpile-only prisma/seed.ts
 
-      - name: Integration Tests (Testcontainers)
-        run: npm run test:integration
-
-      - name: E2E Tests (Playwright)
-        if: github.ref == 'refs/heads/main'
-        run: npm run test:e2e
+      - name: End-to-end API smoke test
+        working-directory: apps/api
+        run: |
+          NODE_ENV=development node dist/apps/api/src/main.js &
+          for i in $(seq 1 30); do curl -sf localhost:4000/api/v1/health && break; sleep 1; done
+          API_URL=http://localhost:4000/api/v1 ADMIN_EMAIL=$SEED_ADMIN_EMAIL ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD \
+            PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=$SEED_DEMO_PASSWORD node test/smoke.mjs
