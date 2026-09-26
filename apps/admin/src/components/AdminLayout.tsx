@@ -213,12 +213,12 @@ export function AdminLayout() {
       commands={commands}
       brand={
         <Link to="/">
-          <Logo product="Admin" />
+          <Logo product="Admin" size={34} />
         </Link>
       }
       brandCompact={
         <Link to="/" aria-label="Dashboard">
-          <Logo compact />
+          <Logo compact size={28} />
         </Link>
       }
       renderLink={(item, props) => (

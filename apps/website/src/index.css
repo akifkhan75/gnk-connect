@@ -9,23 +9,39 @@
     -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI Variable', system-ui,
     sans-serif;
 
-  --color-navy-50: #e6f0ff;
-  --color-navy-100: #cce0ff;
-  --color-navy-500: #3366cc;
-  --color-navy-600: #004099;
-  --color-navy-700: #00205b;
-  /* Deep tones lean to ink so text and dark sections read neutral; brand navy stays at 700. */
-  --color-navy-800: #111a33;
-  --color-navy-900: #0b1020;
+  /* Palette from the GNK Connect logo: navy ink, royal blue → sky cyan, orange plane. */
+  --color-navy-50: #eaf1fb;
+  --color-navy-100: #d4e2f6;
+  --color-navy-500: #2f5aa5;
+  --color-navy-600: #1d3f80;
+  --color-navy-700: #0f2a5c;
+  --color-navy-800: #0b1f45;
+  --color-navy-900: #081631;
 
-  --color-cyan-300: #66d1ff;
-  --color-cyan-400: #33baff;
-  --color-cyan-500: #00a3e0;
-  --color-cyan-600: #0082b3;
+  /* "cyan" is the site accent: the logo's sky → royal blue ramp. */
+  --color-cyan-50: #eef7ff;
+  --color-cyan-100: #d9edff;
+  --color-cyan-200: #bce0ff;
+  --color-cyan-300: #8ecdff;
+  --color-cyan-400: #45b4f7;
+  --color-cyan-500: #1492ee;
+  --color-cyan-600: #0a6fe0;
+  --color-cyan-700: #0a58c4;
+  --color-cyan-800: #0d479e;
+  --color-cyan-900: #113d7d;
+  --color-cyan-950: #0c2750;
 
-  --color-gold-400: #fbbf24;
-  --color-gold-500: #f59e0b;
-  --color-gold-600: #d97706;
+  /* Orange of the plane and swoosh. */
+  --color-gold-400: #ffa64d;
+  --color-gold-500: #ff8a1f;
+  --color-gold-600: #e66a0f;
+  --color-orange-400: #ffa64d;
+  --color-orange-500: #ff8a1f;
+  --color-orange-600: #e66a0f;
+
+  /* Darkest slates carry the logo navy so dark sections match the brand. */
+  --color-slate-900: #0b1a33;
+  --color-slate-950: #07122a;
 
   --animate-float: float 6s ease-in-out infinite;
   --animate-blob: blob 7s infinite;

@@ -13,7 +13,7 @@ export function AdminAuthLayout(props: {
       {...props}
       brand={
         <>
-          <Logo product="Admin Console" onDark className="hidden lg:inline-flex" />
+          <Logo product="Admin Console" onDark size={40} className="hidden lg:inline-flex" />
           <Logo product="Admin Console" className="lg:hidden" />
         </>
       }

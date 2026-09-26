@@ -28,9 +28,7 @@ export function PrintSheet({
         className="mx-auto min-h-[297mm] max-w-[210mm] rounded-sm bg-white p-[14mm] text-[13px] text-slate-900 shadow-pop [color-scheme:light] print:min-h-0 print:rounded-none print:p-0 print:shadow-none"
       >
         <header className="mb-8 flex items-start justify-between border-b border-slate-200 pb-6">
-          <span className="[&_*]:!text-slate-900">
-            <Logo />
-          </span>
+          <Logo variant="ink" size={40} />
           <p className="text-right text-[22px] font-semibold tracking-[-0.02em] text-slate-900">
             {title}
           </p>

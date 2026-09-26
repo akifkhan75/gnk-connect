@@ -24,14 +24,18 @@ export function AuthLayout({
 }) {
   return (
     <div className="grid min-h-dvh bg-surface lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      <aside className="relative hidden overflow-hidden bg-[#0a0a0c] text-white lg:flex lg:flex-col">
+      <aside className="relative hidden overflow-hidden bg-[#07142b] text-white lg:flex lg:flex-col">
         {/* Soft light, not decoration: two blurred glows in the brand blues. */}
         <div
-          className="absolute -left-32 -top-32 size-[520px] rounded-full bg-[#0071e3] opacity-30 blur-[120px]"
+          className="absolute -left-32 -top-32 size-[520px] rounded-full bg-[#0a5ce6] opacity-40 blur-[120px]"
           aria-hidden
         />
         <div
-          className="absolute -bottom-40 right-[-120px] size-[460px] rounded-full bg-[#00a3e0] opacity-20 blur-[120px]"
+          className="absolute -bottom-40 right-[-120px] size-[460px] rounded-full bg-[#12b3f2] opacity-25 blur-[120px]"
+          aria-hidden
+        />
+        <div
+          className="absolute bottom-1/4 left-1/3 size-[280px] rounded-full bg-[#ff8a1f] opacity-[0.12] blur-[110px]"
           aria-hidden
         />
         <div className="relative flex flex-1 flex-col justify-between p-10 xl:p-14">

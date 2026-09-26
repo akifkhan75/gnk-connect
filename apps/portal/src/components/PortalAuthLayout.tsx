@@ -33,7 +33,7 @@ export function PortalAuthLayout(props: {
       {...props}
       brand={
         <Link to="/" className="inline-block">
-          <Logo product="Partner Portal" onDark className="hidden lg:inline-flex" />
+          <Logo product="Partner Portal" onDark size={40} className="hidden lg:inline-flex" />
           <Logo product="Partner Portal" className="lg:hidden" />
         </Link>
       }

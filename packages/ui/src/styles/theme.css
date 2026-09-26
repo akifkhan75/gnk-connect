@@ -53,3 +53,17 @@
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
   --ease-apple: var(--ease);
 }
+
+/* Logo gradients: royal blue → sky cyan, and the orange of the plane. */
+@utility bg-brand {
+  background-image: var(--brand-gradient);
+}
+@utility bg-brand-warm {
+  background-image: var(--brand-warm);
+}
+@utility text-brand {
+  background-image: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

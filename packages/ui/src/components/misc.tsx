@@ -2,12 +2,16 @@ import * as React from 'react';
 import { Check, Copy } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { formatMoney, initials } from '../lib/format';
+import logoSrc from '../assets/logo.png';
+import logoWhiteSrc from '../assets/logo-white.png';
+import markSrc from '../assets/mark.png';
+import markWhiteSrc from '../assets/mark-white.png';
 
 export function Avatar({ name, className }: { name: string; className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-[hsl(240_5%_78%)] to-[hsl(240_4%_62%)] text-[11px] font-semibold text-white dark:from-[hsl(240_4%_40%)] dark:to-[hsl(240_4%_28%)]',
+        'inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-semibold text-white',
         className,
       )}
       aria-hidden
@@ -72,53 +76,59 @@ export function CopyButton({
 }
 
 /**
- * GNK Connect mark + wordmark. Placeholder artwork: swap the <svg> for the
- * official logo file when available; every app renders the logo through this.
+ * The GNK Connect logo (brand artwork in ../assets). The navy-ink version is used on
+ * light surfaces and switches to the white-ink version in dark mode; `onDark` forces
+ * white for dark panels. `compact` shows only the G-and-plane mark.
  */
 export function Logo({
   className,
   onDark,
   product,
   compact,
+  size = 30,
+  variant,
 }: {
   className?: string;
+  /** Shorthand for variant="white". */
   onDark?: boolean;
+  /** auto: navy ink, white in dark mode (default). ink/white: always that version. */
+  variant?: 'auto' | 'ink' | 'white';
   product?: string;
   compact?: boolean;
+  /** Rendered height in px. */
+  size?: number;
 }) {
+  const [light, dark] = compact ? [markSrc, markWhiteSrc] : [logoSrc, logoWhiteSrc];
+  const img = (src: string, cls?: string) => (
+    <img
+      src={src}
+      alt="GNK Connect"
+      height={size}
+      style={{ height: size }}
+      className={cn('w-auto shrink-0 select-none', cls)}
+      draggable={false}
+    />
+  );
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <svg viewBox="0 0 40 40" className="size-8 shrink-0" aria-hidden>
-        <rect width="40" height="40" rx="10" fill={onDark ? '#ffffff' : '#00205B'} />
-        <path
-          d="M27.5 14.2A9.5 9.5 0 1 0 29.5 21h-9"
-          fill="none"
-          stroke={onDark ? '#00205B' : '#ffffff'}
-          strokeWidth="3.4"
-          strokeLinecap="round"
-        />
-        <circle cx="30.5" cy="10.5" r="3" fill="#F59E0B" />
-      </svg>
-      {!compact && (
-        <span className="flex flex-col leading-none">
-          <span
-            className={cn(
-              'text-[15px] font-bold tracking-tight',
-              onDark ? 'text-white' : 'text-foreground',
-            )}
-          >
-            GNK <span className="font-medium">Connect</span>
-          </span>
-          {product && (
-            <span
-              className={cn(
-                'mt-1 text-[10px] font-semibold uppercase tracking-[0.14em]',
-                onDark ? 'text-white/55' : 'text-muted-foreground',
-              )}
-            >
-              {product}
-            </span>
+      {(variant ?? (onDark ? 'white' : 'auto')) === 'white' ? (
+        img(dark)
+      ) : variant === 'ink' ? (
+        img(light)
+      ) : (
+        <>
+          {img(light, 'dark:hidden')}
+          {img(dark, 'hidden dark:block')}
+        </>
+      )}
+      {product && !compact && (
+        <span
+          className={cn(
+            'border-l pl-2.5 text-[11px] font-semibold uppercase leading-none tracking-[0.12em]',
+            onDark ? 'border-white/20 text-white/60' : 'border-border text-muted-foreground',
           )}
+        >
+          {product}
         </span>
       )}
     </span>

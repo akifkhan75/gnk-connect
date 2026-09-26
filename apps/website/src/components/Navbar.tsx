@@ -228,17 +228,16 @@ export const Navbar: React.FC = () => {
               className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-xl px-1 py-0.5"
               aria-label={`${BRAND_NAME} Home`}
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/25 group-hover:scale-105 transition-transform duration-300">
-                <Compass className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-black tracking-tight text-white group-hover:text-cyan-400 transition-colors">
-                  GNK <span className="text-cyan-400">CONNECT</span>
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-300/80 -mt-1">
-                  Travel & Tourism • B2B & Luxury
-                </span>
-              </div>
+              <img
+                src="/logo-white.png"
+                alt={BRAND_NAME}
+                className="h-10 w-auto transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+              <span className="hidden border-l border-white/15 pl-3 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-cyan-300/80 xl:block">
+                Travel & Tourism
+                <br />
+                B2B & Luxury
+              </span>
             </Link>
 
             {/* Desktop Navigation Links */}

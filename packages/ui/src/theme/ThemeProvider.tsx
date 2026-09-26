@@ -49,7 +49,7 @@ export function ThemeProvider({
     root.style.colorScheme = resolved;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', resolved === 'dark' ? '#0b1120' : '#00205B');
+      ?.setAttribute('content', resolved === 'dark' ? '#07122a' : '#f5f8fc');
   }, [resolved]);
 
   const setTheme = useCallback(

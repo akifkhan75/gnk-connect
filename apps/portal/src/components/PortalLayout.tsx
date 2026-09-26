@@ -158,12 +158,12 @@ export function PortalLayout() {
       ]}
       brand={
         <Link to="/">
-          <Logo product="Partner Portal" />
+          <Logo product="Partner Portal" size={34} />
         </Link>
       }
       brandCompact={
         <Link to="/" aria-label="Dashboard">
-          <Logo compact />
+          <Logo compact size={28} />
         </Link>
       }
       renderLink={(item, props) => (

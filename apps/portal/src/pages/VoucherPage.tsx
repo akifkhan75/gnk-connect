@@ -67,7 +67,7 @@ export function VoucherPage() {
               leg && (
                 <tr key={i} className="border-b border-slate-200">
                   <td className="py-2.5 font-semibold">
-                    <Plane className="mr-1.5 inline size-3.5 text-[#00A3E0]" />
+                    <Plane className="mr-1.5 inline size-3.5 text-[#0a5ce6]" />
                     {leg.flightNo}
                   </td>
                   <td>{leg.from}</td>

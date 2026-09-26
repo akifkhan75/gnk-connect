@@ -10,7 +10,7 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          'bg-primary text-primary-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/0.14),0_1px_2px_hsl(var(--primary)/0.3)] hover:bg-primary-hover',
+          'bg-primary bg-brand text-primary-foreground shadow-[inset_0_1px_0_hsl(0_0%_100%/0.18),0_1px_2px_hsl(var(--primary)/0.35),0_4px_12px_-4px_hsl(var(--primary)/0.45)] hover:brightness-[1.07]',
         accent: 'bg-accent text-accent-foreground shadow-sm hover:brightness-95',
         secondary:
           'bg-surface text-foreground shadow-[0_0_0_0.5px_hsl(var(--border-strong)),0_1px_2px_hsl(240_6%_10%/0.06)] hover:bg-muted/70 dark:shadow-[0_0_0_1px_hsl(var(--border-strong))]',
