@@ -6,12 +6,11 @@
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@gnk/types": "*",
-    "@gnk/api-client": "*",
-    "@google/genai": "^1.30.0",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",

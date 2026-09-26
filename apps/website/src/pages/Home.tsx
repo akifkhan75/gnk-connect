@@ -16,9 +16,6 @@ import {
   Compass,
   Bookmark,
   Sparkles,
-  Calendar,
-  MapPin,
-  Eye,
 } from 'lucide-react';
 import {
   FEATURED_DESTINATIONS,
@@ -39,9 +36,8 @@ import FAQSection from '../components/FAQSection';
 import { useToast } from '../context/ToastContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useWishlist } from '../context/WishlistContext';
-import { airDeskAdapter } from '@gnk/suppliers';
-import { StandardGroupProduct } from '@gnk/types';
-import { PublicGroupBookingModal } from '../components/PublicGroupBookingModal';
+import { GroupCard } from '../components/GroupCard';
+import { usePublicGroups } from '../hooks/usePublicGroups';
 import { portalLink } from '../lib/links';
 
 const fadeInUp = {
@@ -82,29 +78,12 @@ const Home: React.FC = () => {
   const [selectedPackageName, setSelectedPackageName] = useState('Custom Travel Inquiry');
   const [customNotes, setCustomNotes] = useState('');
 
-  // Group Departures state
-  const [groupProducts, setGroupProducts] = useState<StandardGroupProduct[]>([]);
-  const [selectedGroupProduct, setSelectedGroupProduct] = useState<StandardGroupProduct | null>(
-    null,
-  );
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const { groups: groupProducts } = usePublicGroups();
 
   const { showToast } = useToast();
   const { formatPrice } = useCurrency();
   const { isSaved, toggleSave } = useWishlist();
   const navigate = useNavigate();
-
-  React.useEffect(() => {
-    const fetchGroups = async () => {
-      try {
-        const list = await airDeskAdapter.getProducts();
-        setGroupProducts(list);
-      } catch (err) {
-        console.warn('Unable to load group tours', err);
-      }
-    };
-    fetchGroups();
-  }, []);
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,76 +240,9 @@ const Home: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {groupProducts.map((p) => {
-                const earliest = p.departures[0];
-                const retailPrice = earliest ? earliest.supplierNetPricePKR + 15000 : 200000;
-
-                return (
-                  <div
-                    key={p.id}
-                    className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden hover:border-cyan-500/50 transition-all flex flex-col justify-between group shadow-xl hover:shadow-cyan-500/10"
-                  >
-                    <div>
-                      <div className="relative h-48 overflow-hidden">
-                        <img
-                          src={p.heroImage}
-                          alt={p.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
-                        <span className="absolute top-3 left-3 bg-slate-950/90 text-cyan-400 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border border-cyan-500/30">
-                          {p.productType.replace('_', ' ')}
-                        </span>
-                        <span className="absolute bottom-3 left-3 text-xs font-bold text-white flex items-center gap-1">
-                          <MapPin size={12} className="text-cyan-400" /> {p.destination}
-                        </span>
-                      </div>
-
-                      <div className="p-5 space-y-3">
-                        <h3 className="font-bold text-white text-base group-hover:text-cyan-400 transition-colors line-clamp-1">
-                          {p.title}
-                        </h3>
-                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                          {p.overview}
-                        </p>
-
-                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
-                          <span className="flex items-center gap-1 font-mono text-cyan-400">
-                            <Calendar size={12} /> {earliest?.departureDate}
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold text-[10px]">
-                            {earliest?.availableSeats} Seats Left
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-5 pt-0 space-y-2">
-                      <div className="flex items-baseline justify-between pt-2 border-t border-slate-800/80">
-                        <div>
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                            All-Inclusive
-                          </span>
-                          <div className="text-base font-black text-white">
-                            {formatPrice(retailPrice)}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedGroupProduct(p);
-                            setIsGroupModalOpen(true);
-                          }}
-                          className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 transition-all shadow-md shadow-cyan-500/20"
-                        >
-                          <Eye size={12} /> View & Book
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {groupProducts.slice(0, 4).map((g) => (
+                <GroupCard key={g.productId} group={g} />
+              ))}
             </div>
 
             {/* B2B Partner Portal Banner */}
@@ -818,13 +730,6 @@ const Home: React.FC = () => {
         onClose={() => setModalOpen(false)}
         packageName={selectedPackageName}
         initialNotes={customNotes}
-      />
-
-      {/* Interactive Public Group Booking Modal */}
-      <PublicGroupBookingModal
-        isOpen={isGroupModalOpen}
-        onClose={() => setIsGroupModalOpen(false)}
-        product={selectedGroupProduct}
       />
     </div>
   );

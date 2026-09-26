@@ -2,24 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Minimize2, Sparkles, Compass } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChatMessage } from '@gnk/types';
-import { sendMessageToGemini } from '../services/geminiService';
+import { publicApi } from '../lib/api';
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { 
-      id: 'welcome', 
-      role: 'model', 
-      text: 'Hello! I am GNK Connect AI ✈️. I can assist you with Executive Umrah packages, sticker visas, flight tickets, or luxury tours. How can I help plan your trip today?', 
-      timestamp: Date.now() 
-    }
+    {
+      id: 'welcome',
+      role: 'model',
+      text: 'Hello! I am GNK Connect AI ✈️. I can assist you with Executive Umrah packages, sticker visas, flight tickets, or luxury tours. How can I help plan your trip today?',
+      timestamp: Date.now(),
+    },
   ]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -37,30 +37,34 @@ const ChatWidget: React.FC = () => {
       id: Date.now().toString(),
       role: 'user',
       text: query,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsThinking(true);
 
     try {
-      const responseText = await sendMessageToGemini(query);
+      // Send recent history (skip the canned welcome) so the assistant keeps context.
+      const history = [...messages.filter((m) => m.id !== 'welcome'), userMsg]
+        .slice(-12)
+        .map((m) => ({ role: m.role, text: m.text }));
+      const { text: responseText } = await publicApi.chat(history);
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
         text: responseText,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      setMessages(prev => [...prev, aiMsg]);
+      setMessages((prev) => [...prev, aiMsg]);
     } catch {
       const fallbackMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: "Please contact our executive travel desk directly at +92 51 6137232 or email info@gnkconnect.com.",
-        timestamp: Date.now()
+        text: 'Please contact our executive travel desk directly at +92 51 6137232 or email info@gnkconnect.com.',
+        timestamp: Date.now(),
       };
-      setMessages(prev => [...prev, fallbackMsg]);
+      setMessages((prev) => [...prev, fallbackMsg]);
     } finally {
       setIsThinking(false);
     }
@@ -94,9 +98,9 @@ const ChatWidget: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <button 
+              <button
                 type="button"
-                onClick={() => setIsOpen(false)} 
+                onClick={() => setIsOpen(false)}
                 aria-label="Minimize Chat Window"
                 className="relative z-10 text-gray-300 hover:text-white hover:bg-white/10 p-2 rounded-xl transition-colors"
               >
@@ -167,7 +171,7 @@ const ChatWidget: React.FC = () => {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? "Close AI Travel Assistant" : "Open GNK Connect AI Travel Assistant"}
+        aria-label={isOpen ? 'Close AI Travel Assistant' : 'Open GNK Connect AI Travel Assistant'}
         aria-expanded={isOpen}
         className="bg-gradient-to-r from-navy-800 via-navy-700 to-cyan-600 text-white p-4 rounded-full shadow-2xl shadow-cyan-500/30 flex items-center justify-center border-2 border-cyan-400/40 focus:outline-none focus:ring-4 focus:ring-cyan-400/30"
       >
