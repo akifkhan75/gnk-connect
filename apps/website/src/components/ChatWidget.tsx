@@ -3,6 +3,7 @@ import { MessageSquare, X, Send, Minimize2, Sparkles, Compass } from 'lucide-rea
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChatMessage } from '@gnk/types';
 import { publicApi } from '../lib/api';
+import { CONTACT_INFO } from '../constants';
 
 const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -61,7 +62,7 @@ const ChatWidget: React.FC = () => {
       const fallbackMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: 'Please contact our executive travel desk directly at +92 51 6137232 or email info@gnkconnect.com.',
+        text: `Please contact our travel desk directly on ${CONTACT_INFO.displayPhone}, WhatsApp ${CONTACT_INFO.displayWhatsapp}, or email ${CONTACT_INFO.email}.`,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, fallbackMsg]);

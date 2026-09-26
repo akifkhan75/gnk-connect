@@ -28,6 +28,7 @@ import { errorMessage } from '@/lib/forms';
 import { TYPE_LABEL } from '@/lib/labels';
 import { FlightLeg } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
+import { listingPath, serviceByType } from '@/lib/services';
 
 export function GroupDetailPage() {
   const { productId = '' } = useParams();
@@ -65,7 +66,7 @@ export function GroupDetailPage() {
         breadcrumbs={
           <Breadcrumbs
             items={[
-              { label: 'Groups & fares', onClick: () => navigate('/groups') },
+              { label: serviceByType(g.type).title, onClick: () => navigate(listingPath(g.type)) },
               { label: g.sector ?? g.title },
             ]}
           />

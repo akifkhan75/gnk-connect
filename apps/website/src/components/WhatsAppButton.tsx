@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { MessageCircle } from 'lucide-react';
-import { BRAND_NAME } from '../constants';
+import { BRAND_NAME, CONTACT_INFO } from '../constants';
 
 export const WhatsAppButton: React.FC = () => {
-  const whatsappNumber = '92516137232';
+  const whatsappNumber = CONTACT_INFO.whatsapp;
   const defaultMessage = encodeURIComponent(
     `Hello ${BRAND_NAME}, I would like to inquire about executive Umrah packages, visa services, and travel bookings.`,
   );

@@ -68,12 +68,20 @@ const ContactPage: React.FC = () => {
                     <Phone size={20} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-ink text-sm">Direct Phone & WhatsApp</h3>
+                    <h3 className="font-bold text-ink text-sm">Phone and WhatsApp</h3>
                     <a
                       href={`tel:${CONTACT_INFO.phone}`}
-                      className="text-cyan-600 font-semibold text-sm hover:underline"
+                      className="block text-cyan-600 font-semibold text-sm hover:underline"
                     >
-                      {CONTACT_INFO.displayPhone}
+                      Office: {CONTACT_INFO.displayPhone}
+                    </a>
+                    <a
+                      href={`https://wa.me/${CONTACT_INFO.whatsapp}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-cyan-600 font-semibold text-sm hover:underline"
+                    >
+                      WhatsApp: {CONTACT_INFO.displayWhatsapp}
                     </a>
                     <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
                       <Clock size={12} /> {CONTACT_INFO.officeHours}

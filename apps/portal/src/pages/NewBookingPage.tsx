@@ -86,7 +86,7 @@ function NewBooking() {
     return (
       <Alert tone="warning">
         Pick a group and seats first.{' '}
-        <Link to="/groups" className="font-medium text-link">
+        <Link to="/book/groups" className="font-medium text-link">
           Browse groups
         </Link>
       </Alert>

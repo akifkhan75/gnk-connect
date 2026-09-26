@@ -9,7 +9,6 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
-  Plane,
   ReceiptText,
   ScrollText,
   UserRound,
@@ -37,6 +36,7 @@ import {
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
 import { useLiveUpdates } from '@/lib/live';
+import { useServiceListings } from '@/lib/services';
 import { ROLE_LABEL } from '@/lib/labels';
 import { can } from './guards';
 
@@ -51,6 +51,7 @@ export function PortalLayout() {
   const role = account.role;
 
   const live = useLiveUpdates();
+  const listings = useServiceListings();
   const fallback = live === 'live' ? false : 60_000;
   const balance = useQuery({
     queryKey: keys.balance,
@@ -70,11 +71,10 @@ export function PortalLayout() {
   });
 
   const nav: NavGroup[] = [
+    { items: [{ label: 'Dashboard', href: '/', icon: LayoutDashboard }] },
     {
-      items: [
-        { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-        { label: 'Groups & fares', href: '/groups', icon: Plane },
-      ],
+      label: 'Book',
+      items: listings.map((l) => ({ label: l.title, href: `/book/${l.slug}`, icon: l.icon })),
     },
     ...(approved
       ? [
@@ -123,15 +123,13 @@ export function PortalLayout() {
       navigate={navigate}
       commands={[
         ...(approved && can.book(role)
-          ? [
-              {
-                id: 'book',
-                label: 'Find a group to book',
-                group: 'Actions',
-                icon: Plane,
-                onSelect: () => navigate('/groups'),
-              },
-            ]
+          ? listings.map((l) => ({
+              id: `book-${l.slug}`,
+              label: `Book ${l.title.toLowerCase()}`,
+              group: 'Book',
+              icon: l.icon,
+              onSelect: () => navigate(`/book/${l.slug}`),
+            }))
           : []),
         ...(approved && can.pay(role)
           ? [

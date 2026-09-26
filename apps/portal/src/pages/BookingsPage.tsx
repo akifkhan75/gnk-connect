@@ -118,7 +118,7 @@ function Bookings() {
             </Button>
             {can.book(session!.account.role) && (
               <Button asChild>
-                <Link to="/groups">New booking</Link>
+                <Link to="/book/groups">New booking</Link>
               </Button>
             )}
           </>

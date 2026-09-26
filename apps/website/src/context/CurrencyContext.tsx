@@ -10,8 +10,8 @@ export interface CurrencyRate {
 }
 
 export const CURRENCIES: Record<CurrencyCode, CurrencyRate> = {
-  USD: { code: 'USD', symbol: '$', rate: 1, label: 'USD ($)' },
   PKR: { code: 'PKR', symbol: 'Rs. ', rate: 280, label: 'PKR (₨)' },
+  USD: { code: 'USD', symbol: '$', rate: 1, label: 'USD ($)' },
   SAR: { code: 'SAR', symbol: 'SAR ', rate: 3.75, label: 'SAR (﷼)' },
   AED: { code: 'AED', symbol: 'AED ', rate: 3.67, label: 'AED (د.إ)' },
 };
@@ -25,7 +25,7 @@ interface CurrencyContextValue {
 const CurrencyContext = createContext<CurrencyContextValue | undefined>(undefined);
 
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currency, setCurrencyState] = useState<CurrencyCode>('USD');
+  const [currency, setCurrencyState] = useState<CurrencyCode>('PKR');
 
   useEffect(() => {
     const saved = localStorage.getItem('gnk_currency') as CurrencyCode;

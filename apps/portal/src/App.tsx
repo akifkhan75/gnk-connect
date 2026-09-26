@@ -32,6 +32,9 @@ const OnboardingPage = lazy(() =>
 const GroupsPage = lazy(() =>
   import('@/pages/GroupsPage').then((m) => ({ default: m.GroupsPage })),
 );
+const GroupsRedirect = lazy(() =>
+  import('@/pages/GroupsPage').then((m) => ({ default: m.GroupsRedirect })),
+);
 const GroupDetailPage = lazy(() =>
   import('@/pages/GroupDetailPage').then((m) => ({ default: m.GroupDetailPage })),
 );
@@ -101,7 +104,8 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'onboarding', element: <OnboardingPage /> },
-          { path: 'groups', element: <GroupsPage /> },
+          { path: 'book/:service', element: <GroupsPage /> },
+          { path: 'groups', element: <GroupsRedirect /> },
           { path: 'groups/:productId', element: <GroupDetailPage /> },
           { path: 'bookings', element: <BookingsPage /> },
           { path: 'bookings/new', element: <NewBookingPage /> },

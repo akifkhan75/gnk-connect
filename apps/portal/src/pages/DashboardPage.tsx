@@ -27,6 +27,7 @@ import { keys } from '@/lib/query';
 import { ApplicationTracker } from '@/components/ApplicationTracker';
 import { GroupsTable } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
+import { useServiceListings } from '@/lib/services';
 
 export function DashboardPage() {
   const { session } = useAuth();
@@ -34,6 +35,7 @@ export function DashboardPage() {
   const approved = account.accountStatus === 'APPROVED';
   const q = useQuery({ queryKey: keys.dashboard, queryFn: api.dashboard });
   const firstName = session!.user.fullName.split(' ')[0];
+  const listings = useServiceListings();
 
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data;
@@ -45,12 +47,35 @@ export function DashboardPage() {
         description={`${account.accountName} · ${account.accountCode}`}
         actions={
           <Button asChild>
-            <Link to="/groups">
-              <Plane /> Search groups
+            <Link to="/book/groups">
+              <Plane /> Book groups
             </Link>
           </Button>
         }
       />
+
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {listings.map((l) => (
+          <Link
+            key={l.slug}
+            to={`/book/${l.slug}`}
+            className="group flex flex-col gap-3 rounded-xl bg-surface p-4 shadow-card transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-pop"
+          >
+            <span className="flex size-10 items-center justify-center rounded-xl bg-accent-soft text-link">
+              <l.icon className="size-5" />
+            </span>
+            <span>
+              <span className="flex items-center gap-1 text-[15px] font-semibold tracking-[-0.015em]">
+                {l.title}
+                <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </span>
+              <span className="mt-0.5 line-clamp-2 block text-[12.5px] text-muted-foreground">
+                {l.description}
+              </span>
+            </span>
+          </Link>
+        ))}
+      </div>
 
       {!approved ? (
         <Card className="mb-6">
@@ -139,7 +164,7 @@ export function DashboardPage() {
             }
             actions={
               <Button asChild variant="ghost" size="sm">
-                <Link to="/groups">
+                <Link to="/book/groups">
                   View all <ArrowRight />
                 </Link>
               </Button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { RotateCcw, Search as SearchIcon } from 'lucide-react';
 import {
@@ -11,22 +11,41 @@ import {
   PageHeader,
   Pagination,
   SearchInput,
+  SegmentedControl,
   Select,
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { TYPE_LABEL } from '@/lib/labels';
 import { GroupsTable } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
+import { serviceBySlug, useServiceListings } from '@/lib/services';
 
-const FILTERS = ['q', 'sector', 'airline', 'type', 'from', 'to', 'minSeats', 'sort'] as const;
+const FILTERS = ['q', 'sector', 'airline', 'from', 'to', 'minSeats', 'sort'] as const;
 
+/** Old /groups links land on the group ticket listing. */
+export function GroupsRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`/book/groups${search}`} replace />;
+}
+
+/** One listing per service (group tickets, Umrah packages, hotels…), chosen by the URL. */
 export function GroupsPage() {
+  const { service: slug } = useParams();
+  const service = serviceBySlug(slug);
+  if (!service) return <Navigate to="/book/groups" replace />;
+  return <Listing key={service.slug} slug={service.slug} />;
+}
+
+function Listing({ slug }: { slug: string }) {
+  const service = serviceBySlug(slug)!;
+  const listings = useServiceListings();
   const { session } = useAuth();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [text, setText] = useState(params.get('q') ?? '');
   const query = {
     ...Object.fromEntries(FILTERS.map((k) => [k, params.get(k) || undefined])),
+    type: service.type,
     page: Number(params.get('page') ?? 1),
     pageSize: 25,
   } as Record<string, string | number | undefined> & { page: number; pageSize: number };
@@ -66,15 +85,23 @@ export function GroupsPage() {
   return (
     <>
       <PageHeader
-        title="Groups & fares"
+        title={service.title}
         description={
           approved
-            ? 'Live group seats with your partner fare per seat. Seats and fares update from the airline.'
-            : 'Browse upcoming groups. Fares appear once your account is approved.'
+            ? `${service.description} Your partner fare is shown per seat and updates live.`
+            : `${service.description} Fares appear once your account is approved.`
         }
       />
+      {listings.length > 1 && (
+        <SegmentedControl
+          className="mb-5"
+          value={service.slug}
+          onChange={(v) => navigate(`/book/${v}`)}
+          items={listings.map((l) => ({ value: l.slug, label: l.title }))}
+        />
+      )}
       <Card>
-        <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_minmax(0,0.8fr)_minmax(0,0.8fr)_auto]">
+        <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))_minmax(0,0.8fr)_minmax(0,0.8fr)_auto]">
           <SearchInput
             placeholder="City, sector or airline"
             value={text}
@@ -99,18 +126,6 @@ export function GroupsPage() {
             <option value="">All airlines</option>
             {filters.data?.airlines.map((s) => (
               <option key={s}>{s}</option>
-            ))}
-          </Select>
-          <Select
-            value={params.get('type') ?? ''}
-            onChange={(e) => set('type', e.target.value)}
-            aria-label="Type"
-          >
-            <option value="">All products</option>
-            {filters.data?.types.map((s) => (
-              <option key={s} value={s}>
-                {TYPE_LABEL[s] ?? s}
-              </option>
             ))}
           </Select>
           <Input
@@ -165,7 +180,7 @@ export function GroupsPage() {
               empty={
                 <EmptyState
                   icon={<SearchIcon />}
-                  title="No groups match these filters"
+                  title={`No ${service.title.toLowerCase()} match these filters`}
                   description="Try a different sector or widen the date range."
                 />
               }

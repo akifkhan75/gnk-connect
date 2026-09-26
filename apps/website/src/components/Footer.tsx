@@ -1,6 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Facebook, Instagram, Mail, MapPin, Phone, Twitter } from 'lucide-react';
+import {
+  ChevronDown,
+  Facebook,
+  Instagram,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Twitter,
+} from 'lucide-react';
 import { BRAND_NAME, BRAND_TAGLINE, CONTACT_INFO, SERVICES } from '../constants';
 import { portalLink } from '../lib/links';
 import { BrandLogo } from './Navbar';
@@ -82,6 +91,16 @@ const Footer: React.FC = () => (
                 className="flex items-center gap-2.5 hover:text-ink"
               >
                 <Phone className="size-4 text-ink-3" /> {CONTACT_INFO.displayPhone}
+              </a>
+            </li>
+            <li>
+              <a
+                href={`https://wa.me/${CONTACT_INFO.whatsapp}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2.5 hover:text-ink"
+              >
+                <MessageCircle className="size-4 text-ink-3" /> {CONTACT_INFO.displayWhatsapp}
               </a>
             </li>
             <li>

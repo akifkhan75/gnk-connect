@@ -8,8 +8,8 @@ const DEFAULTS: SettingsDto = {
   company: {
     name: 'GNK Connect',
     address: 'Islamabad, Pakistan',
-    phone: '',
-    email: 'partners@gnkconnect.pk',
+    phone: '051 2222031',
+    email: 'support@gnkconnect.com',
   },
   bankAccounts: [],
   booking: { quoteTtlMinutes: 30, paymentTermsNote: '' },

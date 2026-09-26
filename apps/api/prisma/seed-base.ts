@@ -82,8 +82,8 @@ export async function seedBase(prisma: PrismaClient) {
     company: {
       name: 'GNK Connect',
       address: 'Blue Area, Islamabad, Pakistan',
-      phone: '+92 51 0000000',
-      email: 'partners@gnkconnect.pk',
+      phone: '051 2222031',
+      email: 'support@gnkconnect.com',
     },
     bankAccounts: [],
     booking: {
