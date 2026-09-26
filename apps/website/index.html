@@ -15,7 +15,17 @@
       content="GNK Connect, Umrah Packages, Executive Umrah, Visit Visas, Pakistan Tourism, Skardu Tours, Hunza Tours, Dubai Packages, Airline Tickets Islamabad"
     />
     <meta name="author" content="GNK Connect Travel & Tourism" />
-    <meta name="theme-color" content="#07122a" />
+    <meta name="theme-color" content="#f5f7fa" />
+    <script>
+      // Apply the saved or system theme before first paint (no flash).
+      (function () {
+        try {
+          var t = localStorage.getItem('gnk-site-theme');
+          var dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />

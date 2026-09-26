@@ -1,659 +1,534 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Menu,
-  X,
-  Phone,
-  ChevronDown,
-  Compass,
-  Globe,
+  ArrowUpRight,
   Bookmark,
-  ShieldCheck,
-  MessageCircle,
-  Sparkles,
-  FileSearch,
   CheckSquare,
+  ChevronDown,
+  FileSearch,
+  Mail,
+  MessageCircle,
+  Moon,
   Newspaper,
+  Phone,
+  Sparkles,
   Star,
-  ExternalLink,
+  Sun,
 } from 'lucide-react';
-import { CONTACT_INFO, SERVICES, BRAND_NAME } from '../constants';
+import { BRAND_NAME, CONTACT_INFO, SERVICES } from '../constants';
 import { portalLink } from '../lib/links';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useCurrency, CurrencyCode, CURRENCIES } from '../context/CurrencyContext';
+import { CURRENCIES, useCurrency, type CurrencyCode } from '../context/CurrencyContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useTheme } from '../context/ThemeContext';
+
+const TOOLS = [
+  {
+    title: 'AI Trip Planner',
+    short: 'Trip planner',
+    desc: 'Itineraries with budget estimates',
+    path: '/planner',
+    icon: Sparkles,
+  },
+  {
+    title: 'Visa Status Tracker',
+    short: 'Visa tracker',
+    desc: 'Umrah, Dubai and sticker visas',
+    path: '/tracking',
+    icon: FileSearch,
+  },
+  {
+    title: 'Packing Checklist',
+    short: 'Packing list',
+    desc: 'Tailored to your destination',
+    path: '/checklist',
+    icon: CheckSquare,
+  },
+  {
+    title: 'Guides & Insights',
+    short: 'Guides',
+    desc: 'Visa policies and travel tips',
+    path: '/news',
+    icon: Newspaper,
+  },
+  {
+    title: 'Traveller Reviews',
+    short: 'Reviews',
+    desc: 'Verified feedback, rated 4.9',
+    path: '/reviews',
+    icon: Star,
+  },
+];
+const TOOL_PATHS = TOOLS.map((t) => t.path);
+
+type Menu = 'services' | 'tools' | null;
+
+/** The brand logo: navy ink on light, white ink on dark. */
+export const BrandLogo: React.FC<{ className?: string; forceWhite?: boolean }> = ({
+  className = 'h-8',
+  forceWhite,
+}) => (
+  <>
+    {!forceWhite && (
+      <img
+        src="/logo.png"
+        alt={BRAND_NAME}
+        className={`${className} w-auto dark:hidden`}
+        draggable={false}
+      />
+    )}
+    <img
+      src="/logo-white.png"
+      alt={BRAND_NAME}
+      className={`${className} w-auto ${forceWhite ? '' : 'hidden dark:block'}`}
+      draggable={false}
+    />
+  </>
+);
+
+const linkBase =
+  'whitespace-nowrap rounded-full px-3 py-1.5 text-[13.5px] font-medium tracking-[-0.01em] transition-colors duration-200';
+const linkIdle = 'text-ink-2 hover:text-ink';
+const linkActive = 'text-ink bg-surface-2';
 
 export const Navbar: React.FC = () => {
-  const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [isScrolled, setIsScrolled] = useState<boolean>(false);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [currencyDropdown, setCurrencyDropdown] = useState<boolean>(false);
+  const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState<Menu>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const { currency, setCurrency } = useCurrency();
   const { savedItems, setIsDrawerOpen } = useWishlist();
+  const { resolved, toggle } = useTheme();
   const location = useLocation();
-  const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currencyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Close mobile menu & dropdowns on route change
   useEffect(() => {
-    setIsOpen(false);
-    setActiveDropdown(null);
-    setCurrencyDropdown(false);
-  }, [location]);
+    setOpen(false);
+    setMenu(null);
+    setCurrencyOpen(false);
+  }, [location.pathname]);
 
-  const handleMouseEnter = (name: string) => {
-    if (dropdownTimeoutRef.current) clearTimeout(dropdownTimeoutRef.current);
-    setActiveDropdown(name);
+  // Lock page scroll behind the mobile sheet; Escape closes menus.
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setMenu(null);
+        setCurrencyOpen(false);
+      }
+    };
+    const onClick = (e: MouseEvent) => {
+      if (!currencyRef.current?.contains(e.target as Node)) setCurrencyOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClick);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onClick);
+    };
+  }, []);
+
+  const enter = (m: Menu) => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setMenu(m);
+  };
+  const leave = () => {
+    closeTimer.current = setTimeout(() => setMenu(null), 140);
   };
 
-  const handleMouseLeave = () => {
-    dropdownTimeoutRef.current = setTimeout(() => {
-      setActiveDropdown(null);
-    }, 150);
-  };
-
-  const travelTools = [
-    {
-      title: 'AI Trip Planner',
-      desc: 'Build personalized itineraries with smart budget estimates',
-      path: '/planner',
-      icon: Sparkles,
-      badge: 'AI Powered',
-    },
-    {
-      title: 'Visa Status Tracker',
-      desc: 'Live tracking for Umrah, Dubai & sticker visas',
-      path: '/tracking',
-      icon: FileSearch,
-      badge: 'Live',
-    },
-    {
-      title: 'Packing Checklist',
-      desc: 'Interactive baggage builder tailored for your destination',
-      path: '/checklist',
-      icon: CheckSquare,
-      badge: null,
-    },
-    {
-      title: 'Travel Guides & Insights',
-      desc: 'Visa policies, pilgrimage tips, and destination guides',
-      path: '/news',
-      icon: Newspaper,
-      badge: null,
-    },
-    {
-      title: 'Traveler Reviews',
-      desc: 'Real verified feedback from individual and group travelers',
-      path: '/reviews',
-      icon: Star,
-      badge: '4.9 ★',
-    },
-  ];
+  const navCls = ({ isActive }: { isActive: boolean }) =>
+    `${linkBase} ${isActive ? linkActive : linkIdle}`;
+  const toolsActive = TOOL_PATHS.some((p) => location.pathname.startsWith(p));
+  const servicesActive = location.pathname.startsWith('/services');
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
-      {/* 1. TOP UTILITY BAR (Desktop & Tablet) */}
-      <div className="hidden md:block bg-slate-950/90 border-b border-slate-800/80 text-xs text-slate-300 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 flex items-center justify-between">
-          {/* Left: Contact, WhatsApp & Accreditation */}
-          <div className="flex items-center gap-5">
-            <a
-              href={`tel:${CONTACT_INFO.phone}`}
-              className="flex items-center gap-1.5 hover:text-cyan-400 transition-colors"
-            >
-              <Phone size={12} className="text-cyan-400" />
-              <span className="font-semibold">{CONTACT_INFO.displayPhone}</span>
-              <span className="text-slate-500 text-[10px]">(24/7 Helpline)</span>
-            </a>
+    <>
+      <header
+        className={`frosted fixed inset-x-0 top-0 z-50 border-b transition-colors duration-300 ${
+          scrolled || open ? 'border-line' : 'border-transparent'
+        }`}
+      >
+        <nav
+          aria-label="Main"
+          className="mx-auto flex h-14 max-w-[1200px] items-center gap-4 px-4 sm:px-6"
+        >
+          <Link
+            to="/"
+            aria-label={`${BRAND_NAME} home`}
+            className="-ml-1 flex shrink-0 items-center rounded-lg p-1"
+          >
+            <BrandLogo className="h-8" />
+          </Link>
 
-            <a
-              href={`https://wa.me/${CONTACT_INFO.whatsapp}?text=Hello%20GNK%20Connect,%20I%20would%20like%20to%20inquire%20about%20travel%20packages`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
+          {/* Desktop links */}
+          <div className="ml-4 hidden flex-1 items-center gap-0.5 lg:flex">
+            <NavLink to="/groups" className={navCls}>
+              Groups
+            </NavLink>
+            <Dropdown
+              label="Services"
+              active={servicesActive}
+              open={menu === 'services'}
+              onEnter={() => enter('services')}
+              onLeave={leave}
+              onToggle={() => setMenu(menu === 'services' ? null : 'services')}
+              width="w-[520px]"
             >
-              <MessageCircle size={12} />
-              <span>WhatsApp Direct</span>
-            </a>
-
-            <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400 pl-3 border-l border-slate-800">
-              <ShieldCheck size={13} className="text-cyan-400" />
-              <span>DTS Lic. # 4920 • IATA Accredited Partner</span>
-            </div>
+              <div className="grid grid-cols-2 gap-1">
+                {SERVICES.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={s.link}
+                    className="rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2"
+                  >
+                    <span className="block text-[13.5px] font-semibold text-ink">{s.title}</span>
+                    <span className="mt-0.5 line-clamp-1 block text-[12.5px] text-ink-3">
+                      {s.description}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <Link
+                to="/corporate"
+                className="mt-2 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2.5 text-[13px] text-ink-2 transition-colors hover:text-ink"
+              >
+                Corporate and MICE travel
+                <ArrowUpRight className="size-4" />
+              </Link>
+            </Dropdown>
+            <NavLink to="/destinations" className={navCls}>
+              Destinations
+            </NavLink>
+            <Dropdown
+              label="Tools"
+              active={toolsActive}
+              open={menu === 'tools'}
+              onEnter={() => enter('tools')}
+              onLeave={leave}
+              onToggle={() => setMenu(menu === 'tools' ? null : 'tools')}
+              width="w-[340px]"
+            >
+              {TOOLS.map((t) => (
+                <Link
+                  key={t.path}
+                  to={t.path}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2"
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-ink">
+                    <t.icon className="size-[17px]" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[13.5px] font-semibold text-ink">{t.title}</span>
+                    <span className="block truncate text-[12.5px] text-ink-3">{t.desc}</span>
+                  </span>
+                </Link>
+              ))}
+            </Dropdown>
+            <NavLink to="/about" className={navCls}>
+              About
+            </NavLink>
+            <NavLink to="/contact" className={navCls}>
+              Contact
+            </NavLink>
           </div>
 
-          {/* Right: Currency, Wishlist & B2B Entry Points */}
-          <div className="flex items-center gap-3.5">
-            {/* Currency Selector */}
-            <div className="relative">
+          {/* Right actions */}
+          <div className="ml-auto flex items-center gap-1">
+            <div ref={currencyRef} className="relative hidden lg:block">
               <button
                 type="button"
-                onClick={() => setCurrencyDropdown(!currencyDropdown)}
-                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-200 hover:text-white hover:border-cyan-500/50 transition-all"
-                aria-label="Select display currency"
+                onClick={() => setCurrencyOpen((o) => !o)}
+                className="flex h-8 items-center gap-1 rounded-full px-2.5 text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+                aria-label={`Currency: ${currency}`}
+                aria-expanded={currencyOpen}
               >
-                <Globe size={11} className="text-cyan-400" />
-                <span>{currency}</span>
-                <ChevronDown size={10} />
+                {currency}
+                <ChevronDown className="size-3.5" />
               </button>
-
               <AnimatePresence>
-                {currencyDropdown && (
+                {currencyOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
-                    className="absolute top-full right-0 mt-1.5 w-32 bg-slate-900/98 border border-slate-700 rounded-xl shadow-2xl overflow-hidden py-1 z-50 backdrop-blur-xl"
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute right-0 top-10 w-40 rounded-2xl border border-line bg-surface p-1 shadow-[0_18px_40px_-12px_rgb(11_26_51/0.25)]"
                   >
-                    {Object.keys(CURRENCIES).map((key) => {
-                      const code = key as CurrencyCode;
-                      return (
-                        <button
-                          key={code}
-                          type="button"
-                          onClick={() => {
-                            setCurrency(code);
-                            setCurrencyDropdown(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold flex items-center justify-between ${
-                            currency === code
-                              ? 'bg-cyan-500 text-slate-950 font-bold'
-                              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                          }`}
-                        >
-                          <span>{code}</span>
-                          <span className="opacity-70 text-[10px]">{CURRENCIES[code].symbol}</span>
-                        </button>
-                      );
-                    })}
+                    {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => {
+                          setCurrency(code);
+                          setCurrencyOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-[13px] transition-colors ${
+                          currency === code
+                            ? 'bg-brand-soft font-semibold text-brand-ink'
+                            : 'text-ink-2 hover:bg-surface-2'
+                        }`}
+                      >
+                        {CURRENCIES[code].label}
+                      </button>
+                    ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            {/* Wishlist Button */}
-            <button
-              type="button"
-              onClick={() => setIsDrawerOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-medium text-slate-300 hover:text-white hover:border-cyan-500/50 transition-all"
-              aria-label="View saved travel wishlist"
+            <IconButton
+              label={resolved === 'dark' ? 'Use light mode' : 'Use dark mode'}
+              onClick={toggle}
             >
-              <Bookmark size={11} className="text-cyan-400" />
-              <span>Saved</span>
+              {resolved === 'dark' ? (
+                <Sun className="size-[17px]" />
+              ) : (
+                <Moon className="size-[17px]" />
+              )}
+            </IconButton>
+
+            <IconButton
+              label={`Saved trips (${savedItems.length})`}
+              onClick={() => setIsDrawerOpen(true)}
+            >
+              <Bookmark className="size-[17px]" />
               {savedItems.length > 0 && (
-                <span className="bg-cyan-400 text-slate-950 text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-warm px-1 text-[9.5px] font-bold leading-4 text-white">
                   {savedItems.length}
                 </span>
               )}
-            </button>
+            </IconButton>
 
-            {/* Agent / B2B Portal Button */}
             <a
               href={portalLink('/')}
-              className="flex items-center gap-1.5 px-3 py-0.5 rounded-md bg-gradient-to-r from-cyan-950 to-blue-950 border border-cyan-500/40 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500 hover:text-slate-950 hover:border-cyan-400 transition-all shadow-sm"
-              aria-label="Access B2B Partner Portal"
+              className="ml-1 hidden whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink xl:block"
             >
-              <Compass size={12} />
-              <span>Agent Portal</span>
-              <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded uppercase tracking-wider font-extrabold">
-                B2B
-              </span>
+              Agent login
             </a>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. MAIN NAVIGATION BAR (Sticky & Glassmorphic) */}
-      <nav
-        role="navigation"
-        aria-label="Main Navigation"
-        className={`w-full transition-all duration-300 ${
-          isScrolled
-            ? 'bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 shadow-2xl py-2.5'
-            : 'bg-slate-950/80 backdrop-blur-md border-b border-slate-800/40 py-3.5'
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            {/* Brand Logo */}
             <Link
-              to="/"
-              className="flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-xl px-1 py-0.5"
-              aria-label={`${BRAND_NAME} Home`}
+              to="/planner"
+              className="ml-1 hidden h-8 items-center whitespace-nowrap rounded-full bg-brand-gradient px-4 text-[13px] font-semibold text-white shadow-[0_4px_14px_-4px_rgb(10_92_230/0.6)] transition-[filter,transform] duration-200 hover:brightness-110 active:scale-[0.97] sm:flex"
             >
-              <img
-                src="/logo-white.png"
-                alt={BRAND_NAME}
-                className="h-10 w-auto transition-transform duration-300 group-hover:scale-[1.03]"
-              />
-              <span className="hidden border-l border-white/15 pl-3 text-[10px] font-semibold uppercase leading-tight tracking-[0.18em] text-cyan-300/80 xl:block">
-                Travel & Tourism
-                <br />
-                B2B & Luxury
-              </span>
+              Plan a trip
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <div className="hidden lg:flex items-center space-x-1 xl:space-x-2">
-              {/* Home */}
-              <Link
-                to="/"
-                className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/'
-                    ? 'text-cyan-400 bg-cyan-500/10'
-                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                }`}
-              >
-                Home
-              </Link>
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="relative -mr-1 flex size-10 items-center justify-center rounded-full lg:hidden"
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-expanded={open}
+              aria-controls="mobile-menu"
+            >
+              <span
+                className={`absolute h-[1.5px] w-[18px] rounded-full bg-ink transition-transform duration-300 ease-apple ${open ? 'rotate-45' : '-translate-y-[4px]'}`}
+              />
+              <span
+                className={`absolute h-[1.5px] w-[18px] rounded-full bg-ink transition-transform duration-300 ease-apple ${open ? '-rotate-45' : 'translate-y-[4px]'}`}
+              />
+            </button>
+          </div>
+        </nav>
+      </header>
 
-              {/* Group Departures (Wholesale & Consumer) */}
-              <Link
-                to="/groups"
-                className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors flex items-center gap-1.5 ${
-                  location.pathname === '/groups'
-                    ? 'text-cyan-400 bg-cyan-500/10'
-                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                }`}
-              >
-                <span>Group Departures</span>
-                <span className="bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider animate-pulse">
-                  Hot
-                </span>
-              </Link>
-
-              {/* Services Mega Dropdown */}
-              <div
-                className="relative"
-                onMouseEnter={() => handleMouseEnter('services')}
-                onMouseLeave={handleMouseLeave}
-              >
-                <Link
-                  to="/services"
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors flex items-center gap-1 ${
-                    location.pathname.startsWith('/services')
-                      ? 'text-cyan-400 bg-cyan-500/10'
-                      : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                  }`}
-                  aria-haspopup="true"
-                  aria-expanded={activeDropdown === 'services'}
-                >
-                  <span>Services</span>
-                  <ChevronDown
-                    size={14}
-                    className={`mt-0.5 transition-transform duration-200 ${activeDropdown === 'services' ? 'rotate-180' : ''}`}
-                  />
-                </Link>
-
-                <AnimatePresence>
-                  {activeDropdown === 'services' && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute top-full left-0 w-[460px] bg-slate-900/98 backdrop-blur-2xl border border-slate-700/80 shadow-2xl rounded-2xl mt-1.5 p-4 z-50"
+      {/* Mobile sheet */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            id="mobile-menu"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-x-0 bottom-0 top-14 z-40 overflow-y-auto overscroll-contain bg-canvas lg:hidden"
+          >
+            <motion.div
+              initial={{ y: -8 }}
+              animate={{ y: 0 }}
+              transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+              className="mx-auto max-w-lg px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4"
+            >
+              <ul className="space-y-0.5">
+                {[
+                  { to: '/', label: 'Home' },
+                  { to: '/groups', label: 'Group departures' },
+                  { to: '/services', label: 'Services' },
+                  { to: '/destinations', label: 'Destinations' },
+                  { to: '/planner', label: 'Plan a trip' },
+                  { to: '/about', label: 'About' },
+                  { to: '/contact', label: 'Contact' },
+                ].map((l, i) => (
+                  <motion.li
+                    key={l.to}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.03 * i, duration: 0.25 }}
+                  >
+                    <NavLink
+                      to={l.to}
+                      end={l.to === '/'}
+                      className={({ isActive }) =>
+                        `block py-2 text-[26px] font-semibold tracking-[-0.025em] ${isActive ? 'text-brand-ink' : 'text-ink'}`
+                      }
                     >
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">
-                        Premium Travel Solutions
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {SERVICES.map((service) => (
-                          <Link
-                            key={service.id}
-                            to={service.link}
-                            className="flex flex-col p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors group/item"
-                          >
-                            <span className="text-sm font-bold text-slate-100 group-hover/item:text-cyan-400 transition-colors">
-                              {service.title}
-                            </span>
-                            <span className="text-xs text-slate-400 line-clamp-1 mt-0.5">
-                              {service.description}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                      <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between px-2">
-                        <span className="text-xs text-slate-400">
-                          Looking for corporate packages?
-                        </span>
-                        <Link
-                          to="/corporate"
-                          className="text-xs font-bold text-cyan-400 hover:underline flex items-center gap-1"
-                        >
-                          Corporate Portal <ExternalLink size={11} />
-                        </Link>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      {l.label}
+                    </NavLink>
+                  </motion.li>
+                ))}
+              </ul>
+
+              <p className="mt-8 text-[12px] font-medium text-ink-3">Travel tools</p>
+              <ul className="mt-2 grid grid-cols-2 gap-2">
+                {TOOLS.map((t) => (
+                  <li key={t.path}>
+                    <Link
+                      to={t.path}
+                      className="flex items-center gap-2 rounded-2xl bg-surface px-3 py-3 text-[13.5px] font-medium text-ink ring-1 ring-line"
+                    >
+                      <t.icon className="size-4 text-brand-ink" />
+                      <span className="truncate">{t.short}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-8 flex items-center justify-between">
+                <span className="text-[12px] font-medium text-ink-3">Currency</span>
+                <div className="flex rounded-full bg-surface-2 p-0.5">
+                  {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => setCurrency(code)}
+                      className={`rounded-full px-3 py-1 text-[12.5px] font-medium transition-colors ${
+                        currency === code ? 'bg-surface text-ink shadow-sm' : 'text-ink-3'
+                      }`}
+                    >
+                      {code}
+                    </button>
+                  ))}
+                </div>
               </div>
-
-              {/* Destinations */}
-              <Link
-                to="/destinations"
-                className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/destinations'
-                    ? 'text-cyan-400 bg-cyan-500/10'
-                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                }`}
-              >
-                Destinations
-              </Link>
-
-              {/* Travel Tools Dropdown */}
-              <div
-                className="relative"
-                onMouseEnter={() => handleMouseEnter('tools')}
-                onMouseLeave={handleMouseLeave}
-              >
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-[12px] font-medium text-ink-3">Appearance</span>
                 <button
                   type="button"
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors flex items-center gap-1 ${
-                    ['/planner', '/tracking', '/checklist', '/news', '/reviews'].some((p) =>
-                      location.pathname.startsWith(p),
-                    )
-                      ? 'text-cyan-400 bg-cyan-500/10'
-                      : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                  }`}
-                  aria-haspopup="true"
-                  aria-expanded={activeDropdown === 'tools'}
+                  onClick={toggle}
+                  className="flex items-center gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-[12.5px] font-medium text-ink"
                 >
-                  <span>Travel Tools</span>
-                  <ChevronDown
-                    size={14}
-                    className={`mt-0.5 transition-transform duration-200 ${activeDropdown === 'tools' ? 'rotate-180' : ''}`}
-                  />
+                  {resolved === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                  {resolved === 'dark' ? 'Light mode' : 'Dark mode'}
                 </button>
-
-                <AnimatePresence>
-                  {activeDropdown === 'tools' && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute top-full left-0 w-80 bg-slate-900/98 backdrop-blur-2xl border border-slate-700/80 shadow-2xl rounded-2xl mt-1.5 p-3 z-50"
-                    >
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">
-                        Interactive Travel Utilities
-                      </div>
-                      <div className="space-y-1">
-                        {travelTools.map((tool) => {
-                          const Icon = tool.icon;
-                          return (
-                            <Link
-                              key={tool.title}
-                              to={tool.path}
-                              className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors group/tool"
-                            >
-                              <div className="p-2 rounded-lg bg-slate-800 text-cyan-400 group-hover/tool:bg-cyan-500 group-hover/tool:text-slate-950 transition-colors">
-                                <Icon size={16} />
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-bold text-slate-100 group-hover/tool:text-cyan-400 transition-colors">
-                                    {tool.title}
-                                  </span>
-                                  {tool.badge && (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/50">
-                                      {tool.badge}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">
-                                  {tool.desc}
-                                </p>
-                              </div>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
-              {/* About Us */}
-              <Link
-                to="/about"
-                className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/about'
-                    ? 'text-cyan-400 bg-cyan-500/10'
-                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                }`}
-              >
-                About Us
-              </Link>
-
-              {/* Contact */}
-              <Link
-                to="/contact"
-                className={`px-3 py-2 rounded-lg text-sm font-semibold tracking-wide transition-colors ${
-                  location.pathname === '/contact'
-                    ? 'text-cyan-400 bg-cyan-500/10'
-                    : 'text-slate-200 hover:text-white hover:bg-slate-900/60'
-                }`}
-              >
-                Contact
-              </Link>
-            </div>
-
-            {/* Right Action CTA */}
-            <div className="hidden lg:flex items-center gap-3">
-              <Link
-                to="/planner"
-                className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 px-5 py-2.5 rounded-full text-sm font-black transition-all shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95"
-              >
-                <Sparkles className="h-4 w-4 text-slate-950" />
-                <span>Plan Your Journey</span>
-              </Link>
-            </div>
-
-            {/* Mobile Actions (Wishlist & Hamburger Menu) */}
-            <div className="flex items-center gap-2 lg:hidden">
-              <button
-                type="button"
-                onClick={() => setIsDrawerOpen(true)}
-                className="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200"
-                aria-label="View saved wishlist"
-              >
-                <Bookmark size={18} className="text-cyan-400" />
-                {savedItems.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-cyan-400 text-slate-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                    {savedItems.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                className="p-2 text-white hover:text-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 rounded-lg bg-slate-900 border border-slate-800"
-                onClick={() => setIsOpen(!isOpen)}
-                aria-label={isOpen ? 'Close menu' : 'Open navigation menu'}
-                aria-expanded={isOpen}
-              >
-                {isOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Menu Drawer Overlay */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="lg:hidden w-full bg-slate-950/98 backdrop-blur-2xl border-t border-slate-800/80 shadow-2xl overflow-y-auto max-h-[85vh]"
-            >
-              <div className="flex flex-col p-5 space-y-5">
-                {/* B2B Agent Portal Mobile Card */}
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/80 to-blue-950/80 border border-cyan-500/40 shadow-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-                      <Compass size={14} /> B2B Partner Network
-                    </span>
-                    <span className="text-[10px] bg-cyan-500 text-slate-950 px-1.5 py-0.5 rounded font-black">
-                      AirDesk GDS
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-300 mb-3">
-                    Wholesale group inventory, instant seat allocations, and credit lines for travel
-                    agencies.
-                  </p>
-                  <div className="flex gap-2">
-                    <a
-                      href={portalLink('/')}
-                      className="flex-1 text-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-2 rounded-xl font-bold text-xs shadow-md transition-colors"
-                    >
-                      Agent Portal
-                    </a>
-                    <a
-                      href={portalLink('/login')}
-                      className="px-4 text-center bg-slate-900 border border-slate-700 text-slate-200 hover:text-white py-2 rounded-xl font-bold text-xs"
-                    >
-                      Login
-                    </a>
-                  </div>
-                </div>
-
-                {/* Currency Selector Mobile */}
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Select Currency
-                  </span>
-                  <div className="flex gap-1.5">
-                    {Object.keys(CURRENCIES).map((key) => {
-                      const code = key as CurrencyCode;
-                      return (
-                        <button
-                          key={code}
-                          type="button"
-                          onClick={() => setCurrency(code)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${
-                            currency === code
-                              ? 'bg-cyan-500 text-slate-950'
-                              : 'bg-slate-900 text-slate-300 border border-slate-800'
-                          }`}
-                        >
-                          {code}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Primary Nav Links */}
-                <div className="space-y-1">
-                  <Link
-                    to="/"
-                    className="text-base font-bold text-white hover:text-cyan-400 block py-2 px-3 rounded-lg hover:bg-slate-900"
-                  >
-                    Home
-                  </Link>
-
-                  <Link
-                    to="/groups"
-                    className="flex items-center justify-between text-base font-bold text-white hover:text-cyan-400 py-2 px-3 rounded-lg hover:bg-slate-900"
-                  >
-                    <span>Group Departures</span>
-                    <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                      Wholesale
-                    </span>
-                  </Link>
-
-                  <Link
-                    to="/destinations"
-                    className="text-base font-bold text-white hover:text-cyan-400 block py-2 px-3 rounded-lg hover:bg-slate-900"
-                  >
-                    Destinations
-                  </Link>
-
-                  {/* Services Accordion */}
-                  <div className="py-2">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
-                      Services
-                    </div>
-                    <div className="grid grid-cols-1 gap-1 pl-2">
-                      {SERVICES.map((service) => (
-                        <Link
-                          key={service.id}
-                          to={service.link}
-                          className="text-sm font-semibold text-slate-300 py-1.5 px-3 rounded-lg hover:bg-slate-900 hover:text-cyan-400 flex items-center justify-between"
-                        >
-                          <span>{service.title}</span>
-                          <span className="text-[10px] text-slate-500">
-                            {service.packages?.length || 0} Packages
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Travel Tools */}
-                  <div className="py-2">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
-                      Travel Tools & Insights
-                    </div>
-                    <div className="grid grid-cols-1 gap-1 pl-2">
-                      {travelTools.map((tool) => (
-                        <Link
-                          key={tool.title}
-                          to={tool.path}
-                          className="text-sm font-semibold text-slate-300 py-1.5 px-3 rounded-lg hover:bg-slate-900 hover:text-cyan-400 flex items-center justify-between"
-                        >
-                          <span>{tool.title}</span>
-                          {tool.badge && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/50">
-                              {tool.badge}
-                            </span>
-                          )}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Link
-                    to="/about"
-                    className="text-base font-bold text-white hover:text-cyan-400 block py-2 px-3 rounded-lg hover:bg-slate-900"
-                  >
-                    About Us
-                  </Link>
-
-                  <Link
-                    to="/contact"
-                    className="text-base font-bold text-white hover:text-cyan-400 block py-2 px-3 rounded-lg hover:bg-slate-900"
-                  >
-                    Contact Us
-                  </Link>
-                </div>
-
-                {/* Helpline CTA Mobile */}
-                <div className="pt-2 border-t border-slate-800 space-y-2">
+              <div className="mt-8 grid gap-2">
+                <a
+                  href={portalLink('/')}
+                  className="flex h-12 items-center justify-center rounded-full bg-brand-gradient text-[15px] font-semibold text-white"
+                >
+                  Agent portal login
+                </a>
+                <div className="grid grid-cols-3 gap-2">
                   <a
                     href={`tel:${CONTACT_INFO.phone}`}
-                    className="flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-white py-3 rounded-xl font-bold text-sm"
+                    className="flex h-12 items-center justify-center gap-1.5 rounded-full bg-surface text-[13.5px] font-medium text-ink ring-1 ring-line"
                   >
-                    <Phone className="h-4 w-4 text-cyan-400" />
-                    Call Helpline: {CONTACT_INFO.displayPhone}
+                    <Phone className="size-4" /> Call
+                  </a>
+                  <a
+                    href={`https://wa.me/${CONTACT_INFO.whatsapp}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-12 items-center justify-center gap-1.5 rounded-full bg-surface text-[13.5px] font-medium text-ink ring-1 ring-line"
+                  >
+                    <MessageCircle className="size-4" /> WhatsApp
+                  </a>
+                  <a
+                    href={`mailto:${CONTACT_INFO.email}`}
+                    className="flex h-12 items-center justify-center gap-1.5 rounded-full bg-surface text-[13.5px] font-medium text-ink ring-1 ring-line"
+                  >
+                    <Mail className="size-4" /> Email
                   </a>
                 </div>
               </div>
+              <p className="mt-8 text-center text-[12px] text-ink-3">
+                DTS Lic. #4920 · IATA accredited · {CONTACT_INFO.displayPhone}
+              </p>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
-    </header>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
+
+const IconButton: React.FC<{
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}> = ({ label, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    title={label}
+    className="relative flex size-9 items-center justify-center rounded-full text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+  >
+    {children}
+  </button>
+);
+
+const Dropdown: React.FC<{
+  label: string;
+  active: boolean;
+  open: boolean;
+  onEnter: () => void;
+  onLeave: () => void;
+  onToggle: () => void;
+  width: string;
+  children: React.ReactNode;
+}> = ({ label, active, open, onEnter, onLeave, onToggle, width, children }) => (
+  <div className="relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-haspopup="true"
+      className={`${linkBase} flex items-center gap-1 ${active || open ? linkActive : linkIdle}`}
+    >
+      {label}
+      <ChevronDown
+        className={`size-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+      />
+    </button>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -6, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -6, scale: 0.985 }}
+          transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+          className={`absolute left-1/2 top-[calc(100%+10px)] -translate-x-1/2 ${width} rounded-3xl border border-line bg-white/95 p-2 shadow-[0_24px_60px_-16px_rgb(11_26_51/0.28)] backdrop-blur-2xl`}
+        >
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+);
 
 export default Navbar;

@@ -26,9 +26,9 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
       'Passport size photograph with white background',
       'Valid CNIC / National ID card copy',
       'Confirmed return flight itinerary (Provided by GNK)',
-      'Mandatory COVID & travel medical insurance included'
+      'Mandatory COVID & travel medical insurance included',
     ],
-    notes: 'No physical embassy appointment required. 100% online processing.'
+    notes: 'No physical embassy appointment required. 100% online processing.',
   },
   saudi: {
     destination: 'Saudi Arabia (Umrah / Tourist Visa)',
@@ -41,9 +41,10 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
       'Valid Passport scan (Minimum 6 months validity)',
       'Recent high-resolution digital photograph',
       'Confirmed Makkah/Madinah hotel reservation voucher',
-      'Mandatory comprehensive medical insurance included'
+      'Mandatory comprehensive medical insurance included',
     ],
-    notes: 'Permits Umrah rituals and tourism across all cities including Riyadh, Jeddah, Makkah, and Madinah.'
+    notes:
+      'Permits Umrah rituals and tourism across all cities including Riyadh, Jeddah, Makkah, and Madinah.',
   },
   thailand: {
     destination: 'Thailand',
@@ -57,9 +58,9 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
       '2 Recent Photographs (3.5 x 4.5 cm, white background)',
       '6-Month Bank Statement with minimum balance confirmation letter',
       'Employment verification letter / Business NTN registration',
-      'Confirmed hotel voucher and round-trip flight booking'
+      'Confirmed hotel voucher and round-trip flight booking',
     ],
-    notes: 'Official sticker visa endorsed in passport via Royal Thai Embassy / Gerrys.'
+    notes: 'Official sticker visa endorsed in passport via Royal Thai Embassy / Gerrys.',
   },
   schengen: {
     destination: 'Schengen Europe (France, Germany, Italy, Spain, Switzerland)',
@@ -74,9 +75,10 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
       'Verifiable hotel & flight reservations for full itinerary',
       '€30,000 Schengen travel health insurance policy',
       'Personal cover letter & day-by-day travel schedule',
-      'Biometric appointment at VFS / Gerrys'
+      'Biometric appointment at VFS / Gerrys',
     ],
-    notes: 'Includes complete file preparation, appointment assistance, and 1-on-1 mock interview session.'
+    notes:
+      'Includes complete file preparation, appointment assistance, and 1-on-1 mock interview session.',
   },
   malaysia: {
     destination: 'Malaysia',
@@ -89,9 +91,9 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
       'Passport bio-page scan',
       'Studio photograph (35x50mm, white background)',
       '3-Month bank statement',
-      'Confirmed return flight tickets & hotel reservation'
+      'Confirmed return flight tickets & hotel reservation',
     ],
-    notes: 'Electronic visa delivered directly via email.'
+    notes: 'Electronic visa delivered directly via email.',
   },
   singapore: {
     destination: 'Singapore',
@@ -104,9 +106,9 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
       'Passport bio-page scan (6 months validity)',
       'White background digital photograph',
       'Employment letter or business proof',
-      'Confirmed hotel and flight itinerary'
+      'Confirmed hotel and flight itinerary',
     ],
-    notes: 'Paperless electronic submission via authorized Singapore agency partner.'
+    notes: 'Paperless electronic submission via authorized Singapore agency partner.',
   },
   vietnam: {
     destination: 'Vietnam',
@@ -118,13 +120,15 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     requirements: [
       'Passport scan (JPEG/PDF)',
       'Digital passport-style portrait',
-      'Entry and exit port details'
+      'Entry and exit port details',
     ],
-    notes: 'Official government e-visa for leisure and tourism.'
-  }
+    notes: 'Official government e-visa for leisure and tourism.',
+  },
 };
 
-export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string) => void }> = ({ onApply }) => {
+export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string) => void }> = ({
+  onApply,
+}) => {
   const [selectedCountry, setSelectedCountry] = useState<string>('uae');
   const visa = VISA_DATA[selectedCountry] || VISA_DATA['uae'];
 
@@ -132,7 +136,7 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
     if (onApply) {
       onApply(
         `${visa.destination} (${visa.type})`,
-        `Inquiring for ${visa.destination} visa. Type: ${visa.type}, Price: ${visa.price}, Processing: ${visa.processingTime}.`
+        `Inquiring for ${visa.destination} visa. Type: ${visa.type}, Price: ${visa.price}, Processing: ${visa.processingTime}.`,
       );
     }
   };
@@ -142,14 +146,15 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
       <div className="relative z-10">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2 border border-cyan-400/30">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-bold mb-2 border border-cyan-400/30">
               <FileCheck size={14} /> Visa Intelligence Engine
             </div>
             <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Check Visa Requirements & Guidelines
             </h3>
             <p className="text-gray-300 text-xs sm:text-sm mt-1">
-              Select your travel destination to review mandatory embassy documents, turnaround times, and fee structures.
+              Select your travel destination to review mandatory embassy documents, turnaround
+              times, and fee structures.
             </p>
           </div>
         </div>
@@ -171,7 +176,7 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
               onClick={() => setSelectedCountry(item.id)}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
                 selectedCountry === item.id
-                  ? 'bg-cyan-500 text-navy-900 shadow-lg shadow-cyan-500/25 scale-105'
+                  ? 'bg-brand text-white shadow-lg shadow-cyan-500/25 scale-105'
                   : 'bg-navy-800 text-gray-300 border border-navy-700 hover:bg-navy-700'
               }`}
             >
@@ -187,13 +192,11 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
             <div className="bg-navy-800/90 rounded-2xl p-6 border border-navy-700">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 pb-4 border-b border-navy-700">
                 <div>
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">
-                    {visa.type}
-                  </span>
+                  <span className="text-xs font-bold text-cyan-400 block mb-1">{visa.type}</span>
                   <h4 className="text-xl sm:text-2xl font-bold text-white">{visa.destination}</h4>
                 </div>
                 <div className="text-right">
-                  <span className="text-2xl font-extrabold text-cyan-400">{visa.price}</span>
+                  <span className="text-2xl font-bold text-cyan-400">{visa.price}</span>
                   <span className="text-[10px] text-gray-400 block">Service & Fee</span>
                 </div>
               </div>
@@ -218,12 +221,15 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
 
               {/* Document Checklist */}
               <div>
-                <h5 className="text-xs uppercase font-bold text-gray-300 tracking-wider mb-3">
+                <h5 className="text-xs font-bold text-gray-300 mb-3">
                   Mandatory Submission Checklist:
                 </h5>
                 <div className="space-y-2.5">
                   {visa.requirements.map((req, idx) => (
-                    <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-navy-900/50 border border-navy-700/60 text-xs text-gray-200">
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2.5 p-2.5 rounded-xl bg-navy-900/50 border border-navy-700/60 text-xs text-gray-200"
+                    >
                       <CheckCircle2 size={16} className="text-cyan-400 shrink-0 mt-0.5" />
                       <span>{req}</span>
                     </div>
@@ -246,11 +252,10 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
               <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center mb-4 border border-cyan-400/30">
                 <Shield size={24} />
               </div>
-              <h4 className="text-lg font-bold text-white mb-2">
-                High Success Visa Desk
-              </h4>
+              <h4 className="text-lg font-bold text-white mb-2">High Success Visa Desk</h4>
               <p className="text-gray-300 text-xs leading-relaxed mb-6">
-                Our certified visa documentation officers scrutinize all banking statements, cover letters, and embassy bookings to eliminate rejections.
+                Our certified visa documentation officers scrutinize all banking statements, cover
+                letters, and embassy bookings to eliminate rejections.
               </p>
 
               <div className="space-y-2 mb-6 text-xs text-gray-300">
@@ -273,7 +278,7 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
               <button
                 type="button"
                 onClick={handleApplyClick}
-                className="w-full bg-cyan-500 hover:bg-cyan-400 text-navy-900 py-3.5 rounded-xl font-bold text-xs transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-95"
+                className="w-full bg-brand hover:bg-brand text-white py-3.5 rounded-full font-bold text-sm transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 active:scale-95"
               >
                 <span>Apply for {visa.destination.split(' ')[0]} Visa</span>
                 <ArrowRight size={14} />

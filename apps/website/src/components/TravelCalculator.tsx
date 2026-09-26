@@ -32,7 +32,8 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
       if (hotelTier === 'standard') basePerDayPerPerson = 45;
       else if (hotelTier === 'premium') basePerDayPerPerson = 75;
       else if (hotelTier === 'luxury') basePerDayPerPerson = 120; // Serena / Luxus
-    } else { // International
+    } else {
+      // International
       if (hotelTier === 'standard') basePerDayPerPerson = 80;
       else if (hotelTier === 'premium') basePerDayPerPerson = 130;
       else if (hotelTier === 'luxury') basePerDayPerPerson = 220; // 5-Star Downtown
@@ -56,13 +57,37 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
       perPersonUSD,
       pkrEstimate: totalUSD * 280, // Approx conversion
     };
-  }, [category, hotelTier, duration, adults, transport, includeVisa, includeInsurance, includeZiarat]);
+  }, [
+    category,
+    hotelTier,
+    duration,
+    adults,
+    transport,
+    includeVisa,
+    includeInsurance,
+    includeZiarat,
+  ]);
 
   const handleLockEstimate = () => {
-    const categoryName = category === 'umrah' ? 'Executive Umrah' : category === 'domestic' ? 'Northern Pakistan Tour' : 'International Getaway';
-    const hotelName = hotelTier === 'luxury' ? '5-Star Luxury VIP' : hotelTier === 'premium' ? '4-Star Premium' : '3-Star Standard';
-    const transportName = transport === 'vip' ? 'Private Luxury VIP (GMC/Prado)' : transport === 'sedan' ? 'Private Sedan' : 'Shared AC Coach';
-    
+    const categoryName =
+      category === 'umrah'
+        ? 'Executive Umrah'
+        : category === 'domestic'
+          ? 'Northern Pakistan Tour'
+          : 'International Getaway';
+    const hotelName =
+      hotelTier === 'luxury'
+        ? '5-Star Luxury VIP'
+        : hotelTier === 'premium'
+          ? '4-Star Premium'
+          : '3-Star Standard';
+    const transportName =
+      transport === 'vip'
+        ? 'Private Luxury VIP (GMC/Prado)'
+        : transport === 'sedan'
+          ? 'Private Sedan'
+          : 'Shared AC Coach';
+
     const summary = `${categoryName} (${duration} Days, ${adults} Adults) with ${hotelName} accommodations and ${transportName}. Estimated Total: $${estimate.totalUSD.toLocaleString()}`;
     onBookEstimate(summary, estimate.totalUSD);
   };
@@ -75,14 +100,15 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
       <div className="relative z-10">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-2 border border-cyan-400/30">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-bold mb-2 border border-cyan-400/30">
               <Calculator size={14} /> Interactive Cost Estimator
             </div>
             <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Customize Your {BRAND_NAME} Journey
             </h3>
             <p className="text-gray-300 text-xs sm:text-sm mt-1">
-              Select your preferred travel parameters to generate real-time pricing and tailored package estimates.
+              Select your preferred travel parameters to generate real-time pricing and tailored
+              package estimates.
             </p>
           </div>
         </div>
@@ -93,7 +119,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
           <div className="lg:col-span-7 space-y-6">
             {/* 1. Trip Type */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5">
+              <label className="block text-xs font-bold text-gray-300 mb-2.5">
                 1. Trip Category
               </label>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -111,7 +137,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
                       onClick={() => setCategory(item.id as TripCategory)}
                       className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 ${
                         active
-                          ? 'bg-cyan-500 text-navy-900 border-cyan-400 font-bold shadow-lg shadow-cyan-500/20 scale-[1.02]'
+                          ? 'bg-brand text-white border-cyan-400 font-bold shadow-lg shadow-cyan-500/20 scale-[1.02]'
                           : 'bg-navy-800/80 text-gray-300 border-navy-700 hover:bg-navy-800 hover:text-white'
                       }`}
                     >
@@ -125,7 +151,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
 
             {/* 2. Hotel Standard */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5">
+              <label className="block text-xs font-bold text-gray-300 mb-2.5">
                 2. Hotel Tier & Accommodation
               </label>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -142,12 +168,14 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
                       onClick={() => setHotelTier(item.id as HotelTier)}
                       className={`p-3 rounded-2xl border text-left transition-all ${
                         active
-                          ? 'bg-cyan-500 text-navy-900 border-cyan-400 font-bold shadow-lg shadow-cyan-500/20'
+                          ? 'bg-brand text-white border-cyan-400 font-bold shadow-lg shadow-cyan-500/20'
                           : 'bg-navy-800/80 text-gray-300 border-navy-700 hover:bg-navy-800'
                       }`}
                     >
                       <span className="text-xs font-bold block">{item.label}</span>
-                      <span className={`text-[10px] block mt-0.5 ${active ? 'text-navy-900/80' : 'text-gray-400'}`}>
+                      <span
+                        className={`text-[10px] block mt-0.5 ${active ? 'text-ink/80' : 'text-gray-400'}`}
+                      >
                         {item.sub}
                       </span>
                     </button>
@@ -160,7 +188,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-gray-300">
                     Duration: <span className="text-cyan-400">{duration} Days</span>
                   </label>
                 </div>
@@ -182,7 +210,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-bold text-gray-300 mb-2">
                   Travelers: <span className="text-cyan-400">{adults} Guests</span>
                 </label>
                 <div className="flex gap-2">
@@ -193,7 +221,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
                       onClick={() => setAdults(num)}
                       className={`flex-1 py-1.5 rounded-xl border text-xs font-bold transition-all ${
                         adults === num
-                          ? 'bg-cyan-500 text-navy-900 border-cyan-400'
+                          ? 'bg-brand text-white border-cyan-400'
                           : 'bg-navy-800 text-gray-300 border-navy-700 hover:bg-navy-700'
                       }`}
                     >
@@ -206,7 +234,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
 
             {/* 4. Ground Transport */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5">
+              <label className="block text-xs font-bold text-gray-300 mb-2.5">
                 4. Ground Transfer Preference
               </label>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -221,7 +249,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
                     onClick={() => setTransport(item.id as TransportMode)}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
                       transport === item.id
-                        ? 'bg-cyan-500 text-navy-900 border-cyan-400'
+                        ? 'bg-brand text-white border-cyan-400'
                         : 'bg-navy-800 text-gray-300 border-navy-700 hover:bg-navy-700'
                     }`}
                   >
@@ -233,7 +261,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
 
             {/* 5. Inclusions / Addons */}
             <div>
-              <label className="block text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5">
+              <label className="block text-xs font-bold text-gray-300 mb-2.5">
                 5. Inclusions & Value Services
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -272,9 +300,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
           <div className="lg:col-span-5 flex flex-col justify-between bg-gradient-to-br from-navy-800 to-navy-900 border border-navy-700 p-6 sm:p-8 rounded-3xl relative">
             <div>
               <div className="flex items-center justify-between border-b border-navy-700 pb-4 mb-4">
-                <span className="text-xs uppercase font-bold text-cyan-400 tracking-wider">
-                  Live Custom Quote
-                </span>
+                <span className="text-xs font-bold text-cyan-400">Live Custom Quote</span>
                 <span className="text-[10px] text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
                   <Sparkles size={10} /> Instant Estimate
                 </span>
@@ -283,7 +309,9 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
               <div className="space-y-3 mb-6 text-xs text-gray-300">
                 <div className="flex justify-between">
                   <span>Itinerary Type:</span>
-                  <strong className="text-white capitalize">{category} ({duration} Days)</strong>
+                  <strong className="text-white capitalize">
+                    {category} ({duration} Days)
+                  </strong>
                 </div>
                 <div className="flex justify-between">
                   <span>Hotel Tier:</span>
@@ -300,21 +328,29 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
                 <div className="flex justify-between">
                   <span>Add-ons Included:</span>
                   <strong className="text-cyan-300">
-                    {[includeVisa && 'Visa', includeInsurance && 'Insurance', includeZiarat && 'Tours'].filter(Boolean).join(', ') || 'None'}
+                    {[
+                      includeVisa && 'Visa',
+                      includeInsurance && 'Insurance',
+                      includeZiarat && 'Tours',
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || 'None'}
                   </strong>
                 </div>
               </div>
 
               {/* Price Callout */}
               <div className="bg-navy-900/90 rounded-2xl p-5 border border-navy-700/80 mb-6 text-center">
-                <span className="text-[11px] text-gray-400 uppercase tracking-widest block mb-1">
+                <span className="text-[11px] text-gray-400 block mb-1">
                   Estimated Total Package Price
                 </span>
-                <div className="text-3xl sm:text-4xl font-extrabold text-white">
-                  ${estimate.totalUSD.toLocaleString()} <span className="text-xs font-normal text-gray-400">USD</span>
+                <div className="text-white text-[30px] leading-[1.1] sm:text-[40px] font-semibold tracking-[-0.03em]">
+                  ${estimate.totalUSD.toLocaleString()}{' '}
+                  <span className="text-xs font-normal text-gray-400">USD</span>
                 </div>
                 <div className="text-xs text-cyan-400 font-medium mt-1">
-                  (~${estimate.perPersonUSD.toLocaleString()} per person / Rs. {estimate.pkrEstimate.toLocaleString()})
+                  (~${estimate.perPersonUSD.toLocaleString()} per person / Rs.{' '}
+                  {estimate.pkrEstimate.toLocaleString()})
                 </div>
               </div>
             </div>
@@ -328,7 +364,7 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
               <button
                 type="button"
                 onClick={handleLockEstimate}
-                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300 text-navy-900 py-4 rounded-2xl font-bold text-sm transition-all shadow-xl shadow-cyan-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-98"
+                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-400 hover:from-cyan-400 hover:to-cyan-300 text-ink py-4 rounded-2xl font-bold text-sm transition-all shadow-xl shadow-cyan-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-98"
               >
                 <span>Lock Estimate & Request Itinerary</span>
                 <ArrowRight size={16} />

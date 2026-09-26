@@ -24,14 +24,17 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const showToast = useCallback((title: string, message?: string, type: ToastType = 'success') => {
-    const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
-    setToasts((prev) => [...prev, { id, title, message, type }]);
+  const showToast = useCallback(
+    (title: string, message?: string, type: ToastType = 'success') => {
+      const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
+      setToasts((prev) => [...prev, { id, title, message, type }]);
 
-    setTimeout(() => {
-      removeToast(id);
-    }, 4500);
-  }, [removeToast]);
+      setTimeout(() => {
+        removeToast(id);
+      }, 4500);
+    },
+    [removeToast],
+  );
 
   return (
     <ToastContext.Provider value={{ showToast }}>
@@ -49,9 +52,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               className="pointer-events-auto bg-navy-900/95 backdrop-blur-xl border border-navy-700/80 text-white p-4 rounded-2xl shadow-2xl flex items-start gap-3 relative overflow-hidden"
             >
               {/* Type Accent Strip */}
-              <div 
+              <div
                 className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                  toast.type === 'success' ? 'bg-cyan-400' : toast.type === 'error' ? 'bg-red-400' : 'bg-blue-400'
+                  toast.type === 'success'
+                    ? 'bg-cyan-400'
+                    : toast.type === 'error'
+                      ? 'bg-red-400'
+                      : 'bg-blue-400'
                 }`}
               />
 
@@ -75,7 +82,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 type="button"
                 onClick={() => removeToast(toast.id)}
                 aria-label="Dismiss notification"
-                className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors"
+                className="text-gray-400 hover:text-ink p-1 rounded-lg transition-colors"
               >
                 <X size={14} />
               </button>

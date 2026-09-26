@@ -71,7 +71,7 @@ const ChatWidget: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end font-sans">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-end font-sans sm:bottom-6 sm:right-6">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -79,7 +79,7 @@ const ChatWidget: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="bg-white w-[360px] sm:w-[390px] h-[550px] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-navy-100 mb-4"
+            className="bg-surface w-[min(390px,calc(100vw-2rem))] h-[min(560px,calc(100svh-7rem))] rounded-3xl shadow-[0_18px_40px_-24px_rgb(11_26_51/0.35)] flex flex-col overflow-hidden border border-line mb-3"
           >
             {/* Header */}
             <div className="bg-navy-900 p-5 flex justify-between items-center text-white relative overflow-hidden">
@@ -109,7 +109,7 @@ const ChatWidget: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-gray-50/80">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-canvas/80">
               {messages.map((msg) => (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -121,7 +121,7 @@ const ChatWidget: React.FC = () => {
                     className={`max-w-[85%] p-3.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
                       msg.role === 'user'
                         ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white rounded-br-none'
-                        : 'bg-white text-navy-900 rounded-bl-none border border-gray-200/80'
+                        : 'bg-surface text-ink rounded-bl-none border border-line/80'
                     }`}
                   >
                     {msg.text}
@@ -130,10 +130,10 @@ const ChatWidget: React.FC = () => {
               ))}
               {isThinking && (
                 <div className="flex justify-start">
-                  <div className="bg-white p-3.5 rounded-2xl rounded-bl-none border border-gray-200 shadow-sm flex gap-1.5 items-center">
-                    <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce"></span>
-                    <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                    <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                  <div className="bg-surface p-3.5 rounded-2xl rounded-bl-none border border-line shadow-sm flex gap-1.5 items-center">
+                    <span className="w-2 h-2 bg-brand rounded-full animate-bounce"></span>
+                    <span className="w-2 h-2 bg-brand rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                    <span className="w-2 h-2 bg-brand rounded-full animate-bounce [animation-delay:0.4s]"></span>
                   </div>
                 </div>
               )}
@@ -141,21 +141,21 @@ const ChatWidget: React.FC = () => {
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSend} className="p-3 bg-white border-t border-gray-100">
-              <div className="flex items-center gap-2 bg-gray-50 rounded-2xl px-3 py-2 border border-gray-200 focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20 transition-all">
+            <form onSubmit={handleSend} className="p-3 bg-surface border-t border-line">
+              <div className="flex items-center gap-2 bg-canvas rounded-2xl px-3 py-2 border border-line focus-within:border-cyan-500 focus-within:ring-2 focus-within:ring-cyan-500/20 transition-all">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask about Umrah, Visas, Tours..."
                   aria-label="Ask GNK Connect AI"
-                  className="flex-1 bg-transparent outline-none text-sm text-gray-800 placeholder-gray-400 px-1"
+                  className="flex-1 bg-transparent outline-none text-sm text-ink placeholder-gray-400 px-1"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isThinking}
                   aria-label="Send message"
-                  className="p-2 rounded-xl bg-cyan-500 text-navy-900 hover:bg-cyan-400 disabled:opacity-40 disabled:hover:bg-cyan-500 transition-all active:scale-95 shrink-0"
+                  className="p-2 rounded-xl bg-brand text-white hover:bg-brand disabled:opacity-40 disabled:hover:bg-cyan-500 transition-all active:scale-95 shrink-0"
                 >
                   <Send size={16} />
                 </button>
@@ -173,9 +173,9 @@ const ChatWidget: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         aria-label={isOpen ? 'Close AI Travel Assistant' : 'Open GNK Connect AI Travel Assistant'}
         aria-expanded={isOpen}
-        className="bg-gradient-to-r from-navy-800 via-navy-700 to-cyan-600 text-white p-4 rounded-full shadow-2xl shadow-cyan-500/30 flex items-center justify-center border-2 border-cyan-400/40 focus:outline-none focus:ring-4 focus:ring-cyan-400/30"
+        className="flex items-center justify-center rounded-full bg-brand-gradient p-3 text-white shadow-[0_10px_30px_-10px_rgb(10_92_230/0.8)] transition-transform hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/30 active:scale-95 sm:p-3.5"
       >
-        {isOpen ? <X size={26} /> : <MessageSquare size={26} className="text-cyan-300" />}
+        {isOpen ? <X size={22} /> : <MessageSquare size={22} />}
       </motion.button>
     </div>
   );

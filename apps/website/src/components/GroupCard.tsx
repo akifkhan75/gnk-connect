@@ -14,11 +14,11 @@ export const GroupCard: React.FC<{ group: PublicGroup }> = ({ group }) => {
   const message = `Assalam-o-Alaikum GNK Connect, I'd like details and fares for "${group.title}"${next ? ` departing ${fmt(next.date)}` : ''}.`;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-lg">
-      <div className="relative bg-[#00205B] px-5 pb-5 pt-4 text-white">
+    <article className="flex flex-col overflow-hidden rounded-3xl border border-line bg-surface transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-20px_rgb(11_26_51/0.35)]">
+      <div className="relative bg-gradient-to-br from-navy-800 to-navy-900 px-5 pb-5 pt-4 text-white">
         <div className="mb-4 flex items-center justify-between">
           <span
-            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${isUmrah ? 'bg-amber-400 text-[#00205B]' : 'bg-cyan-400/20 text-cyan-200'}`}
+            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${isUmrah ? 'bg-warm text-white' : 'bg-cyan-400/20 text-cyan-200'}`}
           >
             {isUmrah ? 'Umrah package' : 'Group ticket'}
           </span>
@@ -41,8 +41,8 @@ export const GroupCard: React.FC<{ group: PublicGroup }> = ({ group }) => {
       </div>
       <div className="flex flex-1 flex-col gap-4 p-5">
         <div>
-          <h3 className="font-semibold text-[#0B1528]">{group.title}</h3>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+          <h3 className="font-semibold text-ink">{group.title}</h3>
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-3">
             <span>{group.durationDays} days</span>
             {group.baggage && (
               <span className="inline-flex items-center gap-1">
@@ -52,19 +52,19 @@ export const GroupCard: React.FC<{ group: PublicGroup }> = ({ group }) => {
           </p>
         </div>
         <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Upcoming departures
-          </p>
+          <p className="mb-1.5 text-[11px] font-medium text-ink-3">Upcoming departures</p>
           <div className="flex flex-wrap gap-1.5">
             {group.departures.slice(0, 5).map((d) => (
               <span
                 key={d.id}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${d.seats <= 0 ? 'border-gray-200 text-gray-400 line-through' : 'border-gray-200 text-gray-700'}`}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${d.seats <= 0 ? 'border-line text-ink-3 line-through' : 'border-line text-ink-2'}`}
                 title={d.seats > 0 ? `${d.seats} seats left` : 'Sold out'}
               >
-                <Calendar size={11} className="text-cyan-600" /> {fmt(d.date)}
+                <Calendar size={11} className="text-brand-ink" /> {fmt(d.date)}
                 {d.seats > 0 && d.seats <= 5 && (
-                  <span className="font-semibold text-red-600">· {d.seats} left</span>
+                  <span className="font-semibold text-red-600 dark:text-red-400">
+                    · {d.seats} left
+                  </span>
                 )}
               </span>
             ))}
@@ -74,7 +74,7 @@ export const GroupCard: React.FC<{ group: PublicGroup }> = ({ group }) => {
           href={`https://wa.me/${CONTACT_INFO.whatsapp}?text=${encodeURIComponent(message)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#00205B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#003087]"
+          className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-full bg-ink px-4 text-[14px] font-semibold text-canvas transition-opacity hover:opacity-90"
         >
           <MessageCircle size={16} /> Ask for fares on WhatsApp
         </a>

@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Dark mode follows the .dark class on <html> (set by ThemeProvider / the no-flash script). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* SF Pro on Apple devices, Inter elsewhere: one quiet typeface across GNK Connect. */
   --font-sans:
@@ -43,6 +46,20 @@
   --color-slate-900: #0b1a33;
   --color-slate-950: #07122a;
 
+  /* Semantic, theme-aware colours (values swap in .dark below). */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: #0a5ce6;
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-warm: #ff8a1f;
+
   --animate-float: float 6s ease-in-out infinite;
   --animate-blob: blob 7s infinite;
 
@@ -72,8 +89,67 @@
   }
 }
 
+/* Light */
+:root {
+  color-scheme: light;
+  --canvas: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef2f7;
+  --ink: #0b1a33;
+  --ink-2: #3d4a5c;
+  --ink-3: #6b7686;
+  --line: #e3e8ef;
+  --line-strong: #cfd6e0;
+  --brand-soft: #eaf2ff;
+  --brand-ink: #0a58c4;
+  --header: rgb(255 255 255 / 0.72);
+  --brand-gradient: linear-gradient(135deg, #0b3fc4 0%, #0a6fe0 55%, #12b3f2 100%);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Dark: the logo's navy */
+.dark {
+  color-scheme: dark;
+  --canvas: #060f22;
+  --surface: #0c1830;
+  --surface-2: #12213d;
+  --ink: #eef3fa;
+  --ink-2: #b6c2d3;
+  --ink-3: #8491a5;
+  --line: #1b2b48;
+  --line-strong: #283b5e;
+  --brand-soft: #0f2750;
+  --brand-ink: #6cb8ff;
+  --header: rgb(6 15 34 / 0.72);
+  --brand-gradient: linear-gradient(135deg, #1552e0 0%, #1b7cf0 55%, #2cc0f7 100%);
+}
+
+@utility bg-brand-gradient {
+  background-image: var(--brand-gradient);
+}
+@utility text-brand-gradient {
+  background-image: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility frosted {
+  background: var(--header);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+@utility ease-apple {
+  transition-timing-function: var(--ease);
+}
+
 @layer base {
+  html {
+    background: var(--canvas);
+    -webkit-text-size-adjust: 100%;
+  }
   body {
+    background: var(--canvas);
+    color: var(--ink);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -86,13 +162,36 @@
     letter-spacing: -0.025em;
   }
   ::selection {
-    background: rgb(0 113 227 / 0.2);
+    background: rgb(10 92 230 / 0.2);
+  }
+  /* Phones: never scroll sideways because of a decorative element. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+  :focus-visible {
+    outline: 2px solid #1492ee;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 /* Custom Utilities */
-.scrollbar-hide::-webkit-scrollbar {
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .scrollbar-hide {
   -ms-overflow-style: none;

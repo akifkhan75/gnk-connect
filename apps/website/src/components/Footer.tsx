@@ -1,179 +1,160 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Facebook, Twitter, Instagram, Mail, MapPin, Phone, ArrowUpRight } from 'lucide-react';
-import { CONTACT_INFO, NAV_LINKS, BRAND_NAME, BRAND_TAGLINE, SERVICES } from '../constants';
+import { ChevronDown, Facebook, Instagram, Mail, MapPin, Phone, Twitter } from 'lucide-react';
+import { BRAND_NAME, BRAND_TAGLINE, CONTACT_INFO, SERVICES } from '../constants';
+import { portalLink } from '../lib/links';
+import { BrandLogo } from './Navbar';
 
-const Footer: React.FC = () => {
-  return (
-    <footer className="bg-navy-900 text-white pt-20 pb-10 border-t border-navy-800">
-      <div className="container mx-auto px-4 md:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-16">
-          {/* Brand */}
-          <div>
-            <Link
-              to="/"
-              className="mb-6 inline-flex flex-col gap-2"
-              aria-label={`${BRAND_NAME} Home`}
-            >
-              <img src="/logo-white.png" alt={BRAND_NAME} className="h-12 w-auto" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/70">
-                Travel & Tourism
-              </span>
-            </Link>
+const COLUMNS: { title: string; links: { label: string; to: string; external?: boolean }[] }[] = [
+  {
+    title: 'Travel',
+    links: [
+      { label: 'Group departures', to: '/groups' },
+      { label: 'Destinations', to: '/destinations' },
+      { label: 'Corporate and MICE', to: '/corporate' },
+      { label: 'All services', to: '/services' },
+    ],
+  },
+  {
+    title: 'Services',
+    links: SERVICES.slice(0, 5).map((s) => ({ label: s.title, to: s.link })),
+  },
+  {
+    title: 'Tools',
+    links: [
+      { label: 'Trip planner', to: '/planner' },
+      { label: 'Visa tracker', to: '/tracking' },
+      { label: 'Packing checklist', to: '/checklist' },
+      { label: 'Guides and insights', to: '/news' },
+      { label: 'Reviews', to: '/reviews' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'About us', to: '/about' },
+      { label: 'Contact', to: '/contact' },
+      { label: 'Agent portal', to: portalLink('/'), external: true },
+    ],
+  },
+];
 
-            <p className="text-gray-300 mb-6 leading-relaxed text-sm">
-              {BRAND_TAGLINE}. Your premier partner for Executive Umrah packages, worldwide sticker
-              visas, and bespoke international holidays.
-            </p>
+const SOCIAL = [
+  { label: 'Facebook', href: 'https://facebook.com', icon: Facebook },
+  { label: 'Twitter', href: 'https://twitter.com', icon: Twitter },
+  { label: 'Instagram', href: 'https://instagram.com', icon: Instagram },
+];
 
-            <div className="flex space-x-3">
+const FooterLink: React.FC<{ to: string; external?: boolean; children: React.ReactNode }> = ({
+  to,
+  external,
+  children,
+}) =>
+  external ? (
+    <a href={to} className="text-ink-3 transition-colors hover:text-ink">
+      {children}
+    </a>
+  ) : (
+    <Link to={to} className="text-ink-3 transition-colors hover:text-ink">
+      {children}
+    </Link>
+  );
+
+const Footer: React.FC = () => (
+  <footer className="border-t border-line bg-surface text-[13px]">
+    <div className="mx-auto max-w-[1200px] px-4 pb-10 pt-14 sm:px-6">
+      <div className="grid gap-10 lg:grid-cols-[1.3fr_repeat(4,1fr)]">
+        <div className="max-w-xs">
+          <Link to="/" aria-label={`${BRAND_NAME} home`} className="inline-block">
+            <BrandLogo className="h-10" />
+          </Link>
+          <p className="mt-4 leading-relaxed text-ink-3">
+            {BRAND_TAGLINE}. Executive Umrah, visas, group departures and holidays from Islamabad.
+          </p>
+          <ul className="mt-5 space-y-2.5 text-ink-2">
+            <li className="flex gap-2.5">
+              <MapPin className="mt-0.5 size-4 shrink-0 text-ink-3" />
+              <span>{CONTACT_INFO.address}</span>
+            </li>
+            <li>
               <a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="GNK Connect Facebook"
-                className="w-10 h-10 rounded-xl bg-navy-800 border border-navy-700/60 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 hover:border-cyan-500 transition-all duration-300"
+                href={`tel:${CONTACT_INFO.phone}`}
+                className="flex items-center gap-2.5 hover:text-ink"
               >
-                <Facebook size={18} />
+                <Phone className="size-4 text-ink-3" /> {CONTACT_INFO.displayPhone}
               </a>
+            </li>
+            <li>
               <a
-                href="https://twitter.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="GNK Connect Twitter"
-                className="w-10 h-10 rounded-xl bg-navy-800 border border-navy-700/60 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 hover:border-cyan-500 transition-all duration-300"
+                href={`mailto:${CONTACT_INFO.email}`}
+                className="flex items-center gap-2.5 hover:text-ink"
               >
-                <Twitter size={18} />
+                <Mail className="size-4 text-ink-3" /> {CONTACT_INFO.email}
               </a>
-              <a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="GNK Connect Instagram"
-                className="w-10 h-10 rounded-xl bg-navy-800 border border-navy-700/60 flex items-center justify-center text-cyan-400 hover:bg-cyan-500 hover:text-navy-900 hover:border-cyan-500 transition-all duration-300"
-              >
-                <Instagram size={18} />
-              </a>
-            </div>
-          </div>
-
-          {/* Quick Links */}
-          <div>
-            <h4 className="text-base font-bold mb-6 text-white uppercase tracking-wider text-xs">
-              Navigation
-            </h4>
-            <ul className="space-y-3">
-              {NAV_LINKS.map((link) => (
-                <li key={link.name}>
-                  <Link
-                    to={link.path}
-                    className="text-gray-300 hover:text-cyan-400 transition-colors text-sm flex items-center gap-1 group"
-                  >
-                    <span>{link.name}</span>
-                    <ArrowUpRight
-                      size={14}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-cyan-400"
-                    />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Services */}
-          <div>
-            <h4 className="text-base font-bold mb-6 text-white uppercase tracking-wider text-xs">
-              Featured Services
-            </h4>
-            <ul className="space-y-3">
-              {SERVICES.slice(0, 5).map((service) => (
-                <li key={service.id}>
-                  <Link
-                    to={service.link}
-                    className="text-gray-300 hover:text-cyan-400 text-sm transition-colors block"
-                  >
-                    {service.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Contact */}
-          <div>
-            <h4 className="text-base font-bold mb-6 text-white uppercase tracking-wider text-xs">
-              Contact Desk
-            </h4>
-            <ul className="space-y-4">
-              <li className="flex items-start gap-3.5">
-                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 shrink-0 mt-0.5">
-                  <MapPin size={16} />
-                </div>
-                <span className="text-gray-300 text-sm leading-relaxed">
-                  {CONTACT_INFO.address}
-                </span>
-              </li>
-              <li className="flex items-center gap-3.5">
-                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 shrink-0">
-                  <Phone size={16} />
-                </div>
-                <a
-                  href={`tel:${CONTACT_INFO.phone}`}
-                  className="text-gray-300 hover:text-cyan-400 text-sm transition-colors"
-                >
-                  {CONTACT_INFO.displayPhone}
-                </a>
-              </li>
-              <li className="flex items-center gap-3.5">
-                <div className="p-2 bg-navy-800 rounded-lg text-cyan-400 shrink-0">
-                  <Mail size={16} />
-                </div>
-                <a
-                  href={`mailto:${CONTACT_INFO.email}`}
-                  className="text-gray-300 hover:text-cyan-400 text-sm transition-colors"
-                >
-                  {CONTACT_INFO.email}
-                </a>
-              </li>
-            </ul>
-          </div>
+            </li>
+          </ul>
         </div>
 
-        <div className="border-t border-navy-800 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-gray-400">
-          <p>
-            &copy; {new Date().getFullYear()} {BRAND_NAME}. All rights reserved. Licensed Travel &
-            Tourism Agency.
-          </p>
-          <div className="flex flex-wrap gap-4 sm:gap-6 mt-4 md:mt-0">
-            <Link to="/about" className="hover:text-cyan-400 transition-colors">
-              About Us
-            </Link>
-            <Link to="/corporate" className="hover:text-cyan-400 transition-colors">
-              Corporate &amp; MICE
-            </Link>
-            <Link to="/checklist" className="hover:text-cyan-400 transition-colors">
-              Packing Kit
-            </Link>
-            <Link to="/reviews" className="hover:text-cyan-400 transition-colors">
-              Reviews
-            </Link>
-            <Link to="/planner" className="hover:text-cyan-400 transition-colors">
-              Trip Planner
-            </Link>
-            <Link to="/tracking" className="hover:text-cyan-400 transition-colors">
-              Visa Tracker
-            </Link>
-            <Link to="/contact" className="hover:text-cyan-400 transition-colors">
-              Support
-            </Link>
-            <Link to="/services" className="hover:text-cyan-400 transition-colors">
-              All Packages
-            </Link>
+        {/* Desktop columns */}
+        {COLUMNS.map((col) => (
+          <div key={col.title} className="hidden lg:block">
+            <h3 className="mb-3 text-[12px] font-semibold text-ink">{col.title}</h3>
+            <ul className="space-y-2.5">
+              {col.links.map((l) => (
+                <li key={l.label}>
+                  <FooterLink to={l.to} external={l.external}>
+                    {l.label}
+                  </FooterLink>
+                </li>
+              ))}
+            </ul>
           </div>
+        ))}
+
+        {/* Phone: accordion, as on apple.com */}
+        <div className="divide-y divide-line border-y border-line lg:hidden">
+          {COLUMNS.map((col) => (
+            <details key={col.title} className="group">
+              <summary className="flex cursor-pointer list-none items-center justify-between py-3.5 text-[14px] font-medium text-ink [&::-webkit-details-marker]:hidden">
+                {col.title}
+                <ChevronDown className="size-4 text-ink-3 transition-transform duration-200 group-open:rotate-180" />
+              </summary>
+              <ul className="space-y-3 pb-4 pl-1">
+                {col.links.map((l) => (
+                  <li key={l.label}>
+                    <FooterLink to={l.to} external={l.external}>
+                      {l.label}
+                    </FooterLink>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
         </div>
       </div>
-    </footer>
-  );
-};
+
+      <div className="mt-12 flex flex-col gap-4 border-t border-line pt-6 text-[12px] text-ink-3 md:flex-row md:items-center md:justify-between">
+        <p>
+          © {new Date().getFullYear()} {BRAND_NAME}. Licensed travel and tourism agency · DTS Lic.
+          #4920 · IATA accredited.
+        </p>
+        <div className="flex items-center gap-1">
+          {SOCIAL.map((s) => (
+            <a
+              key={s.label}
+              href={s.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${BRAND_NAME} on ${s.label}`}
+              className="flex size-9 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+            >
+              <s.icon className="size-4" />
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  </footer>
+);
 
 export default Footer;

@@ -15,7 +15,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
   isOpen,
   onClose,
   packageName = 'General Custom Travel Inquiry',
-  initialNotes = ''
+  initialNotes = '',
 }) => {
   const { showToast } = useToast();
   const [name, setName] = useState('');
@@ -53,7 +53,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
       showToast(
         'Inquiry Successfully Sent!',
         `Thank you ${name}. Our senior travel consultant will call you at ${phone} to confirm details for ${packageName}.`,
-        'success'
+        'success',
       );
       onClose();
       setName('');
@@ -67,7 +67,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div 
+        <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="inquiry-modal-title"
@@ -88,7 +88,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ duration: 0.2 }}
-            className="relative bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-gray-100 z-10 flex flex-col max-h-[90vh]"
+            className="relative bg-surface w-full max-w-xl rounded-3xl shadow-[0_18px_40px_-24px_rgb(11_26_51/0.35)] overflow-hidden border border-line z-10 flex flex-col max-h-[90vh]"
           >
             {/* Modal Header */}
             <div className="bg-navy-900 text-white p-6 relative overflow-hidden shrink-0">
@@ -98,10 +98,13 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                     <Compass className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 block">
+                    <span className="text-[11px] font-bold text-cyan-400 block">
                       {BRAND_NAME} Executive Booking
                     </span>
-                    <h3 id="inquiry-modal-title" className="text-lg sm:text-xl font-bold text-white">
+                    <h3
+                      id="inquiry-modal-title"
+                      className="text-lg sm:text-xl font-bold text-white"
+                    >
                       {packageName}
                     </h3>
                   </div>
@@ -123,7 +126,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
               <form onSubmit={handleSubmit} id="inquiry-form" className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="modal-name" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                    <label htmlFor="modal-name" className="block text-xs font-bold text-ink-2 mb-1">
                       Full Name *
                     </label>
                     <div className="relative">
@@ -135,13 +138,16 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="John Doe"
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
+                        className="w-full pl-10 pr-3.5 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="modal-phone" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                    <label
+                      htmlFor="modal-phone"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Phone / WhatsApp *
                     </label>
                     <div className="relative">
@@ -153,14 +159,14 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="0300 1234567"
-                        className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
+                        className="w-full pl-10 pr-3.5 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="modal-email" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                  <label htmlFor="modal-email" className="block text-xs font-bold text-ink-2 mb-1">
                     Email Address
                   </label>
                   <div className="relative">
@@ -171,14 +177,14 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@example.com"
-                      className="w-full pl-10 pr-3.5 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-1">
-                    <label htmlFor="modal-date" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                    <label htmlFor="modal-date" className="block text-xs font-bold text-ink-2 mb-1">
                       Travel Date
                     </label>
                     <div className="relative">
@@ -188,13 +194,16 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                         type="date"
                         value={travelDate}
                         onChange={(e) => setTravelDate(e.target.value)}
-                        className="w-full pl-9 pr-2 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-xs outline-none"
+                        className="w-full pl-9 pr-2 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-xs outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="modal-adults" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                    <label
+                      htmlFor="modal-adults"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Adults (12+)
                     </label>
                     <div className="relative">
@@ -205,13 +214,16 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                         min="1"
                         value={adults}
                         onChange={(e) => setAdults(e.target.value)}
-                        className="w-full pl-9 pr-2 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
+                        className="w-full pl-9 pr-2 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-sm outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="modal-children" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                    <label
+                      htmlFor="modal-children"
+                      className="block text-xs font-bold text-ink-2 mb-1"
+                    >
                       Children (0-11)
                     </label>
                     <input
@@ -220,13 +232,13 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                       min="0"
                       value={children}
                       onChange={(e) => setChildren(e.target.value)}
-                      className="w-full px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-sm outline-none text-center"
+                      className="w-full px-3 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-sm outline-none text-center"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="modal-notes" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                  <label htmlFor="modal-notes" className="block text-xs font-bold text-ink-2 mb-1">
                     Special Requests & Preferences
                   </label>
                   <textarea
@@ -235,15 +247,15 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="E.g. Haram view preferred, private vehicle, specific airline..."
-                    className="w-full px-3.5 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:ring-2 focus:ring-cyan-500 text-sm outline-none resize-none"
+                    className="w-full px-3.5 py-2.5 bg-canvas rounded-xl border border-line focus:ring-2 focus:ring-cyan-500 text-sm outline-none resize-none"
                   ></textarea>
                 </div>
               </form>
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-1.5 text-gray-500 text-xs">
+            <div className="p-4 bg-canvas border-t border-line flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-1.5 text-ink-3 text-xs">
                 <CheckCircle size={14} className="text-green-500" />
                 <span>Zero Obligation Free Quote</span>
               </div>
@@ -252,7 +264,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-100 transition-colors"
+                  className="px-4 py-2.5 rounded-xl border border-line text-ink-2 text-xs font-bold hover:bg-surface-2 transition-colors"
                 >
                   Cancel
                 </button>
@@ -260,7 +272,7 @@ const InquiryModal: React.FC<InquiryModalProps> = ({
                   type="submit"
                   form="inquiry-form"
                   disabled={isSubmitting}
-                  className="bg-navy-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold hover:bg-cyan-500 hover:text-navy-900 transition-colors flex items-center gap-1.5 shadow-md shadow-navy-900/10"
+                  className="bg-navy-900 text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-brand hover:text-white transition-colors flex items-center gap-1.5 shadow-md shadow-navy-900/10 dark:bg-white dark:text-navy-900"
                 >
                   {isSubmitting ? 'Sending...' : 'Confirm Inquiry'} <Send size={14} />
                 </button>

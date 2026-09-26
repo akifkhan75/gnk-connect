@@ -18,7 +18,7 @@ const WishlistDrawer: React.FC = () => {
 
   const handleBulkInquiry = () => {
     if (savedItems.length === 0) return;
-    const itemsList = savedItems.map(i => `${i.title} (${i.category})`).join(', ');
+    const itemsList = savedItems.map((i) => `${i.title} (${i.category})`).join(', ');
     setInquiryPackage(`Combined Inquiry: ${itemsList}`);
     setInquiryModalOpen(true);
   };
@@ -49,7 +49,7 @@ const WishlistDrawer: React.FC = () => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative w-full max-w-md bg-white h-full shadow-2xl z-10 flex flex-col justify-between overflow-hidden"
+              className="relative w-full max-w-md bg-surface h-full shadow-[0_18px_40px_-24px_rgb(11_26_51/0.35)] z-10 flex flex-col justify-between overflow-hidden"
               role="dialog"
               aria-label="Saved Travel Wishlist"
             >
@@ -62,7 +62,8 @@ const WishlistDrawer: React.FC = () => {
                   <div>
                     <h2 className="text-base font-bold">Saved Trips & Packages</h2>
                     <p className="text-[11px] text-gray-300">
-                      {savedItems.length} {savedItems.length === 1 ? 'item' : 'items'} in your wishlist
+                      {savedItems.length} {savedItems.length === 1 ? 'item' : 'items'} in your
+                      wishlist
                     </p>
                   </div>
                 </div>
@@ -70,7 +71,7 @@ const WishlistDrawer: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
-                  className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-ink hover:bg-white/10 transition-colors"
                   aria-label="Close saved items drawer"
                 >
                   <X size={20} />
@@ -81,17 +82,18 @@ const WishlistDrawer: React.FC = () => {
               <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
                 {savedItems.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center py-12">
-                    <div className="w-16 h-16 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-4">
+                    <div className="w-16 h-16 rounded-2xl bg-brand-soft text-cyan-600 flex items-center justify-center mb-4">
                       <Compass size={28} />
                     </div>
-                    <h3 className="font-bold text-navy-900 text-base mb-1">Your wishlist is empty</h3>
-                    <p className="text-xs text-gray-500 max-w-xs mb-6">
-                      Click the bookmark icon on any destination, Umrah package, or tour to save and compare them here.
+                    <h3 className="font-bold text-ink text-base mb-1">Your wishlist is empty</h3>
+                    <p className="text-xs text-ink-3 max-w-xs mb-6">
+                      Click the bookmark icon on any destination, Umrah package, or tour to save and
+                      compare them here.
                     </p>
                     <button
                       type="button"
                       onClick={() => setIsDrawerOpen(false)}
-                      className="px-5 py-2.5 bg-navy-900 text-white rounded-xl text-xs font-bold hover:bg-cyan-500 hover:text-navy-900 transition-colors"
+                      className="px-5 py-2.5 bg-navy-900 text-white rounded-full text-sm font-bold hover:bg-brand hover:text-white transition-colors dark:bg-white dark:text-navy-900"
                     >
                       Browse Packages
                     </button>
@@ -100,7 +102,7 @@ const WishlistDrawer: React.FC = () => {
                   savedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100 group hover:border-cyan-200 transition-all"
+                      className="flex gap-3 bg-canvas p-3 rounded-2xl border border-line group hover:border-cyan-200 dark:hover:border-cyan-800 transition-all"
                     >
                       <img
                         src={item.image}
@@ -110,7 +112,7 @@ const WishlistDrawer: React.FC = () => {
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div>
                           <div className="flex items-center justify-between gap-1">
-                            <span className="text-[10px] uppercase font-bold text-cyan-600 tracking-wider">
+                            <span className="text-[11px] font-bold text-cyan-600">
                               {item.category}
                             </span>
                             <button
@@ -122,21 +124,19 @@ const WishlistDrawer: React.FC = () => {
                               <Trash2 size={13} />
                             </button>
                           </div>
-                          <h4 className="font-bold text-navy-900 text-xs truncate group-hover:text-cyan-600 transition-colors">
+                          <h4 className="font-bold text-ink text-xs truncate group-hover:text-cyan-600 transition-colors">
                             {item.title}
                           </h4>
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
                           {item.price && (
-                            <span className="text-xs font-extrabold text-navy-900">
-                              {item.price}
-                            </span>
+                            <span className="text-xs font-bold text-ink">{item.price}</span>
                           )}
                           <button
                             type="button"
                             onClick={() => handleSingleInquiry(item.title)}
-                            className="text-[11px] font-bold text-cyan-600 hover:text-cyan-700 flex items-center gap-0.5 ml-auto"
+                            className="text-[11px] font-bold text-cyan-600 hover:text-brand-ink flex items-center gap-0.5 ml-auto"
                           >
                             <span>Book Now</span>
                             <ArrowRight size={12} />
@@ -150,11 +150,11 @@ const WishlistDrawer: React.FC = () => {
 
               {/* Footer Actions */}
               {savedItems.length > 0 && (
-                <div className="p-5 sm:p-6 bg-gray-50 border-t border-gray-100 space-y-2.5">
+                <div className="p-5 sm:p-6 bg-canvas border-t border-line space-y-2.5">
                   <button
                     type="button"
                     onClick={handleBulkInquiry}
-                    className="w-full bg-navy-900 hover:bg-cyan-500 hover:text-navy-900 text-white py-3 rounded-xl font-bold text-xs transition-all shadow-md flex items-center justify-center gap-1.5"
+                    className="w-full bg-navy-900 hover:bg-brand hover:text-white text-white py-3 rounded-full font-bold text-sm transition-all shadow-md flex items-center justify-center gap-1.5 dark:bg-white dark:text-navy-900"
                   >
                     <Send size={14} />
                     <span>Inquire About All ({savedItems.length}) Trips</span>
@@ -166,7 +166,7 @@ const WishlistDrawer: React.FC = () => {
                       clearWishlist();
                       showToast('Wishlist Cleared', 'All saved items have been removed.', 'info');
                     }}
-                    className="w-full py-2 text-[11px] font-bold text-gray-500 hover:text-red-600 transition-colors"
+                    className="w-full py-2 text-[11px] font-bold text-ink-3 hover:text-red-600 transition-colors"
                   >
                     Clear All Saved Items
                   </button>

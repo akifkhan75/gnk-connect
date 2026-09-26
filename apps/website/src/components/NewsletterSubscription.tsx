@@ -24,7 +24,7 @@ const NewsletterSubscription: React.FC = () => {
       showToast(
         'Subscription Activated!',
         `You will receive exclusive ${preference === 'all' ? 'travel' : preference} fare drops & updates at ${email}.`,
-        'success'
+        'success',
       );
     }, 600);
   };
@@ -40,15 +40,16 @@ const NewsletterSubscription: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
             {/* Text & Icon */}
             <div className="md:w-1/2 space-y-3 text-center md:text-left">
-              <div className="inline-flex items-center gap-1.5 bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
+              <div className="inline-flex items-center gap-1.5 bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full text-[11px] font-bold">
                 <Bell size={12} className="animate-bounce" />
                 <span>Price Drops &amp; Advisory Alerts</span>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
                 Never Miss an Umrah Seat or Tour Deal
               </h2>
               <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
-                Join 10,000+ travelers subscribed to {BRAND_NAME} weekly fare drops, flash Umrah group announcements, and visa policy updates.
+                Join 10,000+ travelers subscribed to {BRAND_NAME} weekly fare drops, flash Umrah
+                group announcements, and visa policy updates.
               </p>
               <div className="flex items-center justify-center md:justify-start gap-3 text-[11px] text-gray-400 pt-1">
                 <span className="flex items-center gap-1">
@@ -66,7 +67,8 @@ const NewsletterSubscription: React.FC = () => {
                   <CheckCircle2 size={36} className="text-cyan-400 mx-auto" />
                   <h3 className="font-bold text-base text-white">You're on the VIP List!</h3>
                   <p className="text-xs text-gray-300">
-                    We've sent a welcome verification to <strong className="text-white">{email}</strong>.
+                    We've sent a welcome verification to{' '}
+                    <strong className="text-white">{email}</strong>.
                   </p>
                 </div>
               ) : (
@@ -85,7 +87,7 @@ const NewsletterSubscription: React.FC = () => {
                         onClick={() => setPreference(pref.id as any)}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
                           preference === pref.id
-                            ? 'bg-cyan-500 text-navy-900'
+                            ? 'bg-brand text-white'
                             : 'bg-white/10 text-gray-300 hover:bg-white/20'
                         }`}
                       >
@@ -111,7 +113,7 @@ const NewsletterSubscription: React.FC = () => {
                     <button
                       type="submit"
                       disabled={isLoading}
-                      className="bg-cyan-500 hover:bg-cyan-400 text-navy-900 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
+                      className="bg-brand hover:bg-brand text-white font-bold text-sm px-5 py-3 rounded-full transition-all shadow-lg flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                     >
                       <span>{isLoading ? 'Joining...' : 'Subscribe'}</span>
                       <Send size={13} />

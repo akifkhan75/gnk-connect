@@ -5,6 +5,7 @@ import Footer from './components/Footer';
 import ChatWidget from './components/ChatWidget';
 import WhatsAppButton from './components/WhatsAppButton';
 import { ToastProvider } from './context/ToastContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { WishlistProvider } from './context/WishlistContext';
 import WishlistDrawer from './components/WishlistDrawer';
@@ -35,17 +36,15 @@ const ScrollToTop: React.FC = () => {
 
 // Route Suspense Loading Fallback
 const PageLoadingFallback: React.FC = () => (
-  <div className="min-h-[60vh] flex flex-col items-center justify-center bg-gray-50">
-    <div className="w-12 h-12 rounded-full border-4 border-cyan-500/20 border-t-cyan-500 animate-spin mb-4"></div>
-    <p className="text-xs font-bold text-navy-900 uppercase tracking-widest animate-pulse">
-      Loading GNK Connect...
-    </p>
+  <div className="flex min-h-[60vh] items-center justify-center bg-canvas" role="status">
+    <div className="size-6 animate-spin rounded-full border-2 border-line border-t-brand" />
+    <span className="sr-only">Loading</span>
   </div>
 );
 
 const AppContent: React.FC = () => {
   return (
-    <div className="flex flex-col min-h-screen font-sans bg-gray-50 text-navy-900 selection:bg-cyan-500 selection:text-white">
+    <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink">
       <ScrollToTop />
       <Navbar />
 
@@ -85,15 +84,17 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <CurrencyProvider>
-        <WishlistProvider>
-          <ToastProvider>
-            <Router>
-              <AppContent />
-            </Router>
-          </ToastProvider>
-        </WishlistProvider>
-      </CurrencyProvider>
+      <ThemeProvider>
+        <CurrencyProvider>
+          <WishlistProvider>
+            <ToastProvider>
+              <Router>
+                <AppContent />
+              </Router>
+            </ToastProvider>
+          </WishlistProvider>
+        </CurrencyProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 };

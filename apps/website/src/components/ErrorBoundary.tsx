@@ -37,20 +37,19 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center mx-auto mb-5 border border-cyan-400/30">
               <Compass className="w-8 h-8 animate-spin-slow" />
             </div>
-            
-            <h1 className="text-2xl font-bold mb-2 tracking-tight">
-              Something went unexpected
-            </h1>
-            
+
+            <h1 className="text-2xl font-bold mb-2 tracking-tight">Something went unexpected</h1>
+
             <p className="text-gray-300 text-xs sm:text-sm mb-6 leading-relaxed">
-              We encountered a temporary interface issue while loading this page. Our team has been notified.
+              We encountered a temporary interface issue while loading this page. Our team has been
+              notified.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
               <button
                 type="button"
                 onClick={this.handleReload}
-                className="bg-cyan-500 hover:bg-cyan-400 text-navy-900 px-6 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-500/20"
+                className="bg-brand hover:bg-brand text-white px-6 py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan-500/20"
               >
                 <RefreshCw size={14} /> Refresh Page
               </button>
@@ -63,7 +62,8 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <p className="text-[11px] text-gray-400">
-              &copy; {new Date().getFullYear()} {BRAND_NAME}. Direct Assistance: {CONTACT_INFO.displayPhone}
+              &copy; {new Date().getFullYear()} {BRAND_NAME}. Direct Assistance:{' '}
+              {CONTACT_INFO.displayPhone}
             </p>
           </div>
         </div>

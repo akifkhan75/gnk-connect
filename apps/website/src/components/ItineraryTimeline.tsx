@@ -17,8 +17,8 @@ export const UMRAH_TIMELINE: TimelineDay[] = [
       'Meet & Greet assistance by GNK executive ground team at terminal',
       'Private GMC Suburban transfer directly to Clock Tower Hotel',
       'Express VIP check-in with Haram courtyard proximity',
-      'Rest & evening orientation for Umrah rituals'
-    ]
+      'Rest & evening orientation for Umrah rituals',
+    ],
   },
   {
     day: 2,
@@ -27,8 +27,8 @@ export const UMRAH_TIMELINE: TimelineDay[] = [
     highlights: [
       'Accompanied Tawaf and Sa’i guidance with scholar assistance',
       'Tahallul completion',
-      'Personal prayer time inside the Holy Mosque'
-    ]
+      'Personal prayer time inside the Holy Mosque',
+    ],
   },
   {
     day: 3,
@@ -38,8 +38,8 @@ export const UMRAH_TIMELINE: TimelineDay[] = [
       'Visit to Cave Hira (Jabal Al-Noor) & Jabal Thawr',
       'Mina, Muzdalifah, and Mount Arafat (Jabal Al-Rahmah)',
       'Jannat Al-Mualla historical cemetery',
-      'Return to hotel for Maghrib and Isha in Haram'
-    ]
+      'Return to hotel for Maghrib and Isha in Haram',
+    ],
   },
   {
     day: 4,
@@ -49,8 +49,8 @@ export const UMRAH_TIMELINE: TimelineDay[] = [
       'Executive transfer to Makkah Railway Station',
       '1st Class Haramain Train Journey (under 2.5 hours)',
       'Arrival in Madinah & check-in at 5-star hotel facing the Prophet’s Mosque',
-      'First Salam at Al-Masjid an-Nabawi & Rawdah Ash-Sharifah entrance'
-    ]
+      'First Salam at Al-Masjid an-Nabawi & Rawdah Ash-Sharifah entrance',
+    ],
   },
   {
     day: 5,
@@ -60,8 +60,8 @@ export const UMRAH_TIMELINE: TimelineDay[] = [
       'Masjid Quba (First Mosque of Islam, 2 Rakat Sunnah)',
       'Masjid Al-Qiblatayn (The Mosque of the Two Qiblas)',
       'Mount Uhud & Martyrs Cemetery (Sayyid Shuhada)',
-      'Dates Market (Souq Al-Tumoor) shopping excursion'
-    ]
+      'Dates Market (Souq Al-Tumoor) shopping excursion',
+    ],
   },
   {
     day: 6,
@@ -70,18 +70,20 @@ export const UMRAH_TIMELINE: TimelineDay[] = [
     highlights: [
       'Farewell prayers at the Prophet’s Mosque',
       'Assisted check-out & Zamzam water arrangements',
-      'VIP transfer to Madinah / Jeddah International Airport'
-    ]
-  }
+      'VIP transfer to Madinah / Jeddah International Airport',
+    ],
+  },
 ];
 
-export const ItineraryTimeline: React.FC<{ items?: TimelineDay[] }> = ({ items = UMRAH_TIMELINE }) => {
+export const ItineraryTimeline: React.FC<{ items?: TimelineDay[] }> = ({
+  items = UMRAH_TIMELINE,
+}) => {
   const [activeDay, setActiveDay] = useState<number>(1);
 
   return (
     <div className="bg-navy-900 text-white rounded-3xl p-6 sm:p-10 border border-navy-800 shadow-2xl relative overflow-hidden">
       <div className="mb-8">
-        <span className="text-cyan-400 font-bold uppercase tracking-widest text-xs block mb-1">
+        <span className="text-cyan-400 font-bold text-xs block mb-1">
           Structured Travel Schedule
         </span>
         <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">
@@ -101,7 +103,7 @@ export const ItineraryTimeline: React.FC<{ items?: TimelineDay[] }> = ({ items =
             onClick={() => setActiveDay(item.day)}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
               activeDay === item.day
-                ? 'bg-cyan-500 text-navy-900 shadow-lg shadow-cyan-500/25 scale-105'
+                ? 'bg-brand text-white shadow-lg shadow-cyan-500/25 scale-105'
                 : 'bg-navy-800 text-gray-300 border border-navy-700 hover:bg-navy-700'
             }`}
           >
@@ -129,10 +131,13 @@ export const ItineraryTimeline: React.FC<{ items?: TimelineDay[] }> = ({ items =
             </div>
 
             <div className="space-y-2.5">
-              <h5 className="text-xs uppercase font-bold text-gray-400 tracking-wider">Daily Highlights & Services:</h5>
+              <h5 className="text-xs font-bold text-gray-400">Daily Highlights & Services:</h5>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {item.highlights.map((point, idx) => (
-                  <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-navy-900/60 border border-navy-700/60 text-xs text-gray-200">
+                  <div
+                    key={idx}
+                    className="flex items-start gap-2.5 p-2.5 rounded-xl bg-navy-900/60 border border-navy-700/60 text-xs text-gray-200"
+                  >
                     <CheckCircle2 size={16} className="text-cyan-400 shrink-0 mt-0.5" />
                     <span>{point}</span>
                   </div>
