@@ -63,6 +63,7 @@ services:
       - /app/packages/types/node_modules
       - /app/packages/ui/node_modules
       - /app/packages/validation/node_modules
+      - /app/tests/e2e/node_modules
     ports:
       - '3000:3000'
       - '3001:3001'
