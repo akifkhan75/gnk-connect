@@ -1,0 +1,30 @@
+FROM node:20-alpine AS builder
+
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+RUN npm install -g turbo
+
+COPY . .
+RUN turbo prune --scope=@gnk/portal --docker
+
+FROM node:20-alpine AS installer
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY --from=builder /app/out/json/ .
+RUN npm ci
+
+COPY --from=builder /app/out/full/ .
+# Vite inlines these at build time.
+ARG VITE_API_URL
+ARG VITE_PORTAL_URL
+ENV VITE_API_URL=$VITE_API_URL VITE_PORTAL_URL=$VITE_PORTAL_URL
+RUN npx turbo run build --filter=@gnk/portal
+
+FROM nginx:alpine AS runner
+COPY --from=installer /app/apps/portal/dist /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

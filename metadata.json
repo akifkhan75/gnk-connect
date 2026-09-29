@@ -1,7 +1,0 @@
-{
-  "name": "ExperienceTravel v2",
-  "description": "A premium travel and tours application offering Umrah packages, visas, hotel bookings, and curated international tours.",
-  "requestFramePermissions": [
-    "geolocation"
-  ]
-}

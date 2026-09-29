@@ -1,25 +1,49 @@
 {
-  "name": "experiencetravel-v2",
+  "name": "gnk-connect",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.12.0",
+  "workspaces": [
+    "apps/api",
+    "apps/portal",
+    "apps/admin",
+    "apps/website",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "lucide-react": "^0.554.0",
-    "framer-motion": "^12.23.24",
-    "@google/genai": "^1.30.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.6"
+    "dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "dev:local": "turbo run dev --filter=!@gnk/mobile",
+    "build": "turbo run build",
+    "build:local": "pnpm -r --filter '!@gnk/mobile' run build",
+    "typecheck": "pnpm -r --filter '!@gnk/mobile' run typecheck",
+    "test": "pnpm -r --filter '!@gnk/mobile' run test",
+    "lint": "eslint apps packages --quiet",
+    "db:migrate": "pnpm --filter @gnk/api run db:migrate",
+    "db:seed": "pnpm --filter @gnk/api run db:seed",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.5.1",
+    "prettier": "^3.9.9",
+    "tailwindcss": "^4.3.3",
+    "turbo": "^2.11.4",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "typescript-eslint": "^8.70.1"
+  },
+  "optionalDependencies": {
+    "@esbuild/darwin-arm64": "^0.25.0",
+    "@rollup/rollup-darwin-arm64": "^4.0.0",
+    "@turbo/darwin-arm64": "^2.11.4"
   }
 }

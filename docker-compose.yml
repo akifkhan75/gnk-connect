@@ -1,0 +1,134 @@
+services:
+  # ---------------- PostgreSQL Database ---------------- #
+  postgres:
+    image: postgres:16-alpine
+    container_name: gnk_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gnk_network
+
+  # ---------------- Redis In-Memory Cache ---------------- #
+  redis:
+    image: redis:7-alpine
+    container_name: gnk_redis
+    restart: always
+    command: redis-server
+    volumes:
+      - redisdata:/data
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gnk_network
+
+  # ---------------- NestJS Enterprise Backend API ---------------- #
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: gnk_api
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?set PII_ENCRYPTION_KEY}
+      CORS_ORIGINS: ${DOCKER_CORS_ORIGINS:-http://localhost:3010,http://localhost:3011,http://localhost:3012}
+      PORTAL_URL: ${DOCKER_PORTAL_URL:-http://localhost:3011}
+      ADMIN_URL: ${DOCKER_ADMIN_URL:-http://localhost:3012}
+      SUPPLIER_MODE: ${SUPPLIER_MODE:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - '${API_PORT:-4010}:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gnk_network
+
+  # ---------------- Admin Operations Center ---------------- #
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        VITE_API_URL: ${DOCKER_API_URL:-http://localhost:4010/api/v1}
+        VITE_PORTAL_URL: ${DOCKER_PORTAL_URL:-http://localhost:3011}
+    container_name: gnk_admin
+    restart: always
+    ports:
+      - '${ADMIN_PORT:-3012}:80'
+    depends_on:
+      - api
+    networks:
+      - gnk_network
+
+  # ---------------- B2B Agent Portal ---------------- #
+  portal:
+    build:
+      context: .
+      dockerfile: apps/portal/Dockerfile
+      args:
+        VITE_API_URL: ${DOCKER_API_URL:-http://localhost:4010/api/v1}
+        VITE_PORTAL_URL: ${DOCKER_PORTAL_URL:-http://localhost:3011}
+    container_name: gnk_portal
+    restart: always
+    ports:
+      - '${PORTAL_PORT:-3011}:80'
+    depends_on:
+      - api
+    networks:
+      - gnk_network
+
+  # ---------------- Customer Travel Website ---------------- #
+  website:
+    build:
+      context: .
+      dockerfile: apps/website/Dockerfile
+      args:
+        VITE_API_URL: ${DOCKER_API_URL:-http://localhost:4010/api/v1}
+        VITE_PORTAL_URL: ${DOCKER_PORTAL_URL:-http://localhost:3011}
+    container_name: gnk_website
+    restart: always
+    ports:
+      - '${WEBSITE_PORT:-3010}:80'
+    depends_on:
+      - api
+    networks:
+      - gnk_network
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  gnk_network:
+    driver: bridge

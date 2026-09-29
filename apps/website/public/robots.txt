@@ -1,0 +1,9 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Host
+Host: https://gnkconnect.com
+
+# Sitemaps
+Sitemap: https://gnkconnect.com/sitemap.xml

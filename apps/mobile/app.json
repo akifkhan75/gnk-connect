@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "GNK Connect Partner",
+    "slug": "gnk-connect-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#020617"
+    }
+  }
+}

@@ -1,0 +1,213 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the .dark class on <html> (set by ThemeProvider / the no-flash script). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* SF Pro on Apple devices, Inter elsewhere: one quiet typeface across GNK Connect. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI Variable', 'Segoe UI',
+    system-ui, sans-serif;
+  --font-serif:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI Variable', system-ui,
+    sans-serif;
+
+  /* Palette from the GNK Connect logo: navy ink, royal blue → sky cyan, orange plane. */
+  --color-navy-50: #eaf1fb;
+  --color-navy-100: #d4e2f6;
+  --color-navy-500: #2f5aa5;
+  --color-navy-600: #1d3f80;
+  --color-navy-700: #0f2a5c;
+  --color-navy-800: #0b1f45;
+  --color-navy-900: #081631;
+
+  /* "cyan" is the site accent: the logo's sky → royal blue ramp. */
+  --color-cyan-50: #eef7ff;
+  --color-cyan-100: #d9edff;
+  --color-cyan-200: #bce0ff;
+  --color-cyan-300: #8ecdff;
+  --color-cyan-400: #45b4f7;
+  --color-cyan-500: #1492ee;
+  --color-cyan-600: #0a6fe0;
+  --color-cyan-700: #0a58c4;
+  --color-cyan-800: #0d479e;
+  --color-cyan-900: #113d7d;
+  --color-cyan-950: #0c2750;
+
+  /* Orange of the plane and swoosh. */
+  --color-gold-400: #ffa64d;
+  --color-gold-500: #ff8a1f;
+  --color-gold-600: #e66a0f;
+  --color-orange-400: #ffa64d;
+  --color-orange-500: #ff8a1f;
+  --color-orange-600: #e66a0f;
+
+  /* Darkest slates carry the logo navy so dark sections match the brand. */
+  --color-slate-900: #0b1a33;
+  --color-slate-950: #07122a;
+
+  /* Semantic, theme-aware colours (values swap in .dark below). */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: #0a5ce6;
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-warm: #ff8a1f;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-blob: blob 7s infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
+  }
+
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+}
+
+/* Light */
+:root {
+  color-scheme: light;
+  --canvas: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef2f7;
+  --ink: #0b1a33;
+  --ink-2: #3d4a5c;
+  --ink-3: #6b7686;
+  --line: #e3e8ef;
+  --line-strong: #cfd6e0;
+  --brand-soft: #eaf2ff;
+  --brand-ink: #0a58c4;
+  --header: rgb(255 255 255 / 0.72);
+  --brand-gradient: linear-gradient(135deg, #0b3fc4 0%, #0a6fe0 55%, #12b3f2 100%);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Dark: the logo's navy */
+.dark {
+  color-scheme: dark;
+  --canvas: #060f22;
+  --surface: #0c1830;
+  --surface-2: #12213d;
+  --ink: #eef3fa;
+  --ink-2: #b6c2d3;
+  --ink-3: #8491a5;
+  --line: #1b2b48;
+  --line-strong: #283b5e;
+  --brand-soft: #0f2750;
+  --brand-ink: #6cb8ff;
+  --header: rgb(6 15 34 / 0.72);
+  --brand-gradient: linear-gradient(135deg, #1552e0 0%, #1b7cf0 55%, #2cc0f7 100%);
+}
+
+@utility bg-brand-gradient {
+  background-image: var(--brand-gradient);
+}
+@utility text-brand-gradient {
+  background-image: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility frosted {
+  background: var(--header);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+@utility ease-apple {
+  transition-timing-function: var(--ease);
+}
+
+@layer base {
+  html {
+    background: var(--canvas);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.006em;
+    font-feature-settings: 'cv11', 'ss03';
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.025em;
+  }
+  ::selection {
+    background: rgb(10 92 230 / 0.2);
+  }
+  /* Phones: never scroll sideways because of a decorative element. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+  :focus-visible {
+    outline: 2px solid #1492ee;
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Custom Utilities */
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.glass-dark {
+  background: rgba(22, 22, 24, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.12);
+}
