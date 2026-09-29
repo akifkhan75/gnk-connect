@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-gnk_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gnk_secret_password}
-      POSTGRES_DB: ${POSTGRES_DB:-gnk_elite_db}
+      POSTGRES_DB: ${POSTGRES_DB:-gnk_connect}
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     ports:
@@ -46,7 +46,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-gnk_admin}:${POSTGRES_PASSWORD:-gnk_secret_password}@postgres:5432/${POSTGRES_DB:-gnk_elite_db}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gnk_admin}:${POSTGRES_PASSWORD:-gnk_secret_password}@postgres:5432/${POSTGRES_DB:-gnk_connect}?schema=public
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-gnk_jwt_super_secret_key_2026_very_secure_string}
       PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-v1:11e25dbb62a7467385ae63bf8ef595fe2d17e9f4b8606d2d0b7be26c8940a0ec}
