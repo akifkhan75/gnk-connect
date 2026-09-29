@@ -175,9 +175,9 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
       <Card>
         <CardHeader
           title="Accounting controls"
-          description="Maker-checker: the person who prepares a journal voucher cannot also post it."
+          description="Maker-checker: the person who prepares or first approves an entry cannot also be the one who posts it."
         />
-        <CardBody>
+        <CardBody className="space-y-5">
           <Checkbox
             label={
               <span>
@@ -190,6 +190,20 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
             }
             {...register('accounting.requireJvApproval')}
           />
+          <Field
+            label="Two approvers for payments from (PKR)"
+            hint="Partner payments at or above this amount need two different people to approve them before they are posted. 0 turns this off."
+            error={e.accounting?.paymentDualApprovalFrom?.message}
+            className="max-w-xs"
+          >
+            <Input
+              type="number"
+              min={0}
+              step={1000}
+              inputMode="numeric"
+              {...register('accounting.paymentDualApprovalFrom')}
+            />
+          </Field>
         </CardBody>
         <CardFooter>
           <Button type="submit" loading={formState.isSubmitting} disabled={!formState.isDirty}>

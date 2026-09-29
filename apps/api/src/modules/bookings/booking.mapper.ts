@@ -237,6 +237,13 @@ export class BookingMapper {
             supplierNetUnit: num(b.supplierNetUnit),
             markupUnit: num(b.markupUnit),
             margin: num(b.markupUnit) * b.seats,
+            supplierCost: b.supplierCostCurrency
+              ? {
+                  currency: b.supplierCostCurrency,
+                  amount: num(b.supplierCostFc!),
+                  rate: num(b.supplierCostRate!),
+                }
+              : null,
             snapshot: b.pricingSnapshot,
             quotedAt: iso(b.createdAt)!,
           }

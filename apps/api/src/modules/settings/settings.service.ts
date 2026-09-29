@@ -13,7 +13,7 @@ const DEFAULTS: SettingsDto = {
   },
   bankAccounts: [],
   booking: { quoteTtlMinutes: 30, paymentTermsNote: '' },
-  accounting: { requireJvApproval: true },
+  accounting: { requireJvApproval: true, paymentDualApprovalFrom: 500_000 },
 };
 
 @Injectable()

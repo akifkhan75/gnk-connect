@@ -45,7 +45,7 @@ export function ProfilePage() {
         <ProfileCard />
         <PasswordCard />
         <SessionsCard />
-        <EmailPrefsCard />
+        <NotificationPrefsCard />
         <Card>
           <CardHeader title="Appearance" description="Choose light, dark, or follow your device." />
           <CardBody>
@@ -57,12 +57,13 @@ export function ProfilePage() {
   );
 }
 
-function EmailPrefsCard() {
+function NotificationPrefsCard() {
   const qc = useQueryClient();
   const prefs = useQuery({
     queryKey: keys.notificationPrefs,
     queryFn: api.notifications.preferences,
   });
+  const { session } = useAuth();
   const save = useMutation({
     mutationFn: api.notifications.setPreferences,
     onSuccess: (p) => qc.setQueryData(keys.notificationPrefs, p),
@@ -70,14 +71,15 @@ function EmailPrefsCard() {
   return (
     <Card>
       <CardHeader
-        title="Email notifications"
-        description="Choose which updates also arrive by email."
+        title="Notifications"
+        description={`Choose which updates also arrive by email, and by WhatsApp on ${session?.user.phone ?? 'your mobile number'}.`}
       />
       <CardBody className="py-1">
         <NotificationPreferences
           value={prefs.data}
           categories={['bookings', 'payments', 'team', 'account']}
-          onChange={(c, email) => save.mutate({ [c]: { email } })}
+          channels={['email', 'whatsapp']}
+          onChange={(c, patch) => save.mutate({ [c]: patch })}
         />
       </CardBody>
     </Card>

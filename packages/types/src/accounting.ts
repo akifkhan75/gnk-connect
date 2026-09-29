@@ -196,4 +196,6 @@ export interface PeriodDto {
 export interface AccountingSettingsDto {
   /** Maker-checker: journal vouchers need approval by someone other than the preparer. */
   requireJvApproval: boolean;
+  /** Payments at or above this PKR amount need two different approvers. 0 turns it off. */
+  paymentDualApprovalFrom: number;
 }

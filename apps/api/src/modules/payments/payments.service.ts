@@ -2,13 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, type PaymentMethod, type PaymentStatus } from '@prisma/client';
 import type { AdminPaymentListItem, Paginated, PaymentDto, ReceiptDto } from '@gnk/types';
 import { pageArgs, paginated } from '../../core/http/pagination';
 import type { RequestMeta } from '../../core/http/request-meta';
-import { isoDate, num } from '../../core/money';
+import { iso, isoDate, num } from '../../core/money';
 import { SequencesService } from '../../core/sequences.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -19,6 +20,8 @@ import { LedgerService } from '../ledger/ledger.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { SettingsService } from '../settings/settings.service';
+import { needsTwoApprovers } from './approval';
+import { renderReceiptPdf } from './receipt-pdf';
 
 const include = {
   Booking: { select: { reference: true } },
@@ -58,6 +61,8 @@ interface SubmitInput {
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sequences: SequencesService,
@@ -156,6 +161,23 @@ export class PaymentsService {
     };
   }
 
+  /** The receipt as a PDF file (same access rules as receipt()). */
+  async receiptPdf(paymentId: string, accountId?: string) {
+    const r = await this.receipt(paymentId, accountId);
+    return { filename: `${r.number}.pdf`, content: await renderReceiptPdf(r) };
+  }
+
+  /** PDF attachment for the approval email; the email still goes out if rendering fails. */
+  private async receiptAttachment(paymentId: string) {
+    try {
+      const { filename, content } = await this.receiptPdf(paymentId);
+      return [{ filename, content, contentType: 'application/pdf' }];
+    } catch (e) {
+      this.logger.warn(`Receipt PDF for ${paymentId} failed: ${(e as Error).message}`);
+      return undefined;
+    }
+  }
+
   // =============== Admin ===============
 
   async adminList(q: {
@@ -207,19 +229,50 @@ export class PaymentsService {
     return (await this.adminItems([p], true))[0];
   }
 
-  /** Approves a submitted payment and posts its receipt voucher (Dr bank/cash, Cr partner). */
+  /**
+   * Approves a submitted payment and posts its receipt voucher (Dr bank/cash, Cr partner).
+   * Payments at or above the dual-approval amount need two different approvers: the first
+   * approval is recorded and the payment stays SUBMITTED until someone else approves it.
+   */
   async verify(
     actor: StaffActor,
     id: string,
     depositAccountId: string | undefined,
     meta: RequestMeta,
   ) {
-    const { payment, voucher } = await this.prisma.$transaction(async (tx) => {
+    const { accounting } = await this.settings.get();
+    const result = await this.prisma.$transaction(async (tx) => {
       const p = await tx.payment.findUnique({ where: { id } });
       if (!p) throw new NotFoundException('Payment not found');
+      if (p.status !== 'SUBMITTED')
+        throw new ConflictException('Only submitted payments can be verified');
       const deposit = depositAccountId
         ? await this.ledger.cashOrBankAccount(tx, depositAccountId)
-        : await this.ledger.systemAccount(tx, p.method === 'CASH' ? 'CASH' : 'BANK');
+        : p.depositAccountId
+          ? await this.ledger.cashOrBankAccount(tx, p.depositAccountId)
+          : await this.ledger.systemAccount(tx, p.method === 'CASH' ? 'CASH' : 'BANK');
+
+      if (needsTwoApprovers(num(p.amount), accounting.paymentDualApprovalFrom)) {
+        if (!p.firstApprovedById) {
+          const first = await tx.payment.updateMany({
+            where: { id, status: 'SUBMITTED', firstApprovedById: null },
+            data: {
+              firstApprovedById: actor.userId,
+              firstApprovedAt: new Date(),
+              depositAccountId: deposit.id,
+            },
+          });
+          if (!first.count)
+            throw new ConflictException('This payment was just approved by someone else');
+          return { stage: 'first' as const, payment: p };
+        }
+        if (p.firstApprovedById === actor.userId)
+          throw new ConflictException({
+            message: 'You gave the first approval. A different person must give the second.',
+            code: 'MAKER_CHECKER',
+          });
+      }
+
       const updated = await tx.payment.updateMany({
         where: { id, status: 'SUBMITTED' },
         data: {
@@ -231,14 +284,42 @@ export class PaymentsService {
       });
       if (!updated.count) throw new ConflictException('Only submitted payments can be verified');
       const v = await this.ledger.postPayment(tx, p, actor.userId, deposit.id);
-      return { payment: p, voucher: v };
+      return { stage: 'final' as const, payment: p, voucher: v };
     });
+
+    const { payment } = result;
+    if (result.stage === 'first') {
+      await this.audit.log({
+        actor: { realm: 'STAFF', userId: actor.userId },
+        action: 'payment.first_approval',
+        entityType: 'Payment',
+        entityId: id,
+        before: { status: 'SUBMITTED' },
+        after: { status: 'SUBMITTED', firstApprovedBy: actor.userId },
+        meta,
+      });
+      await this.notifications.notifyStaff(
+        'payments:verify',
+        {
+          type: 'PAYMENT_SECOND_APPROVAL',
+          title: `Second approval needed: ${pkr(num(payment.amount))}`,
+          body: `${actor.fullName} approved ${payment.reference}. A second approver must confirm it before it is posted.`,
+          link: `/payments?id=${id}`,
+          email: true,
+        },
+        actor.userId,
+      );
+      this.changed(payment.accountId, id);
+      return this.adminGet(id);
+    }
+
+    const { voucher } = result;
     await this.audit.log({
       actor: { realm: 'STAFF', userId: actor.userId },
       action: 'payment.verify',
       entityType: 'Payment',
       entityId: id,
-      before: { status: 'SUBMITTED' },
+      before: { status: 'SUBMITTED', firstApprovedBy: payment.firstApprovedById },
       after: { status: 'VERIFIED', receipt: voucher.reference },
       meta,
     });
@@ -247,12 +328,20 @@ export class PaymentsService {
       {
         type: 'PAYMENT_VERIFIED',
         title: `Payment received — receipt ${voucher.reference}`,
-        body: `${pkr(num(payment.amount))} (${payment.reference}) was approved and added to your account balance.`,
+        body: `${pkr(num(payment.amount))} (${payment.reference}) was approved and added to your account balance. The receipt is attached.`,
         link: `/payments/${payment.id}/receipt`,
         email: true,
+        attachments: await this.receiptAttachment(payment.id),
       },
       [...FINANCE_ROLES],
     );
+    if (payment.firstApprovedById && payment.firstApprovedById !== actor.userId)
+      await this.notifications.notifyStaffUser(payment.firstApprovedById, {
+        type: 'PAYMENT_VERIFIED',
+        title: `${payment.reference} posted — receipt ${voucher.reference}`,
+        body: `${actor.fullName} gave the second approval.`,
+        link: `/payments?id=${id}`,
+      });
     this.changed(payment.accountId, id);
     return this.adminGet(id);
   }
@@ -269,6 +358,13 @@ export class PaymentsService {
         verifiedAt: new Date(),
       },
     });
+    if (updated.count && p.firstApprovedById && p.firstApprovedById !== actor.userId)
+      await this.notifications.notifyStaffUser(p.firstApprovedById, {
+        type: 'PAYMENT_REJECTED',
+        title: `${p.reference} was rejected at second approval`,
+        body: `${actor.fullName}: ${reason}`,
+        link: `/payments?id=${id}`,
+      });
     if (!updated.count) throw new ConflictException('Only submitted payments can be rejected');
     await this.audit.log({
       actor: { realm: 'STAFF', userId: actor.userId },
@@ -294,7 +390,11 @@ export class PaymentsService {
     return this.adminGet(id);
   }
 
-  /** Staff record money received from a partner; it is approved and receipted immediately. */
+  /**
+   * Staff record money received from a partner. It is approved and receipted immediately,
+   * unless it is large enough to need a second approver: then the recorder counts as the
+   * first approval and the payment waits in the queue.
+   */
   async record(
     actor: StaffActor,
     dto: SubmitInput & { accountId: string; depositAccountId: string },
@@ -305,6 +405,8 @@ export class PaymentsService {
     const allocations = this.allocationsOf(dto);
     await this.assertBookings(dto.accountId, allocations);
     await this.assertStaffFiles(dto.attachmentIds);
+    const { accounting } = await this.settings.get();
+    const dual = needsTwoApprovers(dto.amount, accounting.paymentDualApprovalFrom);
     const { payment, voucher } = await this.prisma.$transaction(async (tx) => {
       const deposit = await this.ledger.cashOrBankAccount(tx, dto.depositAccountId);
       const p = await this.create(
@@ -312,13 +414,14 @@ export class PaymentsService {
           ...dto,
           allocations,
           submittedById: actor.userId,
-          status: 'VERIFIED',
-          verifiedById: actor.userId,
+          status: dual ? 'SUBMITTED' : 'VERIFIED',
+          verifiedById: dual ? undefined : actor.userId,
+          firstApprovedById: dual ? actor.userId : undefined,
           depositAccountId: deposit.id,
         },
         tx,
       );
-      const v = await this.ledger.postPayment(tx, p, actor.userId, deposit.id);
+      const v = dual ? null : await this.ledger.postPayment(tx, p, actor.userId, deposit.id);
       return { payment: p, voucher: v };
     });
     await this.audit.log({
@@ -330,21 +433,37 @@ export class PaymentsService {
         reference: payment.reference,
         amount: dto.amount,
         accountId: dto.accountId,
-        receipt: voucher.reference,
+        receipt: voucher?.reference ?? null,
+        awaitingSecondApproval: dual,
       },
       meta,
     });
-    await this.notifications.notifyAccount(
-      dto.accountId,
-      {
-        type: 'PAYMENT_VERIFIED',
-        title: `Payment received — receipt ${voucher.reference}`,
-        body: `GNK Connect recorded ${pkr(dto.amount)} (${payment.reference}) on your account.`,
-        link: `/payments/${payment.id}/receipt`,
-        email: true,
-      },
-      [...FINANCE_ROLES],
-    );
+    if (!voucher) {
+      await this.notifications.notifyStaff(
+        'payments:verify',
+        {
+          type: 'PAYMENT_SECOND_APPROVAL',
+          title: `Second approval needed: ${pkr(dto.amount)}`,
+          body: `${actor.fullName} recorded ${payment.reference} for ${account.legalName}. A second approver must confirm it before it is posted.`,
+          link: `/payments?id=${payment.id}`,
+          email: true,
+        },
+        actor.userId,
+      );
+    } else {
+      await this.notifications.notifyAccount(
+        dto.accountId,
+        {
+          type: 'PAYMENT_VERIFIED',
+          title: `Payment received — receipt ${voucher.reference}`,
+          body: `GNK Connect recorded ${pkr(dto.amount)} (${payment.reference}) on your account. The receipt is attached.`,
+          link: `/payments/${payment.id}/receipt`,
+          email: true,
+          attachments: await this.receiptAttachment(payment.id),
+        },
+        [...FINANCE_ROLES],
+      );
+    }
     this.changed(dto.accountId, payment.id);
     return this.adminGet(payment.id);
   }
@@ -384,6 +503,7 @@ export class PaymentsService {
       submittedById: string;
       status: PaymentStatus;
       verifiedById?: string;
+      firstApprovedById?: string;
       depositAccountId?: string;
     },
     tx: Prisma.TransactionClient = this.prisma,
@@ -406,6 +526,8 @@ export class PaymentsService {
           submittedById: dto.submittedById,
           verifiedById: dto.verifiedById ?? null,
           verifiedAt: dto.verifiedById ? new Date() : null,
+          firstApprovedById: dto.firstApprovedById ?? null,
+          firstApprovedAt: dto.firstApprovedById ? new Date() : null,
           depositAccountId: dto.depositAccountId ?? null,
           attachments: { create: dto.attachmentIds.map((fileId) => ({ fileId })) },
           allocations: {
@@ -478,16 +600,17 @@ export class PaymentsService {
             select: { id: true, reference: true, transactionRef: true },
           })
         : [];
-    const [dtos, names, deposits] = await Promise.all([
+    const [dtos, names, deposits, { accounting }] = await Promise.all([
       this.hydrate(rows),
       this.names([
         ...rows.map((r) => r.submittedById),
-        ...(rows.map((r) => r.verifiedById).filter(Boolean) as string[]),
+        ...(rows.flatMap((r) => [r.verifiedById, r.firstApprovedById]).filter(Boolean) as string[]),
       ]),
       this.prisma.ledgerAccount.findMany({
         where: { id: { in: rows.map((r) => r.depositAccountId).filter(Boolean) as string[] } },
         select: { id: true, code: true, name: true },
       }),
+      this.settings.get(),
     ]);
     const depositById = new Map(deposits.map((d) => [d.id, d]));
     return rows.map((p, i) => ({
@@ -504,6 +627,20 @@ export class PaymentsService {
           )?.reference ?? null)
         : null,
       depositAccount: p.depositAccountId ? (depositById.get(p.depositAccountId) ?? null) : null,
+      firstApproval: p.firstApprovedById
+        ? {
+            byId: p.firstApprovedById,
+            byName: names.get(p.firstApprovedById) ?? null,
+            at: iso(p.firstApprovedAt)!,
+          }
+        : null,
+      approvalsRequired: needsTwoApprovers(num(p.amount), accounting.paymentDualApprovalFrom)
+        ? 2
+        : 1,
+      needsSecondApproval:
+        p.status === 'SUBMITTED' &&
+        !!p.firstApprovedById &&
+        needsTwoApprovers(num(p.amount), accounting.paymentDualApprovalFrom),
     }));
   }
 

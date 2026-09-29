@@ -536,6 +536,8 @@ export interface AdminBookingDetailDto extends Omit<BookingDetailDto, 'canCancel
     supplierNetUnit: number;
     markupUnit: number;
     margin: number;
+    /** Set when the supplier bills in a foreign currency: what was posted to its payable. */
+    supplierCost: { currency: string; amount: number; rate: number } | null;
     snapshot: unknown;
     quotedAt: string;
   } | null;
@@ -555,6 +557,12 @@ export interface AdminPaymentListItem extends PaymentDto {
   verifiedByName: string | null;
   duplicateOf: string | null;
   depositAccount: { id: string; code: string; name: string } | null;
+  /** Large payments: the first approval, while the second is pending (or once done). */
+  firstApproval: { byName: string | null; byId: string; at: string } | null;
+  /** 2 when the amount is at or above the dual-approval limit in settings. */
+  approvalsRequired: 1 | 2;
+  /** True when the first approval is in and a second, different approver must confirm. */
+  needsSecondApproval: boolean;
 }
 
 export interface PricingRuleDto {
@@ -652,6 +660,8 @@ export interface SupplierDto {
   productsCount: number;
   calls24h: number;
   failures24h: number;
+  /** Where confirmed bookings are payable; null = the PKR "Supplier payables" account. */
+  payableAccount: { id: string; code: string; name: string; currency: string } | null;
 }
 
 export interface SyncResultDto {
@@ -704,7 +714,11 @@ export interface SettingsDto {
   company: CompanyInfoDto;
   bankAccounts: BankAccountDto[];
   booking: { quoteTtlMinutes: number; paymentTermsNote: string };
-  accounting: { requireJvApproval: boolean };
+  accounting: {
+    requireJvApproval: boolean;
+    /** Payments at or above this PKR amount need two different approvers. 0 turns it off. */
+    paymentDualApprovalFrom: number;
+  };
 }
 
 export interface AdminDashboardDto {

@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { Compass, RefreshCw, Phone } from 'lucide-react';
 import { BRAND_NAME, CONTACT_INFO } from '../constants';
+import { reportError } from '../lib/monitoring';
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error caught by GNK Connect ErrorBoundary:', error, errorInfo);
+    reportError(error, { componentStack: errorInfo.componentStack });
   }
 
   private handleReload = () => {

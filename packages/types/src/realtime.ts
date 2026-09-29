@@ -30,5 +30,16 @@ export const notificationCategory = (type: string): NotificationCategory => {
   return 'account';
 };
 
-/** Per-user email switches. In-app notifications are always on. */
-export type NotificationPrefsDto = Record<NotificationCategory, { email: boolean }>;
+/**
+ * Per-user switches. In-app notifications are always on; email is on by default; WhatsApp
+ * (partners only) is opt-in and goes to the user's mobile number.
+ */
+export type NotificationPrefsDto = Record<
+  NotificationCategory,
+  { email: boolean; whatsapp: boolean }
+>;
+
+/** A change to some switches, e.g. { payments: { whatsapp: true } }. */
+export type NotificationPrefsPatch = Partial<
+  Record<NotificationCategory, Partial<{ email: boolean; whatsapp: boolean }>>
+>;

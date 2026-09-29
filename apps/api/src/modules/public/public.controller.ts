@@ -1,8 +1,18 @@
-import { Body, Controller, Get, HttpCode, Post, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Post,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
+import type { PublicRatesDto } from '@gnk/types';
 import type { EnvConfig } from '../../core/config/env.config';
+import { isoDate, num } from '../../core/money';
 import { ZodPipe } from '../../core/http/zod.pipe';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { Public } from '../auth/decorators';
@@ -30,6 +40,28 @@ export class PublicController {
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
     return { status: 'ok' };
+  }
+
+  /** Latest rate per active currency (PKR per unit), so website prices follow the rate table. */
+  @Public()
+  @Get('public/rates')
+  @Header('Cache-Control', 'public, max-age=300')
+  async rates(): Promise<PublicRatesDto> {
+    const [active, latest] = await Promise.all([
+      this.prisma.currency.findMany({ where: { isActive: true, code: { not: 'PKR' } } }),
+      this.prisma.exchangeRate.findMany({
+        distinct: ['currency'],
+        orderBy: [{ currency: 'asc' }, { date: 'desc' }, { createdAt: 'desc' }],
+      }),
+    ]);
+    const codes = new Set(active.map((c) => c.code));
+    const used = latest.filter((r) => codes.has(r.currency));
+    const newest = used.reduce<Date | null>((d, r) => (!d || r.date > d ? r.date : d), null);
+    return {
+      base: 'PKR',
+      rates: Object.fromEntries(used.map((r) => [r.currency, num(r.rate)])),
+      asOf: isoDate(newest),
+    };
   }
 
   /** Website chat widget. The Gemini key stays on the server (plan 04 §8). */

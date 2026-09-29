@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { Paginated, SupplierCallDto, SupplierDto } from '@gnk/types';
@@ -20,6 +30,7 @@ const callsQuery = z.object({
   failed: z.enum(['true', 'false']).optional(),
 });
 const statusBody = z.object({ status: z.enum(['ACTIVE', 'MAINTENANCE', 'INACTIVE']) });
+const payableBody = z.object({ payableAccountId: z.string().uuid().nullable() });
 
 @Controller('admin/suppliers')
 export class AdminSuppliersController {
@@ -36,7 +47,10 @@ export class AdminSuppliersController {
     const since = new Date(Date.now() - 86_400_000);
     const suppliers = await this.prisma.supplier.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { products: { where: { deletedAt: null } } } } },
+      include: {
+        _count: { select: { products: { where: { deletedAt: null } } } },
+        payableAccount: { select: { id: true, code: true, name: true, currency: true } },
+      },
     });
     return Promise.all(
       suppliers.map(async (s) => {
@@ -60,6 +74,7 @@ export class AdminSuppliersController {
           productsCount: s._count.products,
           calls24h,
           failures24h,
+          payableAccount: s.payableAccount,
         };
       }),
     );
@@ -102,6 +117,43 @@ export class AdminSuppliersController {
       entityType: 'Supplier',
       entityId: id,
       before: { status: before.status },
+      after: dto,
+      meta,
+    });
+    return (await this.list()).find((s) => s.id === id);
+  }
+
+  /** Which payable account confirmed bookings post to (a SAR account for a supplier billing in SAR). */
+  @Patch(':id/payable')
+  @RequirePermission('ledger:coa')
+  async setPayable(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(payableBody)) dto: z.output<typeof payableBody>,
+    @Meta() meta: RequestMeta,
+  ) {
+    const before = await this.prisma.supplier.findUniqueOrThrow({ where: { id } });
+    if (dto.payableAccountId) {
+      const account = await this.prisma.ledgerAccount.findUnique({
+        where: { id: dto.payableAccountId },
+      });
+      if (!account || account.isGroup || !account.isActive || account.class !== 'LIABILITY')
+        throw new BadRequestException({
+          message: 'Choose an active liability account that can be posted to',
+          code: 'VALIDATION_FAILED',
+          errors: [{ path: 'payableAccountId', message: 'Not a payable account' }],
+        });
+    }
+    await this.prisma.supplier.update({
+      where: { id },
+      data: { payableAccountId: dto.payableAccountId },
+    });
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'supplier.payable',
+      entityType: 'Supplier',
+      entityId: id,
+      before: { payableAccountId: before.payableAccountId },
       after: dto,
       meta,
     });

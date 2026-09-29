@@ -43,3 +43,10 @@ scratch/
 *.sln
 *.sw?
 
+
+# Playwright
+tests/e2e/playwright-report/
+tests/e2e/test-results/
+
+# Vercel CLI link
+.vercel

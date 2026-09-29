@@ -29,11 +29,12 @@ const step = async (name, fn) => {
 function client(realm) {
   let token = null;
   let cookie = '';
-  const call = async (method, path, body) => {
+  const call = async (method, path, body, extraHeaders = {}) => {
     const isForm = body instanceof FormData;
     const res = await fetch(API + path, {
       method,
       headers: {
+        ...extraHeaders,
         origin: ORIGIN,
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...(cookie ? { cookie } : {}),
@@ -224,6 +225,10 @@ await step('a SAR supplier payable account and a manual rate', async () => {
     date: today(),
   });
   assert.equal(rates[0].rate, 70);
+  const pub = await fetch(`${API}/public/rates`, { headers: { origin: ORIGIN } }).then((r) => r.json());
+  assert.equal(pub.base, 'PKR');
+  assert.equal(pub.rates.SAR, 70, 'the website sees the latest SAR rate');
+  assert.ok(!('PKR' in pub.rates));
 });
 
 // ---------- Journal vouchers (maker-checker) ----------
@@ -395,6 +400,53 @@ await step('admin approves into a chosen account and a receipt is issued (live)'
   assert.equal(receipt.payment.amount, 25000);
 });
 
+await step('the receipt downloads as a PDF (partner and admin)', async () => {
+  for (const [c, path] of [
+    [partner, `/partner/payments/${payment.id}/receipt/pdf`],
+    [admin, `/admin/payments/${payment.id}/receipt/pdf`],
+  ]) {
+    const res = await fetch(API + path, {
+      headers: { origin: ORIGIN, authorization: `Bearer ${c.token}` },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'application/pdf');
+    assert.match(res.headers.get('content-disposition') ?? '', /RV-.*\.pdf/);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    assert.equal(bytes.subarray(0, 5).toString(), '%PDF-');
+    assert.ok(bytes.length > 2000, `PDF is only ${bytes.length} bytes`);
+  }
+  const other = await partner.call('GET', `/partner/payments/00000000-0000-7000-8000-000000000000/receipt/pdf`);
+  assert.equal(other.status, 404);
+});
+
+await step('large payments need two different approvers', async () => {
+  const form = new FormData();
+  form.append('file', pdf(), 'big.pdf');
+  const file = await partner.ok('POST', '/partner/files?purpose=PAYMENT_PROOF', form);
+  const big = await partner.ok('POST', '/partner/payments', {
+    method: 'BANK_TRANSFER',
+    amount: 750000,
+    bankName: 'MCB',
+    transactionRef: `IBFT${RUN}BIG`,
+    paidAt: today(),
+    attachmentIds: [file.id],
+  });
+  const first = await admin.ok('POST', `/admin/payments/${big.id}/verify`, {});
+  assert.equal(first.status, 'SUBMITTED');
+  assert.equal(first.approvalsRequired, 2);
+  assert.equal(first.needsSecondApproval, true);
+  assert.equal(first.receipt, null);
+  const self = await admin.call('POST', `/admin/payments/${big.id}/verify`, {});
+  assert.equal(self.status, 409);
+  assert.equal(self.body.code, 'MAKER_CHECKER');
+  const done = await finance.ok('POST', `/admin/payments/${big.id}/verify`, {});
+  assert.equal(done.status, 'VERIFIED');
+  assert.equal(done.needsSecondApproval, false);
+  assert.match(done.receipt.number, /^RV-/);
+  const log = await admin.ok('GET', '/admin/audit?action=payment.first_approval');
+  assert.ok(log.items.some((i) => i.entityId === big.id));
+});
+
 await step('a group or foreign account cannot receive deposits', async () => {
   const form = new FormData();
   form.append('file', pdf(), 'x.pdf');
@@ -410,6 +462,59 @@ await step('a group or foreign account cannot receive deposits', async () => {
   const bad = await admin.call('POST', `/admin/payments/${p.id}/verify`, { depositAccountId: sarAccount.id });
   assert.equal(bad.status, 400);
   await admin.ok('POST', `/admin/payments/${p.id}/reject`, { reason: 'Test clean-up' });
+});
+
+await step('a supplier billing in SAR: confirmed bookings post to its SAR payable at the rate', async () => {
+  const [supplier] = await admin.ok('GET', '/admin/suppliers');
+  const bad = await finance.call('PATCH', `/admin/suppliers/${supplier.id}/payable`, {
+    payableAccountId: accounts.find((a) => a.systemKey === 'CASH').id,
+  });
+  assert.equal(bad.status, 400, 'an asset account is not a payable');
+  const set = await finance.ok('PATCH', `/admin/suppliers/${supplier.id}/payable`, {
+    payableAccountId: sarAccount.id,
+  });
+  assert.equal(set.payableAccount.currency, 'SAR');
+  try {
+    const before = await finance.ok('GET', `/admin/accounting/accounts/${sarAccount.id}/balance`);
+    const groups = await partner.ok('GET', '/partner/groups?pageSize=50');
+    const g = groups.items
+      .filter((x) => x.seatsAvailable >= 1 && x.price)
+      .sort((a, b) => a.price - b.price)[0];
+    const quote = await partner.ok('POST', '/partner/quotes', { departureId: g.departureId, seats: 1 });
+    const created = await partner.call('POST', '/partner/bookings', {
+      quoteId: quote.id,
+      acceptTerms: true,
+      passengers: [
+        {
+          type: 'ADULT',
+          title: 'MR',
+          firstName: 'SAAD',
+          lastName: 'KHAN',
+          gender: 'MALE',
+          dateOfBirth: '1990-01-01',
+          nationality: 'PK',
+          passportNumber: `FX${RUN}`,
+          passportExpiry: '2032-01-01',
+        },
+      ],
+    }, { 'idempotency-key': `erp-fx-${RUN}` });
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const booking = created.body;
+    await admin.ok('POST', `/admin/bookings/${booking.id}/approve`, {});
+    const done = await admin.ok('POST', `/admin/bookings/${booking.id}/push`);
+    assert.equal(done.status, 'CONFIRMED');
+    const cost = done.priceAudit.supplierCost;
+    assert.equal(cost.currency, 'SAR');
+    assert.equal(cost.rate, 70);
+    assert.equal(cost.amount, Math.round((done.priceAudit.supplierNetUnit / 70) * 100) / 100);
+    const after = await finance.ok('GET', `/admin/accounting/accounts/${sarAccount.id}/balance`);
+    const moved = Math.round((after.fcBalance - before.fcBalance) * 100) / 100;
+    assert.equal(Math.abs(moved), cost.amount, `SAR payable moved by ${moved}`);
+    const tb = await finance.ok('GET', '/admin/accounting/reports/trial-balance');
+    assert.equal(tb.totalDebit, tb.totalCredit);
+  } finally {
+    await finance.ok('PATCH', `/admin/suppliers/${supplier.id}/payable`, { payableAccountId: null });
+  }
 });
 
 // ---------- Partner team ----------

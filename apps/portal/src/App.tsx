@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback } from 'react';
+import { RouteError } from '@/components/RouteError';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, ToastProvider, type Theme } from '@gnk/ui';
@@ -81,44 +82,49 @@ const NotFoundPage = lazy(() =>
 
 const router = createBrowserRouter([
   {
-    element: <GuestOnly />,
+    errorElement: <RouteError />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
-      { path: '/reset-password', element: <ResetPasswordPage /> },
-    ],
-  },
-  // Reachable signed in or out.
-  { path: '/verify-email', element: <VerifyEmailPage /> },
-  { path: '/accept-invite', element: <AcceptInvitePage /> },
-  {
-    element: <RequireAuth />,
-    children: [
-      // Printable documents render without the app chrome.
-      { path: '/bookings/:id/voucher', element: <VoucherPage /> },
-      { path: '/invoices/:id', element: <InvoicePage /> },
-      { path: '/payments/:id/receipt', element: <ReceiptPage /> },
       {
-        element: <PortalLayout />,
+        element: <GuestOnly />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'onboarding', element: <OnboardingPage /> },
-          { path: 'book/:service', element: <GroupsPage /> },
-          { path: 'groups', element: <GroupsRedirect /> },
-          { path: 'groups/:productId', element: <GroupDetailPage /> },
-          { path: 'bookings', element: <BookingsPage /> },
-          { path: 'bookings/new', element: <NewBookingPage /> },
-          { path: 'bookings/:id', element: <BookingDetailPage /> },
-          { path: 'invoices', element: <InvoicesPage /> },
-          { path: 'payments', element: <PaymentsPage /> },
-          { path: 'ledger', element: <LedgerPage /> },
-          { path: 'team', element: <TeamPage /> },
-          { path: 'account', element: <AccountPage /> },
-          { path: 'profile', element: <ProfilePage /> },
-          { path: 'notifications', element: <NotificationsPage /> },
-          { path: 'dashboard', element: <Navigate to="/" replace /> },
-          { path: '*', element: <NotFoundPage /> },
+          { path: '/login', element: <LoginPage /> },
+          { path: '/register', element: <RegisterPage /> },
+          { path: '/forgot-password', element: <ForgotPasswordPage /> },
+          { path: '/reset-password', element: <ResetPasswordPage /> },
+        ],
+      },
+      // Reachable signed in or out.
+      { path: '/verify-email', element: <VerifyEmailPage /> },
+      { path: '/accept-invite', element: <AcceptInvitePage /> },
+      {
+        element: <RequireAuth />,
+        children: [
+          // Printable documents render without the app chrome.
+          { path: '/bookings/:id/voucher', element: <VoucherPage /> },
+          { path: '/invoices/:id', element: <InvoicePage /> },
+          { path: '/payments/:id/receipt', element: <ReceiptPage /> },
+          {
+            element: <PortalLayout />,
+            children: [
+              { index: true, element: <DashboardPage /> },
+              { path: 'onboarding', element: <OnboardingPage /> },
+              { path: 'book/:service', element: <GroupsPage /> },
+              { path: 'groups', element: <GroupsRedirect /> },
+              { path: 'groups/:productId', element: <GroupDetailPage /> },
+              { path: 'bookings', element: <BookingsPage /> },
+              { path: 'bookings/new', element: <NewBookingPage /> },
+              { path: 'bookings/:id', element: <BookingDetailPage /> },
+              { path: 'invoices', element: <InvoicesPage /> },
+              { path: 'payments', element: <PaymentsPage /> },
+              { path: 'ledger', element: <LedgerPage /> },
+              { path: 'team', element: <TeamPage /> },
+              { path: 'account', element: <AccountPage /> },
+              { path: 'profile', element: <ProfilePage /> },
+              { path: 'notifications', element: <NotificationsPage /> },
+              { path: 'dashboard', element: <Navigate to="/" replace /> },
+              { path: '*', element: <NotFoundPage /> },
+            ],
+          },
         ],
       },
     ],

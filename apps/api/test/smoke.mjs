@@ -98,7 +98,10 @@ await step('partner sees priced groups without net fares', async () => {
   const r = await partner.call('GET', '/partner/groups?pageSize=50');
   assert.equal(r.status, 200);
   assertNoLeak(r.body, 'partner groups');
-  group = r.body.items.find((g) => g.seatsAvailable >= 2 && g.price);
+  // Cheapest bookable group, so two seats fit the demo credit limit whatever the date.
+  group = r.body.items
+    .filter((g) => g.seatsAvailable >= 2 && g.price)
+    .sort((a, b) => a.price - b.price)[0];
   assert.ok(group, 'no bookable group with 2 seats');
   const d = await partner.call('GET', `/partner/groups/${group.productId}`);
   assert.equal(d.status, 200);

@@ -28,6 +28,7 @@ COPY --from=installer --chown=nestjs:nodejs /app/packages ./packages
 COPY --from=installer --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=installer --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=installer --chown=nestjs:nodejs /app/apps/api/prisma ./apps/api/prisma
+COPY --from=installer --chown=nestjs:nodejs /app/apps/api/assets ./apps/api/assets
 
 USER nestjs
 WORKDIR /app/apps/api

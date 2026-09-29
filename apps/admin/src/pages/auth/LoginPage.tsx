@@ -44,20 +44,21 @@ export function LoginPage() {
         <Field label="Work email" htmlFor="email" error={formState.errors.email?.message}>
           <Input id="email" type="email" autoComplete="username" autoFocus {...register('email')} />
         </Field>
-        <Field
-          label={
-            <span className="flex w-full items-center justify-between">
-              Password
-              <Link to="/forgot-password" className="text-xs font-medium text-link hover:underline">
-                Forgot password?
-              </Link>
-            </span>
-          }
-          htmlFor="password"
-          error={formState.errors.password?.message}
-        >
-          <PasswordInput id="password" autoComplete="current-password" {...register('password')} />
-        </Field>
+        <div className="relative">
+          <Field label="Password" htmlFor="password" error={formState.errors.password?.message}>
+            <PasswordInput
+              id="password"
+              autoComplete="current-password"
+              {...register('password')}
+            />
+          </Field>
+          <Link
+            to="/forgot-password"
+            className="absolute right-0 top-0 text-xs font-medium text-link hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <Button type="submit" size="lg" className="w-full" loading={formState.isSubmitting}>
           Sign in
         </Button>

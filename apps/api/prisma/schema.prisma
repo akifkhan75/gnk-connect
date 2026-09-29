@@ -328,19 +328,23 @@ enum DepartureStatus {
 }
 
 model Supplier {
-  id             String         @id @default(uuid(7)) @db.Uuid
-  code           String         @unique // 'airdesk'
-  name           String
-  adapterKey     String // which adapter implementation
-  status         SupplierStatus @default(ACTIVE)
-  baseUrl        String?
-  credentialsEnc String? // AES-256-GCM JSON blob
-  settings       Json           @default("{}") // timeouts, sync interval, feature flags
-  lastSyncAt     DateTime?
-  lastSyncStatus String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  products       Product[]
+  id               String         @id @default(uuid(7)) @db.Uuid
+  code             String         @unique // 'airdesk'
+  name             String
+  adapterKey       String // which adapter implementation
+  status           SupplierStatus @default(ACTIVE)
+  baseUrl          String?
+  credentialsEnc   String? // AES-256-GCM JSON blob
+  settings         Json           @default("{}") // timeouts, sync interval, feature flags
+  lastSyncAt       DateTime?
+  lastSyncStatus   String?
+  /// Chart account confirmed bookings are payable to. Null = the PKR "Supplier payables" system account.
+  /// A foreign-currency account (e.g. SAR) makes bookings post in that currency at the latest rate.
+  payableAccountId String?        @db.Uuid
+  payableAccount   LedgerAccount? @relation(fields: [payableAccountId], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  products         Product[]
 }
 
 model Product {
@@ -528,44 +532,48 @@ model DocumentSequence {
 }
 
 model Booking {
-  id                 String               @id @default(uuid(7)) @db.Uuid
-  reference          String               @unique // GNK-2026-000124 (agent-visible)
-  accountId          String               @db.Uuid
-  createdByUserId    String               @db.Uuid
-  supplierId         String               @db.Uuid
-  productId          String               @db.Uuid
-  departureId        String               @db.Uuid
-  supplierBookingRef String? // AD-849302 (staff-only)
-  supplierPnr        String?
-  seats              Int
-  currency           String               @default("PKR") @db.Char(3)
-  supplierNetUnit    Decimal              @db.Decimal(14, 2) // staff-only
-  markupUnit         Decimal              @db.Decimal(14, 2) // staff-only
-  unitPrice          Decimal              @db.Decimal(14, 2)
-  totalPrice         Decimal              @db.Decimal(14, 2)
-  amountPaid         Decimal              @default(0) @db.Decimal(14, 2)
-  pricingSnapshot    Json // copy of PriceQuote.breakdown
-  quoteId            String               @unique @db.Uuid
-  status             BookingStatus        @default(PENDING_APPROVAL)
-  paymentState       PaymentState         @default(UNPAID)
-  holdExpiresAt      DateTime?
-  agentNotes         String?
-  internalNotes      String? // staff-only
-  assignedStaffId    String?              @db.Uuid // staff member who owns this request
-  rejectionReason    String?
-  idempotencyKey     String
-  version            Int                  @default(0)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  passengers         Passenger[]
-  statusHistory      BookingStatusEvent[]
-  payments           Payment[]
-  allocations        PaymentAllocation[]
-  supplierCalls      SupplierCallLog[]
-  invoice            Invoice?
-  account            PartnerAccount       @relation(fields: [accountId], references: [id])
-  product            Product              @relation(fields: [productId], references: [id])
-  departure          Departure            @relation(fields: [departureId], references: [id])
+  id                   String               @id @default(uuid(7)) @db.Uuid
+  reference            String               @unique // GNK-2026-000124 (agent-visible)
+  accountId            String               @db.Uuid
+  createdByUserId      String               @db.Uuid
+  supplierId           String               @db.Uuid
+  productId            String               @db.Uuid
+  departureId          String               @db.Uuid
+  supplierBookingRef   String? // AD-849302 (staff-only)
+  supplierPnr          String?
+  seats                Int
+  currency             String               @default("PKR") @db.Char(3)
+  supplierNetUnit      Decimal              @db.Decimal(14, 2) // staff-only
+  /// Supplier cost as posted on confirmation, when the supplier bills in a foreign currency (staff-only).
+  supplierCostCurrency String?              @db.Char(3)
+  supplierCostFc       Decimal?             @db.Decimal(14, 2)
+  supplierCostRate     Decimal?             @db.Decimal(18, 6)
+  markupUnit           Decimal              @db.Decimal(14, 2) // staff-only
+  unitPrice            Decimal              @db.Decimal(14, 2)
+  totalPrice           Decimal              @db.Decimal(14, 2)
+  amountPaid           Decimal              @default(0) @db.Decimal(14, 2)
+  pricingSnapshot      Json // copy of PriceQuote.breakdown
+  quoteId              String               @unique @db.Uuid
+  status               BookingStatus        @default(PENDING_APPROVAL)
+  paymentState         PaymentState         @default(UNPAID)
+  holdExpiresAt        DateTime?
+  agentNotes           String?
+  internalNotes        String? // staff-only
+  assignedStaffId      String?              @db.Uuid // staff member who owns this request
+  rejectionReason      String?
+  idempotencyKey       String
+  version              Int                  @default(0)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  passengers           Passenger[]
+  statusHistory        BookingStatusEvent[]
+  payments             Payment[]
+  allocations          PaymentAllocation[]
+  supplierCalls        SupplierCallLog[]
+  invoice              Invoice?
+  account              PartnerAccount       @relation(fields: [accountId], references: [id])
+  product              Product              @relation(fields: [productId], references: [id])
+  departure            Departure            @relation(fields: [departureId], references: [id])
 
   @@unique([accountId, idempotencyKey])
   @@index([accountId, createdAt])
@@ -649,30 +657,32 @@ model PaymentMethodConfig {
 }
 
 model Payment {
-  id               String              @id @default(uuid(7)) @db.Uuid
-  reference        String              @unique // PAY-2026-000031
-  accountId        String              @db.Uuid
-  bookingId        String?             @db.Uuid // null = wallet top-up
-  method           PaymentMethod
-  status           PaymentStatus       @default(SUBMITTED)
-  amount           Decimal             @db.Decimal(14, 2)
-  currency         String              @default("PKR") @db.Char(3)
-  bankName         String?
-  transactionRef   String? // bank txn / cheque no.
-  paidAt           DateTime?
-  proofFileId      String?             @db.Uuid
-  submittedById    String              @db.Uuid
-  verifiedById     String?             @db.Uuid
-  verifiedAt       DateTime?
-  rejectionReason  String?
-  notes            String? // agent's remarks
-  depositAccountId String?             @db.Uuid // chart account (bank/cash) the money landed in, set on approval
-  gatewayPayload   Json?
-  createdAt        DateTime            @default(now())
-  account          PartnerAccount      @relation(fields: [accountId], references: [id])
-  Booking          Booking?            @relation(fields: [bookingId], references: [id])
-  attachments      PaymentAttachment[]
-  allocations      PaymentAllocation[]
+  id                String              @id @default(uuid(7)) @db.Uuid
+  reference         String              @unique // PAY-2026-000031
+  accountId         String              @db.Uuid
+  bookingId         String?             @db.Uuid // null = wallet top-up
+  method            PaymentMethod
+  status            PaymentStatus       @default(SUBMITTED)
+  amount            Decimal             @db.Decimal(14, 2)
+  currency          String              @default("PKR") @db.Char(3)
+  bankName          String?
+  transactionRef    String? // bank txn / cheque no.
+  paidAt            DateTime?
+  proofFileId       String?             @db.Uuid
+  submittedById     String              @db.Uuid
+  verifiedById      String?             @db.Uuid
+  verifiedAt        DateTime?
+  rejectionReason   String?
+  notes             String? // agent's remarks
+  depositAccountId  String?             @db.Uuid // chart account (bank/cash) the money landed in, set on approval
+  firstApprovedById String?             @db.Uuid // large payments: first of two approvers (still SUBMITTED until the second)
+  firstApprovedAt   DateTime?
+  gatewayPayload    Json?
+  createdAt         DateTime            @default(now())
+  account           PartnerAccount      @relation(fields: [accountId], references: [id])
+  Booking           Booking?            @relation(fields: [bookingId], references: [id])
+  attachments       PaymentAttachment[]
+  allocations       PaymentAllocation[]
 
   @@unique([method, transactionRef]) // prevent same bank ref used twice
   @@index([accountId])
@@ -755,6 +765,7 @@ model LedgerAccount {
   children       LedgerAccount[]  @relation("ChartTree")
   entries        LedgerEntry[]
   PartnerAccount PartnerAccount[]
+  suppliers      Supplier[]
 
   @@index([parentId])
 }

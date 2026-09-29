@@ -121,5 +121,5 @@ export type ForcedPasswordChangeInput = z.input<typeof forcedPasswordChangeSchem
 
 export const notificationPrefsSchema = z.record(
   z.enum(['bookings', 'payments', 'accounting', 'team', 'account']),
-  z.object({ email: z.boolean() }),
+  z.object({ email: z.boolean().optional(), whatsapp: z.boolean().optional() }),
 );

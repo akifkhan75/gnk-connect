@@ -67,7 +67,7 @@ function Currencies() {
     <Card>
       <CardHeader
         title="Currencies and rates"
-        description="Rate = PKR for one unit of the currency."
+        description="Rate = PKR for one unit of the currency. The latest rates also price bookings from suppliers that bill in foreign currency, and convert prices on the public website."
         actions={
           can('ledger:coa') && (
             <Button size="sm" variant="secondary" onClick={() => setEditing('new')}>

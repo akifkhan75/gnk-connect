@@ -20,6 +20,17 @@ export const envSchema = z
       .default('http://localhost:3000,http://localhost:3001,http://localhost:3002'),
     PORTAL_URL: z.string().url().default('http://localhost:3001'),
     ADMIN_URL: z.string().url().default('http://localhost:3002'),
+    /** smtp(s)://user:pass@host:port — when unset, emails are only written to the log. */
+    SMTP_URL: z.string().url().optional(),
+    MAIL_FROM: z.string().default('GNK Connect <support@gnkconnect.com>'),
+    /** WhatsApp Cloud API; messages are only logged when these are unset. */
+    WHATSAPP_TOKEN: z.string().optional(),
+    WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+    WHATSAPP_TEMPLATE: z.string().default('gnk_update'),
+    WHATSAPP_TEMPLATE_LANG: z.string().default('en'),
+    /** PostHog project key for error tracking; off when unset. */
+    POSTHOG_KEY: z.string().optional(),
+    POSTHOG_HOST: z.string().url().default('https://eu.i.posthog.com'),
     UPLOAD_DIR: z.string().default('./uploads'),
     SUPPLIER_MODE: z.enum(['mock', 'live']).default('mock'),
     SUPPLIER_SYNC_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(15),
