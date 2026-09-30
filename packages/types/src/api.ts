@@ -101,6 +101,26 @@ export interface MessageResponse {
   message: string;
 }
 
+/** Result of passport MRZ/OCR text extraction — mirrors @gnk/passport-mrz's PassportOcrExtraction. */
+export interface PassportOcrExtraction {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  passportNumber?: string;
+  dateOfBirth?: string;
+  passportExpiry?: string;
+  dateOfIssue?: string;
+  nationalityCode?: string;
+  issuingCountryCode?: string;
+  gender?: 'M' | 'F' | 'X' | 'U';
+  personalNumber?: string;
+  mrzLine1?: string;
+  mrzLine2?: string;
+  confidence: number;
+  source: 'mrz' | 'heuristic' | 'none';
+  warnings: readonly string[];
+}
+
 export interface SessionInfo {
   id: string;
   userAgent: string | null;

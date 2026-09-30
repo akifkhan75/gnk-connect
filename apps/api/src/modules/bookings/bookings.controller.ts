@@ -15,17 +15,27 @@ import { Throttle } from '@nestjs/throttler';
 import type { z } from 'zod';
 import {
   adminBookingListSchema,
+  airlineManifestExportSchema,
+  assignConcessionPnrSchema,
+  assignPassengerSeatPnrSchema,
   bookingAssignSchema,
   bookingDecisionSchema,
   bookingListSchema,
   bookingRejectSchema,
+  bulkPassengerExportSchema,
   cancelBookingSchema,
   concessionDecisionSchema,
   concessionRequestSchema,
   createBookingSchema,
+  emailTicketSchema,
   extendDeadlineSchema,
   extensionRequestSchema,
+  grantConcessionSchema,
   internalNoteSchema,
+  manifestExportFormatSchema,
+  passportOcrExtractSchema,
+  passportScanAttachSchema,
+  reviseDiscountSchema,
   setBookingPassengersSchema,
   ticketBookingSchema,
 } from '@gnk/validation';
@@ -39,13 +49,35 @@ import {
   RequirePartnerCapability,
   RequirePermission,
 } from '../auth/decorators';
+import { BookingConcessionService } from './booking-concession.service';
 import { BookingDocumentsService } from './booking-documents.service';
 import { BookingEngineService } from './booking-engine.service';
 import { BookingsService } from './bookings.service';
+import {
+  AirlineManifestExportService,
+  type Airline,
+} from './manifest-export/airline-manifest-export.service';
+import { PassengerManifestExportService } from './passenger-manifest-export.service';
+import { PassportOcrService } from './passport-ocr.service';
 
 const pdfFile = ({ filename, content }: { filename: string; content: Buffer }) =>
   new StreamableFile(content, {
     type: 'application/pdf',
+    disposition: `attachment; filename="${filename}"`,
+    length: content.length,
+  });
+
+const fileResponse = ({
+  filename,
+  content,
+  contentType,
+}: {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}) =>
+  new StreamableFile(content, {
+    type: contentType,
     disposition: `attachment; filename="${filename}"`,
     length: content.length,
   });
@@ -56,6 +88,7 @@ export class PartnerBookingsController {
     private readonly bookings: BookingsService,
     private readonly engine: BookingEngineService,
     private readonly documents: BookingDocumentsService,
+    private readonly passportOcr: PassportOcrService,
   ) {}
 
   @Get()
@@ -69,6 +102,15 @@ export class PartnerBookingsController {
   @Get('counts')
   counts(@CurrentActor() actor: PartnerActor) {
     return this.bookings.partnerCounts(actor);
+  }
+
+  @Post('passport-ocr/extract-text')
+  @RequireApproved()
+  extractPassportOcr(
+    @Body(new ZodPipe(passportOcrExtractSchema))
+    dto: z.output<typeof passportOcrExtractSchema>,
+  ) {
+    return this.passportOcr.extractFromText(dto.ocrText);
   }
 
   @Get(':id')
@@ -186,6 +228,29 @@ export class PartnerBookingsController {
     return pdfFile(await this.documents.ticketPdf(id, actor.accountId));
   }
 
+  @Post(':id/ticket/email')
+  @HttpCode(200)
+  @RequireApproved()
+  emailTicket(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(emailTicketSchema)) dto: z.output<typeof emailTicketSchema>,
+  ) {
+    return this.documents.emailTicket(id, dto, actor.accountId);
+  }
+
+  @Post(':id/passengers/:passengerId/passport-scan')
+  @RequireApproved()
+  @RequirePartnerCapability('bookings:create')
+  attachPassportScan(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Param('passengerId', UUID) passengerId: string,
+    @Body(new ZodPipe(passportScanAttachSchema)) dto: z.output<typeof passportScanAttachSchema>,
+  ) {
+    return this.passportOcr.attachScan(actor, id, passengerId, dto.fileId);
+  }
+
   @Post(':id/cancel')
   @HttpCode(200)
   @RequirePartnerCapability('bookings:create')
@@ -230,6 +295,10 @@ export class AdminBookingsController {
     private readonly bookings: BookingsService,
     private readonly engine: BookingEngineService,
     private readonly documents: BookingDocumentsService,
+    private readonly concessions: BookingConcessionService,
+    private readonly passportOcr: PassportOcrService,
+    private readonly passengerManifest: PassengerManifestExportService,
+    private readonly airlineManifest: AirlineManifestExportService,
   ) {}
 
   @Get()
@@ -268,6 +337,61 @@ export class AdminBookingsController {
     @Body(new ZodPipe(concessionDecisionSchema)) dto: z.output<typeof concessionDecisionSchema>,
   ) {
     return this.engine.decideConcession(actor, requestId, dto.decision, dto);
+  }
+
+  @Post('concession-requests/:requestId/pnr')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  assignConcessionPnr(
+    @CurrentActor() actor: StaffActor,
+    @Param('requestId', UUID) requestId: string,
+    @Body(new ZodPipe(assignConcessionPnrSchema)) dto: z.output<typeof assignConcessionPnrSchema>,
+  ) {
+    return this.concessions.assignConcessionPnr(actor, requestId, dto);
+  }
+
+  @Post('passport-ocr/extract-text')
+  @RequirePermission('bookings:read')
+  extractPassportOcr(
+    @Body(new ZodPipe(passportOcrExtractSchema))
+    dto: z.output<typeof passportOcrExtractSchema>,
+  ) {
+    return this.passportOcr.extractFromText(dto.ocrText);
+  }
+
+  @Get('export/passengers')
+  @RequirePermission('bookings:reveal_pii')
+  async exportPassengersBulk(
+    @Query(new ZodPipe(bulkPassengerExportSchema)) q: z.output<typeof bulkPassengerExportSchema>,
+  ) {
+    return fileResponse(await this.passengerManifest.exportManifestList(q.bookingIds, q.format));
+  }
+
+  @Get('export/airblue')
+  @RequirePermission('bookings:reveal_pii')
+  async exportAirBlue(
+    @Query(new ZodPipe(airlineManifestExportSchema))
+    q: z.output<typeof airlineManifestExportSchema>,
+  ) {
+    return fileResponse(await this.airlineManifest.export(q.bookingIds, 'airblue' as Airline));
+  }
+
+  @Get('export/airsial')
+  @RequirePermission('bookings:reveal_pii')
+  async exportAirSial(
+    @Query(new ZodPipe(airlineManifestExportSchema))
+    q: z.output<typeof airlineManifestExportSchema>,
+  ) {
+    return fileResponse(await this.airlineManifest.export(q.bookingIds, 'airsial' as Airline));
+  }
+
+  @Get('export/saudi')
+  @RequirePermission('bookings:reveal_pii')
+  async exportSaudi(
+    @Query(new ZodPipe(airlineManifestExportSchema))
+    q: z.output<typeof airlineManifestExportSchema>,
+  ) {
+    return fileResponse(await this.airlineManifest.export(q.bookingIds, 'saudi' as Airline));
   }
 
   @Get(':id')
@@ -356,6 +480,58 @@ export class AdminBookingsController {
   @RequirePermission('bookings:read')
   async ticketPdf(@Param('id', UUID) id: string) {
     return pdfFile(await this.documents.ticketPdf(id));
+  }
+
+  @Post(':id/ticket/email')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  emailTicket(
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(emailTicketSchema)) dto: z.output<typeof emailTicketSchema>,
+  ) {
+    return this.documents.emailTicket(id, dto);
+  }
+
+  @Get(':id/passengers/export')
+  @RequirePermission('bookings:reveal_pii')
+  async exportPassengers(
+    @Param('id', UUID) id: string,
+    @Query(new ZodPipe(manifestExportFormatSchema)) q: z.output<typeof manifestExportFormatSchema>,
+  ) {
+    return fileResponse(await this.passengerManifest.exportManifest(id, q.format));
+  }
+
+  @Post(':id/concessions')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  grantConcession(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(grantConcessionSchema)) dto: z.output<typeof grantConcessionSchema>,
+  ) {
+    return this.concessions.grantDirect(actor, id, dto);
+  }
+
+  @Patch(':id/concessions/discount')
+  @RequirePermission('bookings:approve')
+  reviseDiscount(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(reviseDiscountSchema)) dto: z.output<typeof reviseDiscountSchema>,
+  ) {
+    return this.concessions.reviseDiscount(actor, id, dto);
+  }
+
+  @Post(':id/passenger-seat-pnr')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  assignPassengerSeatPnr(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(assignPassengerSeatPnrSchema))
+    dto: z.output<typeof assignPassengerSeatPnrSchema>,
+  ) {
+    return this.concessions.assignPassengerSeatPnr(actor, id, dto);
   }
 
   @Post(':id/approve')

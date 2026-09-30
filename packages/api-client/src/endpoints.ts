@@ -47,6 +47,7 @@ import type {
   PartnerAccountDto,
   PartnerDashboardDto,
   PartnerInviteDto,
+  PassportOcrExtraction,
   PartnerSession,
   PaymentDto,
   PricingRuleDto,
@@ -209,6 +210,15 @@ export const partnerApi = (http: HttpClient) => ({
       confirmationPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/confirmation`),
       ticketPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/ticket`),
     },
+    emailTicket: (id: string, to?: string) =>
+      http.post<MessageResponse>(`partner/bookings/${id}/ticket/email`, { to }),
+    passportOcrExtractText: (ocrText: string) =>
+      http.post<PassportOcrExtraction>('partner/bookings/passport-ocr/extract-text', { ocrText }),
+    attachPassportScan: (id: string, passengerId: string, fileId: string) =>
+      http.post<{ passportScanFileId: string }>(
+        `partner/bookings/${id}/passengers/${passengerId}/passport-scan`,
+        { fileId },
+      ),
     concessionQueue: () =>
       http.get<BookingConcessionRequestDto[]>('partner/bookings/concession-requests'),
     cancel: (id: string, reason: string) =>
@@ -354,11 +364,46 @@ export const adminApi = (http: HttpClient) => ({
         pnrCode?: string;
       },
     ) => http.post(`admin/bookings/concession-requests/${requestId}/decide`, dto),
+    assignConcessionPnr: (requestId: string, pnrCode: string) =>
+      http.post<AdminBookingDetailDto>(`admin/bookings/concession-requests/${requestId}/pnr`, {
+        pnrCode,
+      }),
+    grantConcession: (
+      id: string,
+      dto: {
+        kind: 'CHILD_SEATS' | 'INFANT_SEATS' | 'DISCOUNT';
+        childSeats?: number;
+        infantSeats?: number;
+        discountAmount?: number;
+        pnrCode?: string;
+        reason?: string;
+      },
+    ) => http.post<AdminBookingDetailDto>(`admin/bookings/${id}/concessions`, dto),
+    reviseDiscount: (id: string, dto: { approvedDiscountAmount: number; reason?: string }) =>
+      http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/concessions/discount`, dto),
+    assignPassengerSeatPnr: (
+      id: string,
+      dto: { pnrCode: string; seats: number; kind: 'child' | 'infant' },
+    ) => http.post<AdminBookingDetailDto>(`admin/bookings/${id}/passenger-seat-pnr`, dto),
+    emailTicket: (id: string, to?: string) =>
+      http.post<MessageResponse>(`admin/bookings/${id}/ticket/email`, { to }),
+    passportOcrExtractText: (ocrText: string) =>
+      http.post<PassportOcrExtraction>('admin/bookings/passport-ocr/extract-text', { ocrText }),
     documents: {
       reservationPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/reservation`),
       confirmationPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/confirmation`),
       ticketPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/ticket`),
     },
+    exportPassengers: (id: string, format: 'pdf' | 'xlsx') =>
+      http.blob(`admin/bookings/${id}/passengers/export?format=${format}`),
+    exportPassengersBulk: (bookingIds: string[], format: 'pdf' | 'xlsx') =>
+      http.blob(
+        `admin/bookings/export/passengers?bookingIds=${encodeURIComponent(bookingIds.join(','))}&format=${format}`,
+      ),
+    exportAirline: (airline: 'airblue' | 'airsial' | 'saudi', bookingIds: string[]) =>
+      http.blob(
+        `admin/bookings/export/${airline}?bookingIds=${encodeURIComponent(bookingIds.join(','))}`,
+      ),
   },
   inventory: {
     groups: {

@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AirlineManifestExportService } from './bookings/manifest-export/airline-manifest-export.service';
 import { BookingDocumentsService } from './bookings/booking-documents.service';
 import { BookingEngineService } from './bookings/booking-engine.service';
 import { BookingConcessionService } from './bookings/booking-concession.service';
 import { BookingMaintenanceService } from './bookings/booking-maintenance.service';
 import { BookingMapper } from './bookings/booking.mapper';
+import { PassengerManifestExportService } from './bookings/passenger-manifest-export.service';
+import { PassportOcrService } from './bookings/passport-ocr.service';
 import {
   AdminBookingsController,
   AdminInvoicesController,
@@ -119,6 +122,9 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     BookingConcessionService,
     BookingMaintenanceService,
     BookingDocumentsService,
+    PassengerManifestExportService,
+    AirlineManifestExportService,
+    PassportOcrService,
     InventoryEngineService,
     InventoryCatalogService,
     GroupPnrService,

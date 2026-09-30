@@ -12,9 +12,10 @@
     "db:migrate": "node scripts/with-env.mjs prisma migrate deploy",
     "db:seed": "pnpm run build:deps && node scripts/with-env.mjs ts-node --transpile-only prisma/seed.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
-    "build:deps": "pnpm --filter @gnk/types --filter @gnk/validation --filter @gnk/suppliers run build"
+    "build:deps": "pnpm --filter @gnk/types --filter @gnk/validation --filter @gnk/suppliers --filter @gnk/passport-mrz run build"
   },
   "dependencies": {
+    "@gnk/passport-mrz": "*",
     "@gnk/suppliers": "*",
     "@gnk/types": "*",
     "@gnk/validation": "*",
@@ -31,6 +32,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
+    "exceljs": "^4.4.0",
     "helmet": "^8.3.0",
     "nestjs-pino": "^5.2.1",
     "nodemailer": "^7",
@@ -85,7 +87,8 @@
     "moduleNameMapper": {
       "^@gnk/types$": "<rootDir>/../../../packages/types/src/index.ts",
       "^@gnk/validation$": "<rootDir>/../../../packages/validation/src/index.ts",
-      "^@gnk/suppliers$": "<rootDir>/../../../packages/suppliers/src/index.ts"
+      "^@gnk/suppliers$": "<rootDir>/../../../packages/suppliers/src/index.ts",
+      "^@gnk/passport-mrz$": "<rootDir>/../../../packages/passport-mrz/src/index.ts"
     }
   }
 }

@@ -8,7 +8,9 @@ import {
   Download,
   FileText,
   Gift,
+  Mail,
   Plane,
+  ScanLine,
   Ticket,
   Timer,
   UserPlus,
@@ -23,7 +25,12 @@ import {
   setBookingPassengersSchema,
   type PassengerInput,
 } from '@gnk/validation';
-import { TITLES, type BookingDetailDto, type BookingConcessionRequestDto } from '@gnk/types';
+import {
+  TITLES,
+  type BookingDetailDto,
+  type BookingConcessionRequestDto,
+  type PassportOcrExtraction,
+} from '@gnk/types';
 import type { TimelineItem } from '@gnk/ui';
 import {
   Alert,
@@ -60,6 +67,7 @@ import {
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
 import { applyServerErrors, errorMessage } from '@/lib/forms';
+import { extractPassportFromPastedText } from '@/lib/passport-ocr';
 import { FlightLeg } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
 
@@ -635,6 +643,7 @@ function InventoryBookingDetail({
   const { session } = useAuth();
   const [extensionOpen, setExtensionOpen] = useState(false);
   const [concessionOpen, setConcessionOpen] = useState(false);
+  const [emailTicketOpen, setEmailTicketOpen] = useState(false);
 
   const confirmed = b.status === 'CONFIRMED' || b.status === 'TICKETED';
   const deadline = b.status === 'HELD' ? b.heldUntil : b.paymentDeadlineAt;
@@ -656,6 +665,15 @@ function InventoryBookingDetail({
     onSuccess: (res) => {
       toast.success(res.message ?? 'Extension request sent');
       setExtensionOpen(false);
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const emailTicket = useMutation({
+    mutationFn: (to?: string) => api.bookings.emailTicket(b.id, to),
+    onSuccess: (res) => {
+      toast.success(res.message ?? 'E-ticket emailed');
+      setEmailTicketOpen(false);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -726,6 +744,9 @@ function InventoryBookingDetail({
                 </Button>
                 <Button variant="secondary" onClick={() => download('ticket')}>
                   <Ticket /> E-ticket
+                </Button>
+                <Button variant="secondary" onClick={() => setEmailTicketOpen(true)}>
+                  <Mail /> Email ticket
                 </Button>
               </>
             )}
@@ -940,7 +961,62 @@ function InventoryBookingDetail({
         onSubmit={(dto) => requestExtension.mutate(dto)}
         loading={requestExtension.isPending}
       />
+
+      <EmailTicketDialog
+        open={emailTicketOpen}
+        onOpenChange={setEmailTicketOpen}
+        defaultEmail={session?.user?.email}
+        onSubmit={(to) => emailTicket.mutate(to)}
+        loading={emailTicket.isPending}
+      />
     </>
+  );
+}
+
+function EmailTicketDialog({
+  open,
+  onOpenChange,
+  defaultEmail,
+  onSubmit,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  defaultEmail?: string;
+  onSubmit: (to?: string) => void;
+  loading: boolean;
+}) {
+  const [to, setTo] = useState('');
+  useEffect(() => {
+    if (open) setTo(defaultEmail ?? '');
+  }, [open, defaultEmail]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Email e-ticket"
+      description="We'll send the e-ticket PDF to this address. Leave blank to notify your account's default recipients."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSubmit(to.trim() || undefined)} loading={loading}>
+            <Mail /> Send
+          </Button>
+        </>
+      }
+    >
+      <Field label="Recipient email (optional)">
+        <Input
+          type="email"
+          placeholder="agent@example.com"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
+      </Field>
+    </Dialog>
   );
 }
 
@@ -1134,6 +1210,7 @@ function InventoryPassengersForm({
 }) {
   const toast = useToast();
   const [formError, setFormError] = useState<string>();
+  const [scanIndex, setScanIndex] = useState<number | null>(null);
   const slots: PassengerInput['type'][] = [
     ...Array.from({ length: booking.bookedAdults ?? 0 }, () => 'ADULT' as const),
     ...Array.from({ length: booking.bookedChildren ?? 0 }, () => 'CHILD' as const),
@@ -1176,6 +1253,33 @@ function InventoryPassengersForm({
     },
   });
 
+  const applyOcrResult = (i: number, data: PassportOcrExtraction) => {
+    if (data.lastName)
+      setValue(`passengers.${i}.lastName`, data.lastName.toUpperCase(), {
+        shouldValidate: true,
+      });
+    if (data.firstName)
+      setValue(
+        `passengers.${i}.firstName`,
+        [data.firstName, data.middleName].filter(Boolean).join(' ').toUpperCase(),
+        { shouldValidate: true },
+      );
+    if (data.passportNumber)
+      setValue(`passengers.${i}.passportNumber`, data.passportNumber.toUpperCase(), {
+        shouldValidate: true,
+      });
+    if (data.dateOfBirth)
+      setValue(`passengers.${i}.dateOfBirth`, data.dateOfBirth, { shouldValidate: true });
+    if (data.passportExpiry)
+      setValue(`passengers.${i}.passportExpiry`, data.passportExpiry, { shouldValidate: true });
+    if (data.nationalityCode)
+      setValue(`passengers.${i}.nationality`, data.nationalityCode, { shouldValidate: true });
+    if (data.gender === 'M' || data.gender === 'F')
+      setValue(`passengers.${i}.gender`, data.gender === 'M' ? 'MALE' : 'FEMALE', {
+        shouldValidate: true,
+      });
+  };
+
   return (
     <Card>
       <CardHeader
@@ -1201,13 +1305,23 @@ function InventoryPassengersForm({
                 key={f.id}
                 className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-4"
               >
-                <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
-                    {i + 1}
+                <div className="flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-4">
+                  <span className="flex items-center gap-2">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm font-medium">
+                      Passenger {i + 1} — {titleCase(type)}
+                    </span>
                   </span>
-                  <span className="text-sm font-medium">
-                    Passenger {i + 1} — {titleCase(type)}
-                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setScanIndex(i)}
+                  >
+                    <ScanLine /> Scan passport
+                  </Button>
                 </div>
                 <Field label="Title" required error={e?.title?.message}>
                   <Select
@@ -1277,6 +1391,82 @@ function InventoryPassengersForm({
           </div>
         </form>
       </CardBody>
+
+      <PassportScanDialog
+        open={scanIndex !== null}
+        onOpenChange={(v) => !v && setScanIndex(null)}
+        onExtracted={(data) => {
+          if (scanIndex !== null) applyOcrResult(scanIndex, data);
+        }}
+      />
     </Card>
+  );
+}
+
+/** "Scan passport" via pasted OCR/MRZ text — fills a passenger row's fields from the result.
+ *  A future client-side scan (see `@/lib/passport-ocr`'s `loadTesseract`) could skip the paste
+ *  step once `tesseract.js` is added to the portal's dependencies. */
+function PassportScanDialog({
+  open,
+  onOpenChange,
+  onExtracted,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onExtracted: (data: PassportOcrExtraction) => void;
+}) {
+  const toast = useToast();
+  const [text, setText] = useState('');
+
+  const extract = useMutation({
+    mutationFn: () => extractPassportFromPastedText(text),
+    onSuccess: (data) => {
+      onExtracted(data);
+      onOpenChange(false);
+      toast.success('Passport details extracted — please double-check before saving');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  useEffect(() => {
+    if (open) setText('');
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Scan passport"
+      description="Paste the passport's MRZ lines (the two rows of letters/numbers at the bottom of the photo page) or other OCR text — we'll pull out the name, passport number, and dates."
+      size="sm"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={extract.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => extract.mutate()}
+            loading={extract.isPending}
+            disabled={text.trim().length < 10}
+          >
+            Extract details
+          </Button>
+        </>
+      }
+    >
+      <Textarea
+        rows={6}
+        placeholder={
+          'P<PAKKHAN<<MUHAMMAD<<<<<<<<<<<<<<<<<<<<<<<<\nAB1234567PAK8501014M3001012<<<<<<<<<<<<<<04'
+        }
+        className="font-mono text-xs uppercase"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+    </Dialog>
   );
 }

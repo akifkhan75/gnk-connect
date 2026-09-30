@@ -1,9 +1,11 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { iso, isoDate, num } from '../../core/money';
+import { MailerService } from '../../infra/mailer/mailer.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const INK = '#0B1A33';
 const MUTED = '#5B6B82';
@@ -15,7 +17,7 @@ const money = (n: number, currency = 'PKR') =>
 
 const documentInclude = {
   passengers: { orderBy: { id: 'asc' as const } },
-  account: { select: { legalName: true, tradeName: true, code: true } },
+  account: { select: { legalName: true, tradeName: true, code: true, email: true } },
   inventoryLot: {
     include: {
       flightSegment: true,
@@ -33,7 +35,11 @@ type BookingDocRow = NonNullable<Awaited<ReturnType<BookingDocumentsService['loa
  */
 @Injectable()
 export class BookingDocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailer: MailerService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private loadRow(bookingId: string, accountId?: string) {
     return this.prisma.booking.findFirst({
@@ -64,6 +70,39 @@ export class BookingDocumentsService {
     if (b.status !== 'TICKETED') throw new NotFoundException('Booking is not ticketed yet');
     const content = await this.render(b, 'ticket');
     return { filename: `${b.reference}-eticket.pdf`, content };
+  }
+
+  /** Emails the rendered e-ticket PDF to a given address, or every active member of the account. */
+  async emailTicket(bookingId: string, dto: { to?: string }, accountId?: string) {
+    const b = await this.loadRow(bookingId, accountId);
+    if (!b) throw new NotFoundException('Booking not found');
+    if (b.status !== 'TICKETED')
+      throw new ConflictException({ code: 'booking.ticket_email_requires_ticketed' });
+    const content = await this.render(b, 'ticket');
+    const attachment = {
+      filename: `${b.reference}-eticket.pdf`,
+      content,
+      contentType: 'application/pdf',
+    };
+    const to = dto.to?.trim();
+    if (to) {
+      await this.mailer.send({
+        to,
+        subject: `Your e-ticket — ${b.reference}`,
+        text: `Your electronic ticket for booking ${b.reference} is attached.`,
+        attachments: [attachment],
+      });
+    } else {
+      await this.notifications.notifyAccount(b.accountId, {
+        type: 'BOOKING_TICKET_EMAILED',
+        title: `Your e-ticket — ${b.reference}`,
+        body: 'Your electronic ticket is attached.',
+        link: `/bookings/${b.id}`,
+        email: true,
+        attachments: [attachment],
+      });
+    }
+    return { message: `E-ticket emailed${to ? ` to ${to}` : ''}.` };
   }
 
   private render(

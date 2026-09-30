@@ -1,8 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-import type { GroupPnr, Prisma } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import type { GroupPnr, GroupPnrPaxKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 
 type Tx = Prisma.TransactionClient;
+
+/** Where the newly granted/moved seats sit today, mirrors the booking's lifecycle stage. */
+export type ConcessionInventoryMode = 'pool_only' | 'held' | 'confirmed';
 
 function deriveStatus(
   p: Pick<GroupPnr, 'availableSeats' | 'allocatedSeats' | 'isActive'>,
@@ -203,5 +206,260 @@ export class GroupPnrService {
         data: { groupPnrId: assignedPnrId },
       });
     }
+  }
+
+  // ---------- Platform concession ops (simplified, single-tenant) ----------
+
+  /** Grant a dedicated child-seat PNR for a concession. Bumps the booking's PNR allocation. */
+  async appendChildSeatPnr(
+    tx: Tx,
+    params: {
+      inventoryLotId: string;
+      bookingId: string;
+      childSeats: number;
+      pnrCode?: string;
+      inventoryMode: ConcessionInventoryMode;
+    },
+  ) {
+    return this.appendSeatPnr(tx, {
+      inventoryLotId: params.inventoryLotId,
+      bookingId: params.bookingId,
+      seats: params.childSeats,
+      pnrCode: params.pnrCode,
+      inventoryMode: params.inventoryMode,
+      paxKind: 'CHILD',
+    });
+  }
+
+  /** Grant a dedicated infant-seat PNR for a concession. Bumps the booking's PNR allocation. */
+  async appendInfantSeatPnr(
+    tx: Tx,
+    params: {
+      inventoryLotId: string;
+      bookingId: string;
+      infantSeats: number;
+      pnrCode?: string;
+      inventoryMode: ConcessionInventoryMode;
+    },
+  ) {
+    return this.appendSeatPnr(tx, {
+      inventoryLotId: params.inventoryLotId,
+      bookingId: params.bookingId,
+      seats: params.infantSeats,
+      pnrCode: params.pnrCode,
+      inventoryMode: params.inventoryMode,
+      paxKind: 'INFANT',
+    });
+  }
+
+  private async appendSeatPnr(
+    tx: Tx,
+    params: {
+      inventoryLotId: string;
+      bookingId: string;
+      seats: number;
+      pnrCode?: string;
+      inventoryMode: ConcessionInventoryMode;
+      paxKind: GroupPnrPaxKind;
+    },
+  ) {
+    if (params.seats <= 0)
+      throw new BadRequestException({ code: 'group_pnr.seats_must_be_positive' });
+    const lot = await tx.inventoryLot.findUniqueOrThrow({ where: { id: params.inventoryLotId } });
+    const heldSeats = params.inventoryMode === 'held' ? params.seats : 0;
+    const confirmedSeats = params.inventoryMode === 'confirmed' ? params.seats : 0;
+    const bookedSeats = heldSeats + confirmedSeats;
+    const availableSeats = Math.max(0, params.seats - bookedSeats);
+
+    const pnr = await this.createPnrWithUniqueCode(tx, {
+      sellingGroupId: lot.sellingGroupId,
+      inventoryLotId: lot.id,
+      pnrCode: params.pnrCode,
+      allocatedSeats: params.seats,
+      bookedSeats,
+      heldSeats,
+      confirmedSeats,
+      availableSeats,
+      paxKind: params.paxKind,
+      sortOrder: params.paxKind === 'INFANT' ? 99 : 50,
+    });
+
+    if (bookedSeats > 0) {
+      await tx.bookingPnrAllocation.create({
+        data: {
+          bookingId: params.bookingId,
+          groupPnrId: pnr.id,
+          heldSeats,
+          confirmedSeats,
+        },
+      });
+    }
+    return pnr;
+  }
+
+  /**
+   * Splits `seats` held/confirmed seats of `kind` off the booking's existing (pooled) PNR
+   * allocations onto a brand-new dedicated PNR, then reassigns matching passengers.
+   */
+  async movePassengerSeatsToDedicatedPnr(
+    tx: Tx,
+    params: {
+      inventoryLotId: string;
+      bookingId: string;
+      pnrCode: string;
+      seats: number;
+      kind: 'child' | 'infant';
+      inventoryMode: ConcessionInventoryMode;
+    },
+  ) {
+    if (params.seats <= 0)
+      throw new BadRequestException({ code: 'group_pnr.seats_must_be_positive' });
+    const code = params.pnrCode.trim().toUpperCase();
+    if (!code) throw new BadRequestException({ code: 'group_pnr.pnr_code_required' });
+    const paxKind: GroupPnrPaxKind = params.kind === 'child' ? 'CHILD' : 'INFANT';
+    const lot = await tx.inventoryLot.findUniqueOrThrow({ where: { id: params.inventoryLotId } });
+
+    const allocations = await tx.bookingPnrAllocation.findMany({
+      where: { bookingId: params.bookingId, groupPnr: { inventoryLotId: params.inventoryLotId } },
+      include: { groupPnr: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    let toMove = params.seats;
+    let movedHeld = 0;
+    let movedConfirmed = 0;
+    const decrements: {
+      allocationId: string;
+      groupPnr: GroupPnr;
+      held: number;
+      confirmed: number;
+    }[] = [];
+
+    for (const a of allocations) {
+      if (toMove <= 0) break;
+      // Prefer allocations already dedicated to this pax kind, then unassigned/general pools.
+      if (a.groupPnr.paxKind && a.groupPnr.paxKind !== paxKind) continue;
+      const takeHeld = Math.min(a.heldSeats, toMove);
+      toMove -= takeHeld;
+      const takeConfirmed = toMove > 0 ? Math.min(a.confirmedSeats, toMove) : 0;
+      toMove -= takeConfirmed;
+      if (takeHeld > 0 || takeConfirmed > 0) {
+        decrements.push({
+          allocationId: a.id,
+          groupPnr: a.groupPnr,
+          held: takeHeld,
+          confirmed: takeConfirmed,
+        });
+        movedHeld += takeHeld;
+        movedConfirmed += takeConfirmed;
+      }
+    }
+
+    if (toMove > 0)
+      throw new ConflictException({ code: 'group_pnr.not_enough_allocated_seats_to_move' });
+
+    const pnr = await this.createPnrWithUniqueCode(tx, {
+      sellingGroupId: lot.sellingGroupId,
+      inventoryLotId: lot.id,
+      pnrCode: code,
+      allocatedSeats: params.seats,
+      bookedSeats: movedHeld + movedConfirmed,
+      heldSeats: movedHeld,
+      confirmedSeats: movedConfirmed,
+      availableSeats: 0,
+      paxKind,
+      sortOrder: paxKind === 'INFANT' ? 99 : 50,
+    });
+
+    for (const d of decrements) {
+      const src = d.groupPnr;
+      const newHeld = Math.max(0, src.heldSeats - d.held);
+      const newConfirmed = Math.max(0, src.confirmedSeats - d.confirmed);
+      const newBooked = newHeld + newConfirmed;
+      await tx.groupPnr.update({
+        where: { id: src.id },
+        data: {
+          heldSeats: newHeld,
+          confirmedSeats: newConfirmed,
+          bookedSeats: newBooked,
+          availableSeats: Math.max(0, src.allocatedSeats - newBooked),
+          rowVersion: { increment: 1 },
+        },
+      });
+      const alloc = allocations.find((a) => a.id === d.allocationId)!;
+      const remainingHeld = Math.max(0, alloc.heldSeats - d.held);
+      const remainingConfirmed = Math.max(0, alloc.confirmedSeats - d.confirmed);
+      if (remainingHeld <= 0 && remainingConfirmed <= 0) {
+        await tx.bookingPnrAllocation.delete({ where: { id: d.allocationId } });
+      } else {
+        await tx.bookingPnrAllocation.update({
+          where: { id: d.allocationId },
+          data: { heldSeats: remainingHeld, confirmedSeats: remainingConfirmed },
+        });
+      }
+    }
+
+    await tx.bookingPnrAllocation.create({
+      data: {
+        bookingId: params.bookingId,
+        groupPnrId: pnr.id,
+        heldSeats: movedHeld,
+        confirmedSeats: movedConfirmed,
+      },
+    });
+
+    await this.assignPassengersToPnrs(tx, params.bookingId);
+    return pnr;
+  }
+
+  /** Creates a GroupPnr, auto-generating a placeholder code (retried on collision) if none given. */
+  private async createPnrWithUniqueCode(
+    tx: Tx,
+    data: {
+      sellingGroupId: string;
+      inventoryLotId: string;
+      pnrCode?: string;
+      allocatedSeats: number;
+      bookedSeats: number;
+      heldSeats: number;
+      confirmedSeats: number;
+      availableSeats: number;
+      paxKind: GroupPnrPaxKind;
+      sortOrder: number;
+    },
+  ) {
+    const explicit = data.pnrCode?.trim();
+    for (let i = 0; i < 5; i++) {
+      const code = explicit
+        ? explicit.toUpperCase()
+        : `CS-${Math.floor(Math.random() * 0xffffff)
+            .toString(16)
+            .toUpperCase()
+            .padStart(6, '0')}`;
+      try {
+        return await tx.groupPnr.create({
+          data: {
+            sellingGroupId: data.sellingGroupId,
+            inventoryLotId: data.inventoryLotId,
+            pnrCode: code,
+            allocatedSeats: data.allocatedSeats,
+            bookedSeats: data.bookedSeats,
+            heldSeats: data.heldSeats,
+            confirmedSeats: data.confirmedSeats,
+            availableSeats: data.availableSeats,
+            paxKind: data.paxKind,
+            sortOrder: data.sortOrder,
+            status: data.availableSeats <= 0 ? 'FULL' : 'AVAILABLE',
+          },
+        });
+      } catch (e) {
+        const collided = (e as { code?: string })?.code === 'P2002';
+        if (explicit || !collided || i === 4) {
+          if (collided) throw new ConflictException({ code: 'group_pnr.code_already_in_use' });
+          throw e;
+        }
+      }
+    }
+    throw new ConflictException({ code: 'group_pnr.code_already_in_use' });
   }
 }

@@ -636,6 +636,7 @@ model Passenger {
   passportExpiry    DateTime  @db.Date
   cnicEnc           String?
   ticketNumber      String?
+  passportScanFileId String?  @db.Uuid
   groupPnrId        String?   @db.Uuid
   booking           Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   groupPnr          GroupPnr? @relation(fields: [groupPnrId], references: [id], onDelete: SetNull)

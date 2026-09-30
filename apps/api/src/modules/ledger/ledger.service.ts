@@ -390,6 +390,64 @@ export class LedgerService {
   }
 
   /**
+   * Posts the revenue impact of a concession granted/revised after a booking's sale voucher is
+   * already posted (booking is CONFIRMED). Skipped for sub-cent deltas, no-op if no sale is
+   * posted yet (the pending accrual/charge will simply include the updated fare), and idempotent
+   * per concession via a marker embedded in the voucher description.
+   */
+  async postInventoryConcessionDelta(
+    tx: Tx,
+    params: {
+      bookingId: string;
+      concessionId: string;
+      reference: string;
+      accountId: string;
+      deltaAmount: number;
+      kind: string;
+    },
+  ) {
+    const delta = new Decimal(params.deltaAmount);
+    if (delta.abs().lt(0.01)) return null;
+
+    const sale = await tx.ledgerTransaction.findFirst({
+      where: {
+        bookingId: params.bookingId,
+        type: 'SALE',
+        status: 'POSTED',
+        reversedBy: { is: null },
+      },
+    });
+    if (!sale) return null;
+
+    const marker = `concession:${params.concessionId}`;
+    const existing = await tx.ledgerTransaction.findFirst({
+      where: { bookingId: params.bookingId, description: { contains: marker } },
+    });
+    if (existing) return existing;
+
+    const partner = await this.partnerAccount(tx, params.accountId);
+    const revenue = await this.systemAccount(tx, 'REVENUE');
+    const amount = round2(delta.abs());
+    const description = `Concession ${params.kind.toLowerCase()} adjustment for ${params.reference} (${marker})`;
+
+    return this.post(tx, {
+      type: 'ADJUSTMENT',
+      description,
+      bookingId: params.bookingId,
+      partnerAccountId: params.accountId,
+      lines: delta.gt(0)
+        ? [
+            { ledgerAccountId: partner.id, debit: amount },
+            { ledgerAccountId: revenue.id, credit: amount },
+          ]
+        : [
+            { ledgerAccountId: revenue.id, debit: amount },
+            { ledgerAccountId: partner.id, credit: amount },
+          ],
+    });
+  }
+
+  /**
    * The account a supplier's bookings are payable to, and for a foreign-currency account the
    * latest rate from the rate table. Throws FX_RATE_MISSING when no rate has been entered.
    */

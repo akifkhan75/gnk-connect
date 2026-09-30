@@ -44,6 +44,41 @@ export class BookingConcessionService {
     return this.engine.listConcessions(bookingId);
   }
 
+  grantDirect(
+    actor: StaffActor,
+    bookingId: string,
+    dto: {
+      kind: 'CHILD_SEATS' | 'INFANT_SEATS' | 'DISCOUNT';
+      childSeats?: number;
+      infantSeats?: number;
+      discountAmount?: number;
+      pnrCode?: string;
+      reason?: string;
+    },
+  ) {
+    return this.engine.grantDirect(actor, bookingId, dto);
+  }
+
+  reviseDiscount(
+    actor: StaffActor,
+    bookingId: string,
+    dto: { approvedDiscountAmount: number; reason?: string },
+  ) {
+    return this.engine.reviseDiscount(actor, bookingId, dto);
+  }
+
+  assignConcessionPnr(actor: StaffActor, requestId: string, dto: { pnrCode: string }) {
+    return this.engine.assignConcessionPnr(actor, requestId, dto);
+  }
+
+  assignPassengerSeatPnr(
+    actor: StaffActor,
+    bookingId: string,
+    dto: { pnrCode: string; seats: number; kind: 'child' | 'infant' },
+  ) {
+    return this.engine.assignPassengerSeatPnr(actor, bookingId, dto);
+  }
+
   listConcessionQueue(opts?: { accountId?: string; status?: 'REQUESTED' | 'all' }) {
     return this.engine.listConcessionQueue(opts);
   }

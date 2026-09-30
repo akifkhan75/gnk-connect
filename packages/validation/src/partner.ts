@@ -233,6 +233,23 @@ export const cancelBookingSchema = z.object({
   reason: z.string().trim().min(3, 'Give a reason').max(500),
 });
 
+export const emailTicketSchema = z.object({
+  to: emailSchema.optional(),
+});
+export type EmailTicketInput = z.input<typeof emailTicketSchema>;
+
+// ---------- Passport OCR ----------
+
+export const passportOcrExtractSchema = z.object({
+  ocrText: z.string().trim().min(10, 'Paste the OCR text from the passport bio page').max(20_000),
+});
+export type PassportOcrExtractInput = z.input<typeof passportOcrExtractSchema>;
+
+export const passportScanAttachSchema = z.object({
+  fileId: uuidSchema,
+});
+export type PassportScanAttachInput = z.input<typeof passportScanAttachSchema>;
+
 // ---------- Payments ----------
 
 export const PARTNER_PAYMENT_METHODS = PAYMENT_METHODS.filter(

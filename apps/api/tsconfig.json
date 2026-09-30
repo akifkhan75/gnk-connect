@@ -14,7 +14,8 @@
     "paths": {
       "@gnk/types": ["../../packages/types/src/index.ts"],
       "@gnk/suppliers": ["../../packages/suppliers/src/index.ts"],
-      "@gnk/validation": ["../../packages/validation/src/index.ts"]
+      "@gnk/validation": ["../../packages/validation/src/index.ts"],
+      "@gnk/passport-mrz": ["../../packages/passport-mrz/src/index.ts"]
     },
     "incremental": true,
     "skipLibCheck": true,
