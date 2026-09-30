@@ -131,6 +131,12 @@ export class PartnerBookingsController {
     return this.bookings.setPassengers(actor, id, dto.passengers, meta);
   }
 
+  @Get('concession-requests')
+  @RequireApproved()
+  listConcessionQueue(@CurrentActor() actor: PartnerActor) {
+    return this.engine.listConcessionQueue({ accountId: actor.accountId });
+  }
+
   @Post(':id/concession-requests')
   @RequireApproved()
   @RequirePartnerCapability('bookings:create')
@@ -172,6 +178,12 @@ export class PartnerBookingsController {
   @RequireApproved()
   async confirmationPdf(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
     return pdfFile(await this.documents.confirmationPdf(id, actor.accountId));
+  }
+
+  @Get(':id/documents/ticket')
+  @RequireApproved()
+  async ticketPdf(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
+    return pdfFile(await this.documents.ticketPdf(id, actor.accountId));
   }
 
   @Post(':id/cancel')
@@ -241,6 +253,23 @@ export class AdminBookingsController {
     return this.engine.expireStaleHolds().then((expired) => ({ expired }));
   }
 
+  @Get('concession-requests')
+  @RequirePermission('bookings:read')
+  listConcessionQueue() {
+    return this.engine.listConcessionQueue({ status: 'REQUESTED' });
+  }
+
+  @Post('concession-requests/:requestId/decide')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  decideConcession(
+    @CurrentActor() actor: StaffActor,
+    @Param('requestId', UUID) requestId: string,
+    @Body(new ZodPipe(concessionDecisionSchema)) dto: z.output<typeof concessionDecisionSchema>,
+  ) {
+    return this.engine.decideConcession(actor, requestId, dto.decision, dto);
+  }
+
   @Get(':id')
   @RequirePermission('bookings:read')
   get(@CurrentActor() actor: StaffActor, @Param('id', UUID) id: string) {
@@ -282,6 +311,29 @@ export class AdminBookingsController {
     return this.engine.adjustDeadline(id, dto.extensionMinutes, actor, meta);
   }
 
+  @Post(':id/extension-reject')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  rejectExtension(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(bookingDecisionSchema)) dto: z.output<typeof bookingDecisionSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.engine.rejectExtension(actor, id, dto.note, meta);
+  }
+
+  @Post(':id/request-passengers')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  requestPassengers(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.engine.requestPassengers(actor, id, meta);
+  }
+
   @Get(':id/concession-requests')
   @RequirePermission('bookings:read')
   listConcessions(@Param('id', UUID) id: string) {
@@ -300,15 +352,10 @@ export class AdminBookingsController {
     return pdfFile(await this.documents.confirmationPdf(id));
   }
 
-  @Post('concession-requests/:requestId/decide')
-  @HttpCode(200)
-  @RequirePermission('bookings:approve')
-  decideConcession(
-    @CurrentActor() actor: StaffActor,
-    @Param('requestId', UUID) requestId: string,
-    @Body(new ZodPipe(concessionDecisionSchema)) dto: z.output<typeof concessionDecisionSchema>,
-  ) {
-    return this.engine.decideConcession(actor, requestId, dto.decision, dto);
+  @Get(':id/documents/ticket')
+  @RequirePermission('bookings:read')
+  async ticketPdf(@Param('id', UUID) id: string) {
+    return pdfFile(await this.documents.ticketPdf(id));
   }
 
   @Post(':id/approve')

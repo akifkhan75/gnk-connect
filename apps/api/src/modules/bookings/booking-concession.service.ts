@@ -44,6 +44,10 @@ export class BookingConcessionService {
     return this.engine.listConcessions(bookingId);
   }
 
+  listConcessionQueue(opts?: { accountId?: string; status?: 'REQUESTED' | 'all' }) {
+    return this.engine.listConcessionQueue(opts);
+  }
+
   requestExtension(
     actor: PartnerActor,
     bookingId: string,
@@ -60,5 +64,14 @@ export class BookingConcessionService {
     meta: RequestMeta,
   ) {
     return this.engine.adjustDeadline(bookingId, extensionMinutes, actor, meta);
+  }
+
+  rejectExtension(
+    actor: StaffActor,
+    bookingId: string,
+    reason: string | undefined,
+    meta: RequestMeta,
+  ) {
+    return this.engine.rejectExtension(actor, bookingId, reason, meta);
   }
 }

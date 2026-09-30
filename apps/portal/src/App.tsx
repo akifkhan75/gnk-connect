@@ -51,6 +51,9 @@ const BookingsPage = lazy(() =>
 const BookingDetailPage = lazy(() =>
   import('@/pages/BookingDetailPage').then((m) => ({ default: m.BookingDetailPage })),
 );
+const ConcessionQueuePage = lazy(() =>
+  import('@/pages/ConcessionQueuePage').then((m) => ({ default: m.ConcessionQueuePage })),
+);
 const VoucherPage = lazy(() =>
   import('@/pages/VoucherPage').then((m) => ({ default: m.VoucherPage })),
 );
@@ -118,6 +121,7 @@ const router = createBrowserRouter([
               { path: 'bookings', element: <BookingsPage /> },
               { path: 'bookings/new', element: <NewBookingPage /> },
               { path: 'bookings/:id', element: <BookingDetailPage /> },
+              { path: 'concessions', element: <ConcessionQueuePage /> },
               { path: 'invoices', element: <InvoicesPage /> },
               { path: 'payments', element: <PaymentsPage /> },
               { path: 'ledger', element: <LedgerPage /> },

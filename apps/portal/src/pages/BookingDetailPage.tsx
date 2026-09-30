@@ -670,10 +670,14 @@ function InventoryBookingDetail({
     };
   });
 
-  const download = async (kind: 'reservation' | 'confirmation') => {
+  const download = async (kind: 'reservation' | 'confirmation' | 'ticket') => {
     try {
       const blob = await api.bookings.documents[
-        kind === 'reservation' ? 'reservationPdf' : 'confirmationPdf'
+        kind === 'reservation'
+          ? 'reservationPdf'
+          : kind === 'confirmation'
+            ? 'confirmationPdf'
+            : 'ticketPdf'
       ](b.id);
       saveBlob(blob, `${b.reference}-${kind}.pdf`);
     } catch (e) {
@@ -716,9 +720,14 @@ function InventoryBookingDetail({
         actions={
           <>
             {b.status === 'TICKETED' && (
-              <Button variant="secondary" onClick={() => download('confirmation')}>
-                <Download /> Confirmation
-              </Button>
+              <>
+                <Button variant="secondary" onClick={() => download('confirmation')}>
+                  <Download /> Confirmation
+                </Button>
+                <Button variant="secondary" onClick={() => download('ticket')}>
+                  <Ticket /> E-ticket
+                </Button>
+              </>
             )}
             {['HELD', 'PAYMENT_PENDING', 'CONFIRMED', 'TICKETED'].includes(b.status) && (
               <Button variant="secondary" onClick={() => download('reservation')}>

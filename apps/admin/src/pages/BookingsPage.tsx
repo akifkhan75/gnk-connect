@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Send,
   Ticket,
+  UserPlus,
   X,
 } from 'lucide-react';
 
@@ -61,6 +62,10 @@ import { downloadCsv } from '@/lib/csv';
 import { errorMessage } from '@/lib/forms';
 import { useCan } from '@/lib/useCan';
 import { RequirePerm } from '@/components/guards';
+import {
+  ConcessionDecideDialog,
+  type ConcessionDecisionPayload,
+} from '@/components/ConcessionDecideDialog';
 
 /** Statuses on the inventory (group-PNR) lifecycle where confirm/extend apply —
  *  separate from the legacy supplier-push flow below. */
@@ -396,6 +401,11 @@ function BookingDetail({ id }: { id: string }) {
   const [dialog, setDialog] = useState<null | 'reject' | 'cancel' | 'approve' | 'push'>(null);
   const [ticketOpen, setTicketOpen] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
+  const [rejectExtOpen, setRejectExtOpen] = useState(false);
+  const [concessionDecide, setConcessionDecide] = useState<{
+    request: BookingConcessionRequestDto;
+    decision: 'APPROVED' | 'REJECTED';
+  } | null>(null);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const q = useQuery({ queryKey: ['booking', id], queryFn: () => api.bookings.get(id) });
   const concessions = useQuery({
@@ -470,16 +480,32 @@ function BookingDetail({ id }: { id: string }) {
   const decideConcession = useMutation({
     mutationFn: ({
       requestId,
-      decision,
+      payload,
     }: {
       requestId: string;
-      decision: 'APPROVED' | 'REJECTED';
-    }) => api.bookings.decideConcession(requestId, { decision }),
+      payload: ConcessionDecisionPayload;
+    }) => api.bookings.decideConcession(requestId, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['booking', id, 'concessions'] });
+      void qc.invalidateQueries({ queryKey: ['concession-queue'] });
+      void qc.invalidateQueries({ queryKey: ['booking', id] });
       toast.success('Concession decided');
+      setConcessionDecide(null);
     },
     onError: (e) => toast.error('Could not decide', errorMessage(e)),
+  });
+  const rejectExtension = useMutation({
+    mutationFn: (note?: string) => api.bookings.rejectExtension(id, note),
+    onSuccess: (b) => {
+      onDone(b as AdminBookingDetailDto, 'Extension request declined');
+      setRejectExtOpen(false);
+    },
+    onError: (e) => toast.error('Could not reject extension', errorMessage(e)),
+  });
+  const requestPassengers = useMutation({
+    mutationFn: () => api.bookings.requestPassengers(id),
+    onSuccess: (b) => onDone(b as AdminBookingDetailDto, 'Passenger details requested'),
+    onError: (e) => toast.error('Could not request passengers', errorMessage(e)),
   });
 
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -511,8 +537,24 @@ function BookingDetail({ id }: { id: string }) {
               <Button variant="secondary" onClick={() => setExtendOpen(true)}>
                 <Clock /> Extend deadline
               </Button>
+              <Button variant="secondary" onClick={() => setRejectExtOpen(true)}>
+                <X /> Reject extension
+              </Button>
             </>
           )}
+          {isInventory &&
+            ['HELD', 'PAYMENT_PENDING', 'CONFIRMED', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'].includes(
+              b.status,
+            ) &&
+            can('bookings:approve') && (
+              <Button
+                variant="secondary"
+                onClick={() => requestPassengers.mutate()}
+                loading={requestPassengers.isPending}
+              >
+                <UserPlus /> Request passengers
+              </Button>
+            )}
           {b.status === 'CONFIRMED' && can('bookings:approve') && (
             <Button onClick={() => setTicketOpen(true)}>
               <Ticket /> Mark ticketed
@@ -643,18 +685,32 @@ function BookingDetail({ id }: { id: string }) {
                   </Button>
                 )}
               {isInventory && b.status === 'TICKETED' && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () =>
-                    saveBlob(
-                      await api.bookings.documents.confirmationPdf(b.id),
-                      `${b.reference}-confirmation.pdf`,
-                    )
-                  }
-                >
-                  <Download /> Confirmation
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () =>
+                      saveBlob(
+                        await api.bookings.documents.confirmationPdf(b.id),
+                        `${b.reference}-confirmation.pdf`,
+                      )
+                    }
+                  >
+                    <Download /> Confirmation
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () =>
+                      saveBlob(
+                        await api.bookings.documents.ticketPdf(b.id),
+                        `${b.reference}-ticket.pdf`,
+                      )
+                    }
+                  >
+                    <Ticket /> E-ticket
+                  </Button>
+                </>
               )}
               {b.invoice && (
                 <Button asChild variant="ghost" size="sm">
@@ -772,20 +828,14 @@ function BookingDetail({ id }: { id: string }) {
                       <div className="flex justify-end gap-1.5">
                         <Button
                           size="xs"
-                          onClick={() =>
-                            decideConcession.mutate({ requestId: r.id, decision: 'APPROVED' })
-                          }
-                          loading={decideConcession.isPending}
+                          onClick={() => setConcessionDecide({ request: r, decision: 'APPROVED' })}
                         >
                           Approve
                         </Button>
                         <Button
                           size="xs"
                           variant="danger-outline"
-                          onClick={() =>
-                            decideConcession.mutate({ requestId: r.id, decision: 'REJECTED' })
-                          }
-                          loading={decideConcession.isPending}
+                          onClick={() => setConcessionDecide({ request: r, decision: 'REJECTED' })}
                         >
                           Reject
                         </Button>
@@ -1072,6 +1122,28 @@ function BookingDetail({ id }: { id: string }) {
           }}
         />
       )}
+      <ConfirmDialog
+        open={rejectExtOpen}
+        onOpenChange={setRejectExtOpen}
+        title="Reject extension request?"
+        description="The partner is notified that their deadline extension was not approved."
+        confirmLabel="Reject extension"
+        tone="danger"
+        reasonLabel="Note to partner (optional)"
+        reasonRequired={false}
+        onConfirm={(note) => rejectExtension.mutate(note)}
+      />
+      <ConcessionDecideDialog
+        open={!!concessionDecide}
+        onOpenChange={(o) => !o && setConcessionDecide(null)}
+        request={concessionDecide?.request ?? null}
+        decision={concessionDecide?.decision ?? 'APPROVED'}
+        loading={decideConcession.isPending}
+        onSubmit={(payload) =>
+          concessionDecide &&
+          decideConcession.mutate({ requestId: concessionDecide.request.id, payload })
+        }
+      />
     </div>
   );
 }

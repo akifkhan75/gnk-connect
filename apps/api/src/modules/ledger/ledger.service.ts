@@ -283,6 +283,62 @@ export class LedgerService {
   }
 
   /**
+   * Inventory group bookings without a supplier payable split: DR partner AR, CR revenue
+   * for the full fare (AirDesk accrual-only confirm).
+   */
+  async postInventoryBookingAccrual(
+    tx: Tx,
+    b: {
+      id: string;
+      reference: string;
+      accountId: string;
+      seats: number;
+      totalPrice: Prisma.Decimal;
+      supplierId?: string | null;
+      supplierNetUnit?: Prisma.Decimal | null;
+      markupUnit?: Prisma.Decimal | null;
+    },
+    actorId?: string,
+  ) {
+    const existing = await tx.ledgerTransaction.findFirst({
+      where: { bookingId: b.id, type: 'SALE', status: 'POSTED', reversedBy: { is: null } },
+    });
+    if (existing) return { voucher: existing, cost: null };
+
+    if (b.supplierId && b.supplierNetUnit != null) {
+      return this.postBookingCharge(
+        tx,
+        {
+          id: b.id,
+          reference: b.reference,
+          accountId: b.accountId,
+          supplierId: b.supplierId,
+          seats: b.seats,
+          supplierNetUnit: b.supplierNetUnit,
+          markupUnit: b.markupUnit ?? new Prisma.Decimal(0),
+          totalPrice: b.totalPrice,
+        },
+        actorId,
+      );
+    }
+
+    const partner = await this.partnerAccount(tx, b.accountId);
+    const revenue = await this.systemAccount(tx, 'REVENUE');
+    const voucher = await this.post(tx, {
+      type: 'SALE',
+      description: `Inventory booking ${b.reference} (${b.seats} seat${b.seats > 1 ? 's' : ''})`,
+      bookingId: b.id,
+      partnerAccountId: b.accountId,
+      createdById: actorId,
+      lines: [
+        { ledgerAccountId: partner.id, debit: b.totalPrice },
+        { ledgerAccountId: revenue.id, credit: b.totalPrice },
+      ],
+    });
+    return { voucher, cost: null };
+  }
+
+  /**
    * Confirmed booking (sale voucher): Dr partner (total), Cr supplier payable (net), Cr revenue
    * (margin). When the supplier's payable account is in a foreign currency, the net is posted
    * there as fcAmount × rate using the latest rate; any rounding lands in the margin.

@@ -279,11 +279,18 @@ function RecordPaymentDialog({
   const bookings = useQuery({
     queryKey: ['bookings', { tab: 'payable' }],
     queryFn: async () => {
-      const [pending, approved] = await Promise.all([
+      const [paymentPending, pending, approved] = await Promise.all([
+        api.bookings.list({ tab: 'PAYMENT_PENDING', pageSize: 50 }),
         api.bookings.list({ tab: 'PENDING_APPROVAL', pageSize: 50 }),
         api.bookings.list({ tab: 'APPROVED', pageSize: 50 }),
       ]);
-      return [...approved.items, ...pending.items];
+      const seen = new Set<string>();
+      const items = [...paymentPending.items, ...approved.items, ...pending.items].filter((b) => {
+        if (seen.has(b.id)) return false;
+        seen.add(b.id);
+        return true;
+      });
+      return items;
     },
     enabled: open,
   });

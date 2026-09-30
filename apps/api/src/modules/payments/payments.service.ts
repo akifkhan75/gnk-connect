@@ -102,7 +102,41 @@ export class PaymentsService {
     const allocations = this.allocationsOf(dto);
     await this.assertBookings(actor.accountId, allocations);
 
-    const payment = await this.create({
+    // Upgrade hold stub (PENDING) when submitting proof against a single inventory booking.
+    let payment;
+    if (allocations.length === 1) {
+      const stub = await this.prisma.payment.findFirst({
+        where: {
+          accountId: actor.accountId,
+          bookingId: allocations[0].bookingId,
+          status: 'PENDING',
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (stub) {
+        payment = await this.prisma.payment.update({
+          where: { id: stub.id },
+          data: {
+            status: 'SUBMITTED',
+            method: dto.method as PaymentMethod,
+            amount: dto.amount,
+            bankName: dto.bankName ?? null,
+            transactionRef: dto.transactionRef.trim(),
+            paidAt: new Date(`${dto.paidAt}T00:00:00Z`),
+            proofFileId: fileIds[0] ?? null,
+            notes: dto.notes ?? stub.notes,
+            submittedById: actor.userId,
+            attachments: { create: fileIds.map((fileId) => ({ fileId })) },
+            allocations: {
+              deleteMany: {},
+              create: allocations.map((a) => ({ bookingId: a.bookingId, amount: a.amount })),
+            },
+          },
+          include,
+        });
+      }
+    }
+    payment ??= await this.create({
       ...dto,
       allocations,
       attachmentIds: fileIds,
@@ -517,6 +551,17 @@ export class PaymentsService {
       if (!confirmable.has(b.status)) continue;
       try {
         await this.bookingEngine.confirm(actor, b.id, meta);
+        await this.prisma.payment.updateMany({
+          where: {
+            bookingId: b.id,
+            status: 'PENDING',
+            id: { not: paymentId },
+          },
+          data: {
+            status: 'FAILED',
+            rejectionReason: 'Superseded by verified payment',
+          },
+        });
       } catch (e) {
         this.log.warn(
           `Could not auto-confirm inventory booking ${b.id} after payment ${paymentId}: ${

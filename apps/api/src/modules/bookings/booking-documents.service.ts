@@ -58,7 +58,18 @@ export class BookingDocumentsService {
     return { filename: `${b.reference}-confirmation.pdf`, content };
   }
 
-  private render(b: BookingDocRow, kind: 'reservation' | 'confirmation'): Promise<Buffer> {
+  async ticketPdf(bookingId: string, accountId?: string) {
+    const b = await this.loadRow(bookingId, accountId);
+    if (!b) throw new NotFoundException('Booking not found');
+    if (b.status !== 'TICKETED') throw new NotFoundException('Booking is not ticketed yet');
+    const content = await this.render(b, 'ticket');
+    return { filename: `${b.reference}-eticket.pdf`, content };
+  }
+
+  private render(
+    b: BookingDocRow,
+    kind: 'reservation' | 'confirmation' | 'ticket',
+  ): Promise<Buffer> {
     const doc = new PDFDocument({
       size: 'A4',
       margin: 50,
@@ -76,7 +87,12 @@ export class BookingDocumentsService {
     const width = right - left;
     const group = b.inventoryLot?.sellingGroup;
     const segment = b.inventoryLot?.flightSegment;
-    const heading = kind === 'reservation' ? 'Reservation slip' : 'Booking confirmation';
+    const heading =
+      kind === 'reservation'
+        ? 'Reservation slip'
+        : kind === 'ticket'
+          ? 'Electronic ticket'
+          : 'Booking confirmation';
     const onHold = kind === 'reservation' && !['CONFIRMED', 'TICKETED'].includes(b.status);
 
     if (existsSync(LOGO)) doc.image(LOGO, left, 46, { height: 34 });
@@ -176,7 +192,9 @@ export class BookingDocumentsService {
         .text(`${p.title} ${p.firstName} ${p.lastName}`, left, y, { width: width * 0.48 })
         .text(p.type, left + width * 0.5, y)
         .text(
-          (kind === 'confirmation' ? p.ticketNumber : null) ?? `••••${p.passportLast4}`,
+          kind === 'ticket' || kind === 'confirmation'
+            ? (p.ticketNumber ?? `••••${p.passportLast4}`)
+            : `••••${p.passportLast4}`,
           left + width * 0.68,
           y,
         );
@@ -197,7 +215,9 @@ export class BookingDocumentsService {
       .text(money(num(b.totalPrice), b.currency), left + 16, y + 24);
     const dueLabel = onHold
       ? `Hold expires ${iso(b.heldUntil) ? new Date(b.heldUntil!).toUTCString().slice(0, 22) : '—'}`
-      : `Confirmed ${isoDate(b.confirmedAt) ?? ''}`;
+      : kind === 'ticket'
+        ? `Ticketed · PNR ${b.groupPnr?.pnrCode ?? b.supplierPnr ?? '—'}`
+        : `Confirmed ${isoDate(b.confirmedAt) ?? ''}`;
     doc
       .font('Helvetica')
       .fontSize(9)
@@ -211,7 +231,9 @@ export class BookingDocumentsService {
       .text(
         onHold
           ? 'This is a provisional reservation. Seats are held pending payment and are not confirmed.'
-          : 'This document confirms the seats above. It is computer generated and valid without a signature.',
+          : kind === 'ticket'
+            ? 'This is your electronic ticket itinerary. Present it with a valid passport at check-in.'
+            : 'This document confirms the seats above. It is computer generated and valid without a signature.',
         left,
         doc.page.height - 80,
         { width, align: 'center' },

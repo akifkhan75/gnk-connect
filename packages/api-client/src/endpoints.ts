@@ -207,7 +207,10 @@ export const partnerApi = (http: HttpClient) => ({
     documents: {
       reservationPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/reservation`),
       confirmationPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/confirmation`),
+      ticketPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/ticket`),
     },
+    concessionQueue: () =>
+      http.get<BookingConcessionRequestDto[]>('partner/bookings/concession-requests'),
     cancel: (id: string, reason: string) =>
       http.post<BookingDetailDto>(`partner/bookings/${id}/cancel`, { reason }),
   },
@@ -331,8 +334,15 @@ export const adminApi = (http: HttpClient) => ({
     ) => http.post<AdminBookingDetailDto>(`admin/bookings/${id}/ticket`, dto),
     extendDeadline: (id: string, dto: { extensionMinutes: number }) =>
       http.post<AdminBookingDetailDto>(`admin/bookings/${id}/extension-approve`, dto),
+    rejectExtension: (id: string, note?: string) =>
+      http.post(`admin/bookings/${id}/extension-reject`, { note }),
+    requestPassengers: (id: string) => http.post(`admin/bookings/${id}/request-passengers`),
     concessions: (id: string) =>
       http.get<BookingConcessionRequestDto[]>(`admin/bookings/${id}/concession-requests`),
+    concessionQueue: () =>
+      http.get<
+        (BookingConcessionRequestDto & { bookingReference?: string; bookingStatus?: string })[]
+      >('admin/bookings/concession-requests'),
     decideConcession: (
       requestId: string,
       dto: {
@@ -347,6 +357,7 @@ export const adminApi = (http: HttpClient) => ({
     documents: {
       reservationPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/reservation`),
       confirmationPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/confirmation`),
+      ticketPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/ticket`),
     },
   },
   inventory: {

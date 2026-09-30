@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   FileText,
+  Gift,
   LayoutDashboard,
   LogOut,
   ReceiptText,
@@ -87,6 +88,7 @@ export function PortalLayout() {
                 icon: BookOpen,
                 badge: counts.data?.PENDING_APPROVAL || null,
               },
+              { label: 'Concessions', href: '/concessions', icon: Gift },
               { label: 'Invoices', href: '/invoices', icon: FileText },
               ...(can.money(role)
                 ? [{ label: 'Payments & receipts', href: '/payments', icon: Wallet }]

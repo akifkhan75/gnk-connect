@@ -467,6 +467,9 @@ export interface BookingConcessionRequestDto {
   decisionNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  /** Present on global queue endpoints. */
+  bookingReference?: string;
+  bookingStatus?: string;
 }
 
 // ---------- Partner: money ----------

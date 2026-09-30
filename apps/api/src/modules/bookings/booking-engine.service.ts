@@ -19,10 +19,11 @@ import { CryptoService } from '../../infra/crypto/crypto.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
-import { NotificationsService } from '../notifications/notifications.service';
-import { RealtimeService } from '../realtime/realtime.service';
 import { GroupPnrService } from '../inventory/group-pnr.service';
 import { InventoryEngineService } from '../inventory/inventory-engine.service';
+import { LedgerService } from '../ledger/ledger.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BookingMapper } from './booking.mapper';
 
 type Tx = Prisma.TransactionClient;
@@ -41,6 +42,7 @@ export class BookingEngineService {
     private readonly sequences: SequencesService,
     private readonly inventory: InventoryEngineService,
     private readonly pnrs: GroupPnrService,
+    private readonly ledger: LedgerService,
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly mapper: BookingMapper,
@@ -190,6 +192,38 @@ export class BookingEngineService {
         },
       });
 
+      // Payable stub (AirDesk CREATED → gnk PENDING) so agents can allocate bank proof.
+      await tx.payment.create({
+        data: {
+          reference: await this.sequences.next('PAYMENT', tx),
+          accountId: actor.accountId,
+          bookingId: booking.id,
+          method: 'BANK_TRANSFER',
+          status: 'PENDING',
+          amount: fareSubtotal,
+          currency: lot.fareCurrency ?? lot.sellingGroup.currency,
+          notes: `Hold stub for ${reference}`,
+          submittedById: actor.userId,
+          allocations: {
+            create: [{ bookingId: booking.id, amount: fareSubtotal }],
+          },
+        },
+      });
+
+      // Auto-queue infant seat concession when infants are booked (§7.4).
+      if (manifest.infants > 0) {
+        await tx.bookingConcessionRequest.create({
+          data: {
+            accountId: actor.accountId,
+            bookingId: booking.id,
+            kind: 'INFANT_SEATS',
+            initiatedBy: 'AGENT',
+            requestedInfantSeats: manifest.infants,
+            reason: 'Auto-requested at checkout for infant seats',
+          },
+        });
+      }
+
       return booking.id;
     });
 
@@ -214,6 +248,21 @@ export class BookingEngineService {
     await this.prisma.$transaction(async (tx) => {
       await this.inventory.consumeHold(tx, id);
       await this.pnrs.confirmAllocations(tx, id);
+      await this.pnrs.assignPassengersToPnrs(tx, id);
+      await this.ledger.postInventoryBookingAccrual(
+        tx,
+        {
+          id: b.id,
+          reference: b.reference,
+          accountId: b.accountId,
+          seats: b.seats,
+          totalPrice: b.totalPrice,
+          supplierId: b.supplierId,
+          supplierNetUnit: b.supplierNetUnit,
+          markupUnit: b.markupUnit,
+        },
+        actor.userId,
+      );
       await tx.booking.update({
         where: { id },
         data: {
@@ -284,6 +333,7 @@ export class BookingEngineService {
           data: { ticketNumber: t.ticketNumber.trim() },
         });
       }
+      await this.pnrs.assignPassengersToPnrs(tx, id);
       await tx.booking.update({
         where: { id },
         data: { status: 'TICKETED', version: { increment: 1 } },
@@ -381,6 +431,17 @@ export class BookingEngineService {
           reason,
         },
       });
+      await tx.payment.updateMany({
+        where: { bookingId, status: { in: ['PENDING', 'SUBMITTED'] } },
+        data: { status: 'FAILED', rejectionReason: reason },
+      });
+      if (b.status === 'CONFIRMED') {
+        try {
+          await this.ledger.reverseBookingCharge(tx, b, actor.id);
+        } catch {
+          // No sale posted yet — ignore.
+        }
+      }
     });
 
     await this.audit.log({
@@ -414,6 +475,17 @@ export class BookingEngineService {
         });
         await tx.bookingStatusEvent.create({
           data: { bookingId: b.id, from: b.status, to: 'EXPIRED_HOLD' },
+        });
+        // Cancel unpaid stubs / unsubmitted proof (AirDesk CREATED/AUTHORIZED cancel).
+        await tx.payment.updateMany({
+          where: {
+            bookingId: b.id,
+            status: { in: ['PENDING', 'SUBMITTED'] },
+          },
+          data: {
+            status: 'FAILED',
+            rejectionReason: 'Hold expired before payment was verified',
+          },
         });
       });
       await this.changed(b.id, b.accountId);
@@ -459,6 +531,7 @@ export class BookingEngineService {
       await tx.passenger.createMany({
         data: passengers.map((p) => ({ bookingId, ...this.passengerData(p) })),
       });
+      await this.pnrs.assignPassengersToPnrs(tx, bookingId);
       await tx.booking.update({ where: { id: bookingId }, data: { version: { increment: 1 } } });
     });
 
@@ -545,11 +618,112 @@ export class BookingEngineService {
     return { message: 'Extension request sent to the platform.' };
   }
 
+  async rejectExtension(
+    actor: StaffActor,
+    bookingId: string,
+    reason: string | undefined,
+    meta: RequestMeta,
+  ) {
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!b) throw new NotFoundException('Booking not found');
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'booking.extension_rejected',
+      entityType: 'Booking',
+      entityId: bookingId,
+      after: { reason },
+      meta,
+    });
+    await this.notifications.notifyAccount(b.accountId, {
+      type: 'BOOKING_EXTENSION_REJECTED',
+      title: `Extension declined — ${b.reference}`,
+      body: reason?.trim() || 'Your deadline extension request was not approved.',
+      link: `/bookings/${b.id}`,
+      email: true,
+    });
+    return this.adminGet(bookingId);
+  }
+
+  async requestPassengers(actor: StaffActor, bookingId: string, meta: RequestMeta) {
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (
+      !['CONFIRMED', 'PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'].includes(
+        b.status,
+      )
+    )
+      throw new ConflictException({ code: 'booking.request_passengers_not_allowed' });
+
+    await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { passengerDetailsRequestedAt: new Date(), version: { increment: 1 } },
+    });
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'booking.passengers_requested',
+      entityType: 'Booking',
+      entityId: bookingId,
+      meta,
+    });
+    await this.notifications.notifyAccount(b.accountId, {
+      type: 'BOOKING_PASSENGERS_REQUESTED',
+      title: `Passenger details needed — ${b.reference}`,
+      body: 'Please add passport details for all passengers so we can issue tickets.',
+      link: `/bookings/${b.id}`,
+      email: true,
+    });
+    await this.changed(bookingId, b.accountId);
+    return this.adminGet(bookingId);
+  }
+
   async listConcessions(bookingId: string) {
     const rows = await this.prisma.bookingConcessionRequest.findMany({
       where: { bookingId },
       orderBy: { createdAt: 'desc' },
     });
+    return this.mapConcessions(rows);
+  }
+
+  /** Global concession queue for partner (own account) or platform (all). */
+  async listConcessionQueue(opts: { accountId?: string; status?: 'REQUESTED' | 'all' } = {}) {
+    const rows = await this.prisma.bookingConcessionRequest.findMany({
+      where: {
+        ...(opts.accountId ? { accountId: opts.accountId } : {}),
+        ...(opts.status === 'all' ? {} : { status: opts.status ?? 'REQUESTED' }),
+      },
+      include: {
+        booking: { select: { id: true, reference: true, status: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    });
+    return rows.map((r) => ({
+      ...this.mapConcessions([r])[0],
+      bookingReference: r.booking.reference,
+      bookingStatus: r.booking.status,
+    }));
+  }
+
+  private mapConcessions(
+    rows: {
+      id: string;
+      bookingId: string;
+      kind: string;
+      status: string;
+      initiatedBy: string;
+      requestedChildSeats: number | null;
+      approvedChildSeats: number | null;
+      requestedInfantSeats: number | null;
+      approvedInfantSeats: number | null;
+      requestedDiscountAmount: unknown;
+      approvedDiscountAmount: unknown;
+      approvedPnrCode: string | null;
+      reason: string | null;
+      decisionNote: string | null;
+      createdAt: Date;
+      reviewedAt: Date | null;
+    }[],
+  ) {
     return rows.map((r) => ({
       id: r.id,
       bookingId: r.bookingId,
@@ -561,9 +735,9 @@ export class BookingEngineService {
       requestedInfantSeats: r.requestedInfantSeats,
       approvedInfantSeats: r.approvedInfantSeats,
       requestedDiscountAmount:
-        r.requestedDiscountAmount != null ? num(r.requestedDiscountAmount) : null,
+        r.requestedDiscountAmount != null ? num(r.requestedDiscountAmount as never) : null,
       approvedDiscountAmount:
-        r.approvedDiscountAmount != null ? num(r.approvedDiscountAmount) : null,
+        r.approvedDiscountAmount != null ? num(r.approvedDiscountAmount as never) : null,
       approvedPnrCode: r.approvedPnrCode,
       reason: r.reason,
       decisionNote: r.decisionNote,
@@ -657,16 +831,77 @@ export class BookingEngineService {
             where: { id: booking.id },
             data: { grantedInfantSeats: { increment: seats }, version: { increment: 1 } },
           });
+          if (booking.inventoryLotId && seats > 0) {
+            await tx.inventoryLot.update({
+              where: { id: booking.inventoryLotId },
+              data: { infantSeatsTotal: { increment: seats }, rowVersion: { increment: 1 } },
+            });
+          }
+          if (dto.pnrCode?.trim() && booking.inventoryLotId) {
+            // Optional dedicated infant PNR on approve.
+            const code = dto.pnrCode.trim().toUpperCase();
+            const pnr = await tx.groupPnr.create({
+              data: {
+                sellingGroupId: (
+                  await tx.inventoryLot.findUniqueOrThrow({ where: { id: booking.inventoryLotId } })
+                ).sellingGroupId,
+                inventoryLotId: booking.inventoryLotId,
+                pnrCode: code,
+                allocatedSeats: Math.max(1, seats),
+                availableSeats: Math.max(1, seats),
+                paxKind: 'INFANT',
+                sortOrder: 99,
+              },
+            });
+            await tx.bookingConcessionRequest.update({
+              where: { id: requestId },
+              data: { groupPnrId: pnr.id, approvedPnrCode: code },
+            });
+          }
         }
         if (req.kind === 'DISCOUNT') {
           const amount = dto.approvedDiscountAmount ?? num(req.requestedDiscountAmount);
+          const totalPrice = Math.max(0, num(booking.fareSubtotalAmount) - amount);
           await tx.booking.update({
             where: { id: booking.id },
             data: {
               discountAmount: amount,
-              totalPrice: Math.max(0, num(booking.fareSubtotalAmount) - amount),
+              totalPrice,
               version: { increment: 1 },
             },
+          });
+          await tx.payment.updateMany({
+            where: { bookingId: booking.id, status: 'PENDING' },
+            data: { amount: totalPrice },
+          });
+          await tx.paymentAllocation.updateMany({
+            where: {
+              bookingId: booking.id,
+              payment: { status: 'PENDING' },
+            },
+            data: { amount: totalPrice },
+          });
+        }
+        if (req.kind === 'CHILD_SEATS' && dto.pnrCode?.trim() && booking.inventoryLotId) {
+          const seats = dto.approvedChildSeats ?? req.requestedChildSeats ?? 0;
+          const code = dto.pnrCode.trim().toUpperCase();
+          const lot = await tx.inventoryLot.findUniqueOrThrow({
+            where: { id: booking.inventoryLotId },
+          });
+          const pnr = await tx.groupPnr.create({
+            data: {
+              sellingGroupId: lot.sellingGroupId,
+              inventoryLotId: lot.id,
+              pnrCode: code,
+              allocatedSeats: Math.max(1, seats),
+              availableSeats: Math.max(1, seats),
+              paxKind: 'CHILD',
+              sortOrder: 50,
+            },
+          });
+          await tx.bookingConcessionRequest.update({
+            where: { id: requestId },
+            data: { groupPnrId: pnr.id, approvedPnrCode: code },
           });
         }
       }
