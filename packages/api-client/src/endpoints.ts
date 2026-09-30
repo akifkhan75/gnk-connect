@@ -17,6 +17,7 @@ import type {
   VoucherListItem,
   AdminBookingDetailDto,
   AdminBookingListItem,
+  AdminInventoryGroupDetail,
   AdminDashboardDto,
   AdminPartnerDetailDto,
   AdminPartnerListItem,
@@ -28,6 +29,7 @@ import type {
   AuthResponse,
   BalanceDto,
   BankAccountDto,
+  BookingConcessionRequestDto,
   BookingDetailDto,
   BookingListItem,
   BookingStatusCounts,
@@ -37,6 +39,8 @@ import type {
   GroupListItem,
   InvoiceDetailDto,
   InvoiceListItem,
+  InventoryGroupDetail,
+  InventoryGroupListItem,
   MessageResponse,
   NotificationDto,
   Paginated,
@@ -80,6 +84,7 @@ import type {
   ChangePasswordInput,
   CreateBookingInput,
   CreditLimitInput,
+  ExtensionRequestInput,
   GroupSearchInput,
   InviteMemberInput,
   LedgerAdjustmentInput,
@@ -89,6 +94,7 @@ import type {
   PricingSimulateInput,
   RecordPaymentInput,
   ResetPasswordInput,
+  SetBookingPassengersInput,
   SettingsInput,
   StaffInviteInput,
   SubmitPaymentInput,
@@ -190,8 +196,30 @@ export const partnerApi = (http: HttpClient) => ({
     get: (id: string) => http.get<BookingDetailDto>(`partner/bookings/${id}`),
     create: (dto: CreateBookingInput, idempotencyKey: string) =>
       http.post<BookingDetailDto>('partner/bookings', dto, { 'Idempotency-Key': idempotencyKey }),
+    setPassengers: (id: string, dto: SetBookingPassengersInput) =>
+      http.put<BookingDetailDto>(`partner/bookings/${id}/passengers`, dto),
+    requestConcession: (id: string, dto: unknown) =>
+      http.post(`partner/bookings/${id}/concession-requests`, dto),
+    concessions: (id: string) =>
+      http.get<BookingConcessionRequestDto[]>(`partner/bookings/${id}/concession-requests`),
+    requestExtension: (id: string, dto: ExtensionRequestInput) =>
+      http.post<MessageResponse>(`partner/bookings/${id}/extension-request`, dto),
+    documents: {
+      reservationPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/reservation`),
+      confirmationPdf: (id: string) => http.blob(`partner/bookings/${id}/documents/confirmation`),
+    },
     cancel: (id: string, reason: string) =>
       http.post<BookingDetailDto>(`partner/bookings/${id}/cancel`, { reason }),
+  },
+  inventory: {
+    groups: {
+      list: (q: Record<string, unknown> = {}) =>
+        http.get<{ items: InventoryGroupListItem[]; total: number }>(
+          'partner/inventory/groups',
+          q as never,
+        ),
+      get: (id: string) => http.get<InventoryGroupDetail>('partner/inventory/groups/' + id),
+    },
   },
   invoices: {
     list: () => http.get<InvoiceListItem[]>('partner/invoices'),
@@ -295,6 +323,60 @@ export const adminApi = (http: HttpClient) => ({
       http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/assign`, { staffId }),
     revealPassport: (passengerId: string) =>
       http.post<{ passportNumber: string }>(`admin/bookings/passengers/${passengerId}/reveal`),
+    // Inventory (AirDesk) group-booking lifecycle.
+    confirm: (id: string) => http.post<AdminBookingDetailDto>(`admin/bookings/${id}/confirm`),
+    ticket: (
+      id: string,
+      dto: { passengerTickets: { passengerId: string; ticketNumber: string }[] },
+    ) => http.post<AdminBookingDetailDto>(`admin/bookings/${id}/ticket`, dto),
+    extendDeadline: (id: string, dto: { extensionMinutes: number }) =>
+      http.post<AdminBookingDetailDto>(`admin/bookings/${id}/extension-approve`, dto),
+    concessions: (id: string) =>
+      http.get<BookingConcessionRequestDto[]>(`admin/bookings/${id}/concession-requests`),
+    decideConcession: (
+      requestId: string,
+      dto: {
+        decision: 'APPROVED' | 'REJECTED';
+        approvedChildSeats?: number;
+        approvedInfantSeats?: number;
+        approvedDiscountAmount?: number;
+        decisionNote?: string;
+        pnrCode?: string;
+      },
+    ) => http.post(`admin/bookings/concession-requests/${requestId}/decide`, dto),
+    documents: {
+      reservationPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/reservation`),
+      confirmationPdf: (id: string) => http.blob(`admin/bookings/${id}/documents/confirmation`),
+    },
+  },
+  inventory: {
+    groups: {
+      list: (q: Record<string, unknown> = {}) =>
+        http.get<{ items: InventoryGroupListItem[]; total: number }>(
+          'admin/inventory/groups',
+          q as never,
+        ),
+      get: (id: string) => http.get<AdminInventoryGroupDetail>('admin/inventory/groups/' + id),
+      create: (dto: Record<string, unknown>) =>
+        http.post<AdminInventoryGroupDetail>('admin/inventory/groups', dto),
+      update: (id: string, dto: Record<string, unknown>) =>
+        http.patch<AdminInventoryGroupDetail>(`admin/inventory/groups/${id}`, dto),
+      addSegment: (id: string, dto: Record<string, unknown>) =>
+        http.post<AdminInventoryGroupDetail>(`admin/inventory/groups/${id}/segments`, dto),
+      createLot: (id: string, dto: Record<string, unknown>) =>
+        http.post(`admin/inventory/groups/${id}/lots`, dto),
+      updateLotStatus: (lotId: string, status: 'OPEN' | 'FROZEN' | 'CLOSED') =>
+        http.patch<AdminInventoryGroupDetail>(`admin/inventory/groups/lots/${lotId}`, { status }),
+      upsertPnrs: (
+        lotId: string,
+        pnrs: {
+          pnrCode: string;
+          allocatedSeats: number;
+          sortOrder?: number;
+          paxKind?: 'ADULT' | 'CHILD' | 'INFANT' | null;
+        }[],
+      ) => http.put(`admin/inventory/groups/lots/${lotId}/pnrs`, { pnrs }),
+    },
   },
   invoices: { get: (id: string) => http.get<InvoiceDetailDto>(`admin/invoices/${id}`) },
   payments: {

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { BedDouble, Check, Luggage, Minus, Plane, Plus, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { BedDouble, Check, Luggage, Plane, X } from 'lucide-react';
 import type { GroupDepartureDto } from '@gnk/types';
-import { MAX_SEATS_PER_BOOKING } from '@gnk/validation';
 import {
   Alert,
   Badge,
@@ -24,7 +23,6 @@ import {
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { errorMessage } from '@/lib/forms';
 import { TYPE_LABEL } from '@/lib/labels';
 import { FlightLeg } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
@@ -40,7 +38,6 @@ export function GroupDetailPage() {
 
   const q = useQuery({ queryKey: keys.group(productId), queryFn: () => api.groups.get(productId) });
   const [departureId, setDepartureId] = useState<string | null>(params.get('departure'));
-  const [seats, setSeats] = useState(1);
   const [tab, setTab] = useState('overview');
 
   useEffect(() => {
@@ -49,16 +46,10 @@ export function GroupDetailPage() {
     }
   }, [q.data, departureId]);
 
-  const quote = useMutation({
-    mutationFn: () => api.quotes.create(departureId!, seats),
-    onSuccess: (quote) => navigate(`/bookings/new?quote=${quote.id}`),
-  });
-
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return <Spinner className="py-20" />;
   const g = q.data;
   const selected = g.departures.find((d) => d.id === departureId);
-  const maxSeats = Math.min(MAX_SEATS_PER_BOOKING, selected?.seatsAvailable ?? 1);
 
   return (
     <>
@@ -197,7 +188,7 @@ export function GroupDetailPage() {
 
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <Card>
-            <CardHeader title="Request seats" />
+            <CardHeader title="Book this group" />
             <CardBody className="space-y-4">
               {!selected ? (
                 <p className="text-sm text-muted-foreground">
@@ -215,59 +206,33 @@ export function GroupDetailPage() {
                         <Luggage className="size-3.5" /> {selected.baggage}
                       </p>
                     )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Seats</span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="icon-sm"
-                        onClick={() => setSeats((s) => Math.max(1, s - 1))}
-                        disabled={seats <= 1}
-                        aria-label="Fewer seats"
-                      >
-                        <Minus />
-                      </Button>
-                      <span className="w-8 text-center text-lg font-semibold tabular">{seats}</span>
-                      <Button
-                        variant="secondary"
-                        size="icon-sm"
-                        onClick={() => setSeats((s) => Math.min(maxSeats, s + 1))}
-                        disabled={seats >= maxSeats}
-                        aria-label="More seats"
-                      >
-                        <Plus />
-                      </Button>
-                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {selected.seatsAvailable} seat{selected.seatsAvailable === 1 ? '' : 's'} left
+                    </p>
                   </div>
                   {approved && selected.price != null ? (
                     <div className="space-y-1 rounded-md bg-surface-sunken p-3 text-sm">
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>
-                          <Money value={selected.price} /> × {seats}
-                        </span>
-                      </div>
                       <div className="flex items-baseline justify-between">
-                        <span className="font-medium">Estimated total</span>
-                        <Money value={selected.price * seats} className="text-lg font-semibold" />
+                        <span className="font-medium">Fare per seat</span>
+                        <Money value={selected.price} className="text-lg font-semibold" />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Your price is locked when you continue.
+                        Choose passenger counts on the next step. Price locks when you confirm.
                       </p>
                     </div>
                   ) : (
                     <Alert tone="info">Fares appear once your account is approved.</Alert>
                   )}
-                  {quote.error && <Alert tone="danger">{errorMessage(quote.error)}</Alert>}
                   {bookable ? (
                     <Button
                       size="lg"
                       className="w-full"
-                      onClick={() => quote.mutate()}
-                      loading={quote.isPending}
                       disabled={!selected.seatsAvailable}
+                      onClick={() =>
+                        navigate(`/bookings/new?product=${g.id}&departure=${selected.id}`)
+                      }
                     >
-                      Continue to passengers
+                      Continue to booking
                     </Button>
                   ) : approved ? (
                     <p className="text-xs text-muted-foreground">

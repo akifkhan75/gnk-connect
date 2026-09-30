@@ -33,7 +33,113 @@ export function GroupsPage() {
   const { service: slug } = useParams();
   const service = serviceBySlug(slug);
   if (!service) return <Navigate to="/book/groups" replace />;
+  if (service.type === 'GROUP') return <InventoryListing key={service.slug} />;
   return <Listing key={service.slug} slug={service.slug} />;
+}
+
+function InventoryListing() {
+  const { session } = useAuth();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [text, setText] = useState(params.get('q') ?? '');
+  const page = Number(params.get('page') ?? 1);
+  const groups = useQuery({
+    queryKey: ['inventory-groups', { q: params.get('q') || undefined, page }],
+    queryFn: () =>
+      api.inventory.groups.list({
+        q: params.get('q') || undefined,
+        page,
+        pageSize: 25,
+      }),
+    placeholderData: keepPreviousData,
+  });
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = new URLSearchParams(params);
+      if (text.trim()) next.set('q', text.trim());
+      else next.delete('q');
+      next.delete('page');
+      if (text.trim() !== (params.get('q') ?? '')) setParams(next, { replace: true });
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+
+  const approved = session!.account.accountStatus === 'APPROVED';
+
+  return (
+    <>
+      <PageHeader
+        title="Group tickets"
+        description="Book group inventory seats. Hold first, add passengers before ticketing."
+      />
+      <Card>
+        <div className="border-b p-4">
+          <SearchInput
+            placeholder="Code, sector or airline"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            aria-label="Search groups"
+          />
+        </div>
+        {groups.error ? (
+          <ErrorState error={groups.error} onRetry={() => groups.refetch()} />
+        ) : groups.isLoading ? (
+          <div className="p-8 text-sm text-muted-foreground">Loading groups…</div>
+        ) : !groups.data?.items.length ? (
+          <EmptyState
+            icon={<SearchIcon />}
+            title="No active groups"
+            description="Ask GNK to publish inventory groups, or clear your search."
+          />
+        ) : (
+          <ul className="divide-y">
+            {groups.data.items.map((g) => (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-muted/50"
+                  onClick={() => navigate(`/inventory/groups/${g.id}`)}
+                >
+                  <div>
+                    <p className="font-semibold">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {g.sector ?? g.code}
+                      {g.airline ? ` · ${g.airline}` : ''}
+                      {g.departureDate ? ` · ${g.departureDate}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {approved && g.price != null && (
+                      <p className="font-semibold tabular">{g.price.toLocaleString('en-PK')} PKR</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {g.showAvailableSeats && g.seatsAvailable != null
+                        ? `${g.seatsAvailable} seats`
+                        : 'Bookable'}
+                    </p>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {groups.data && (
+          <Pagination
+            page={page}
+            pageSize={25}
+            total={groups.data.total}
+            onChange={(p) => {
+              const next = new URLSearchParams(params);
+              next.set('page', String(p));
+              setParams(next, { replace: true });
+            }}
+          />
+        )}
+      </Card>
+    </>
+  );
 }
 
 function Listing({ slug }: { slug: string }) {

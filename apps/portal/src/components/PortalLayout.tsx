@@ -85,7 +85,7 @@ export function PortalLayout() {
                 label: 'My bookings',
                 href: '/bookings',
                 icon: BookOpen,
-                badge: counts.data?.APPROVED || null,
+                badge: counts.data?.PENDING_APPROVAL || null,
               },
               { label: 'Invoices', href: '/invoices', icon: FileText },
               ...(can.money(role)

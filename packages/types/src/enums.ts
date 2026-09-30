@@ -96,17 +96,28 @@ export type RoundingMode = (typeof ROUNDING_MODES)[number];
 
 export const BOOKING_STATUSES = [
   'DRAFT',
+  'QUOTED',
+  'HELD',
+  'PAYMENT_PENDING',
+  'AWAITING_RECEIPT',
+  'RECEIPT_ADDED',
   'PENDING_APPROVAL',
   'APPROVED',
   'REJECTED',
   'SUBMITTED_TO_SUPPLIER',
   'SUPPLIER_PENDING',
   'CONFIRMED',
+  'TICKETED',
   'SUPPLIER_FAILED',
   'CANCELLATION_REQUESTED',
   'CANCELLED',
   'COMPLETED',
   'EXPIRED',
+  'EXPIRED_HOLD',
+  'REFUND_REQUESTED',
+  'REFUNDED',
+  'REFUNDED_PARTIAL',
+  'REFUND_REJECTED',
 ] as const;
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
@@ -162,6 +173,12 @@ export type VoucherStatus = (typeof VOUCHER_STATUSES)[number];
 
 /** Books are kept in this currency; every voucher balances in it. */
 export const BASE_CURRENCY = 'PKR';
+
+export const BOOKING_CONCESSION_KINDS = ['CHILD_SEATS', 'INFANT_SEATS', 'DISCOUNT'] as const;
+export type BookingConcessionKind = (typeof BOOKING_CONCESSION_KINDS)[number];
+
+export const BOOKING_CONCESSION_STATUSES = ['REQUESTED', 'APPROVED', 'REJECTED'] as const;
+export type BookingConcessionStatus = (typeof BOOKING_CONCESSION_STATUSES)[number];
 
 export type Realm = 'PARTNER' | 'STAFF';
 export type ThemePreference = 'LIGHT' | 'DARK' | 'SYSTEM';

@@ -1,9 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { Prisma, type PaymentMethod, type PaymentStatus } from '@prisma/client';
 import type { AdminPaymentListItem, Paginated, PaymentDto, ReceiptDto } from '@gnk/types';
@@ -14,6 +16,7 @@ import { SequencesService } from '../../core/sequences.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
+import { BookingEngineService } from '../bookings/booking-engine.service';
 import { paymentDto } from '../bookings/booking.mapper';
 import { FilesService } from '../files/files.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -63,6 +66,8 @@ interface SubmitInput {
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
+  private readonly log = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sequences: SequencesService,
@@ -72,6 +77,8 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly settings: SettingsService,
+    @Inject(forwardRef(() => BookingEngineService))
+    private readonly bookingEngine: BookingEngineService,
   ) {}
 
   // =============== Partner ===============
@@ -342,6 +349,7 @@ export class PaymentsService {
         body: `${actor.fullName} gave the second approval.`,
         link: `/payments?id=${id}`,
       });
+    await this.confirmInventoryBookingsAfterPayment(actor, payment.id, meta);
     this.changed(payment.accountId, id);
     return this.adminGet(id);
   }
@@ -463,12 +471,61 @@ export class PaymentsService {
         },
         [...FINANCE_ROLES],
       );
+      await this.confirmInventoryBookingsAfterPayment(actor, payment.id, meta);
     }
     this.changed(dto.accountId, payment.id);
     return this.adminGet(payment.id);
   }
 
   // =============== internals ===============
+
+  /**
+   * After a payment is fully verified, apply allocations to inventory bookings and
+   * auto-confirm those still in a hold/payment-pending state (AirDesk happy path).
+   */
+  private async confirmInventoryBookingsAfterPayment(
+    actor: StaffActor,
+    paymentId: string,
+    meta: RequestMeta,
+  ) {
+    const allocations = await this.prisma.paymentAllocation.findMany({
+      where: { paymentId },
+      include: {
+        booking: {
+          select: {
+            id: true,
+            inventoryLotId: true,
+            status: true,
+            amountPaid: true,
+            totalPrice: true,
+          },
+        },
+      },
+    });
+    const confirmable = new Set(['PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED']);
+    for (const a of allocations) {
+      const b = a.booking;
+      if (!b.inventoryLotId) continue;
+      const paid = num(b.amountPaid) + num(a.amount);
+      await this.prisma.booking.update({
+        where: { id: b.id },
+        data: {
+          amountPaid: paid,
+          paymentState: paid >= num(b.totalPrice) ? 'PAID' : 'PARTIALLY_PAID',
+        },
+      });
+      if (!confirmable.has(b.status)) continue;
+      try {
+        await this.bookingEngine.confirm(actor, b.id, meta);
+      } catch (e) {
+        this.log.warn(
+          `Could not auto-confirm inventory booking ${b.id} after payment ${paymentId}: ${
+            e instanceof Error ? e.message : e
+          }`,
+        );
+      }
+    }
+  }
 
   /** Legacy single bookingId becomes one allocation of the full amount. */
   private allocationsOf(dto: SubmitInput) {

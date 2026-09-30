@@ -1,8 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Check, Download, Eye, FileText, RefreshCw, Send, X } from 'lucide-react';
-import type { AdminBookingDetailDto, AdminBookingListItem } from '@gnk/types';
+import {
+  BookOpen,
+  Check,
+  Clock,
+  Download,
+  Eye,
+  FileText,
+  Gift,
+  RefreshCw,
+  Send,
+  Ticket,
+  X,
+} from 'lucide-react';
+
+import type {
+  AdminBookingDetailDto,
+  AdminBookingListItem,
+  BookingConcessionRequestDto,
+} from '@gnk/types';
 import {
   Alert,
   Avatar,
@@ -12,9 +29,11 @@ import {
   CardHeader,
   ConfirmDialog,
   DataTable,
+  Dialog,
   Drawer,
   EmptyState,
   ErrorState,
+  Field,
   Input,
   KeyValue,
   Money,
@@ -22,6 +41,7 @@ import {
   Pagination,
   SearchInput,
   SegmentedControl,
+  Select,
   Spinner,
   StatusBadge,
   Tabs,
@@ -29,6 +49,7 @@ import {
   Timeline,
   formatDate,
   formatDateTime,
+  saveBlob,
   statusLabel,
   statusTone,
   titleCase,
@@ -40,6 +61,10 @@ import { downloadCsv } from '@/lib/csv';
 import { errorMessage } from '@/lib/forms';
 import { useCan } from '@/lib/useCan';
 import { RequirePerm } from '@/components/guards';
+
+/** Statuses on the inventory (group-PNR) lifecycle where confirm/extend apply —
+ *  separate from the legacy supplier-push flow below. */
+const INVENTORY_ACTIVE = ['HELD', 'PAYMENT_PENDING', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'];
 
 // Statuses where someone is waiting on us: show how long.
 const WAITING = [
@@ -369,8 +394,14 @@ function BookingDetail({ id }: { id: string }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [dialog, setDialog] = useState<null | 'reject' | 'cancel' | 'approve' | 'push'>(null);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const q = useQuery({ queryKey: ['booking', id], queryFn: () => api.bookings.get(id) });
+  const concessions = useQuery({
+    queryKey: ['booking', id, 'concessions'],
+    queryFn: () => api.bookings.concessions(id),
+  });
   const [notes, setNotes] = useState('');
   useEffect(() => setNotes(q.data?.internalNotes ?? ''), [q.data?.internalNotes]);
 
@@ -423,6 +454,33 @@ function BookingDetail({ id }: { id: string }) {
     mutationFn: () => api.bookings.setNotes(id, notes),
     onSuccess: (b) => onDone(b, 'Notes saved'),
   });
+  const confirmInventory = useMutation({
+    mutationFn: () => api.bookings.confirm(id),
+    onSuccess: (b) => onDone(b, `${b.reference}: confirmed with the airline`),
+    onError: (e) => toast.error('Could not confirm', errorMessage(e)),
+  });
+  const extendDeadline = useMutation({
+    mutationFn: (extensionMinutes: number) => api.bookings.extendDeadline(id, { extensionMinutes }),
+    onSuccess: (b) => {
+      onDone(b, 'Deadline extended');
+      setExtendOpen(false);
+    },
+    onError: (e) => toast.error('Could not extend', errorMessage(e)),
+  });
+  const decideConcession = useMutation({
+    mutationFn: ({
+      requestId,
+      decision,
+    }: {
+      requestId: string;
+      decision: 'APPROVED' | 'REJECTED';
+    }) => api.bookings.decideConcession(requestId, { decision }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['booking', id, 'concessions'] });
+      toast.success('Concession decided');
+    },
+    onError: (e) => toast.error('Could not decide', errorMessage(e)),
+  });
 
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return <Spinner className="py-20" />;
@@ -430,6 +488,7 @@ function BookingDetail({ id }: { id: string }) {
   const has = (a: AdminBookingDetailDto['allowedActions'][number]) => b.allowedActions.includes(a);
   const shortfall = b.totalPrice - b.balance.availableFunds;
   const run = (action: string, reason?: string) => act.mutateAsync({ action, reason });
+  const isInventory = !!b.inventoryLotId;
 
   return (
     <div className="space-y-5">
@@ -437,8 +496,43 @@ function BookingDetail({ id }: { id: string }) {
         booking={b}
         onChanged={(x) => onDone(x, x.assignedTo ? `Assigned to ${x.assignedTo.name}` : 'Released')}
       />
-      {/* Action bar */}
-      {b.allowedActions.length > 0 && (
+
+      {/* Inventory (group-PNR) action bar — confirm/ticket/extend replace the supplier push flow. */}
+      {isInventory && (
+        <div className="flex flex-wrap gap-2">
+          {INVENTORY_ACTIVE.includes(b.status) && can('bookings:approve') && (
+            <>
+              <Button
+                onClick={() => confirmInventory.mutate()}
+                loading={confirmInventory.isPending}
+              >
+                <Check /> Confirm booking
+              </Button>
+              <Button variant="secondary" onClick={() => setExtendOpen(true)}>
+                <Clock /> Extend deadline
+              </Button>
+            </>
+          )}
+          {b.status === 'CONFIRMED' && can('bookings:approve') && (
+            <Button onClick={() => setTicketOpen(true)}>
+              <Ticket /> Mark ticketed
+            </Button>
+          )}
+          {!['CANCELLED', 'EXPIRED_HOLD', 'TICKETED'].includes(b.status) &&
+            can('bookings:cancel') && (
+              <Button
+                variant="danger-outline"
+                onClick={() => setDialog('cancel')}
+                className="ml-auto"
+              >
+                Cancel booking
+              </Button>
+            )}
+        </div>
+      )}
+
+      {/* Action bar (legacy supplier-push flow — never shown for group-PNR/inventory bookings) */}
+      {!isInventory && b.allowedActions.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {has('approve') && (
             <>
@@ -514,18 +608,62 @@ function BookingDetail({ id }: { id: string }) {
           {b.rejectionReason}
         </Alert>
       )}
+      {isInventory &&
+        INVENTORY_ACTIVE.includes(b.status) &&
+        (b.heldUntil || b.paymentDeadlineAt) && (
+          <Alert tone="warning" title={b.status === 'HELD' ? 'Hold expires' : 'Payment due'}>
+            {formatDateTime((b.status === 'HELD' ? b.heldUntil : b.paymentDeadlineAt) ?? '')} —
+            confirm or extend before it lapses and seats are released automatically.
+          </Alert>
+        )}
+      {isInventory && b.status === 'EXPIRED_HOLD' && (
+        <Alert tone="danger" title="Hold expired">
+          Seats were released automatically. The partner can rebook if seats remain.
+        </Alert>
+      )}
 
       <Card>
         <CardHeader
           title="Booking"
           actions={
-            b.invoice && (
-              <Button asChild variant="ghost" size="sm">
-                <Link to={`/invoices/${b.invoice.id}`}>
-                  <FileText /> {b.invoice.number}
-                </Link>
-              </Button>
-            )
+            <div className="flex items-center gap-1.5">
+              {isInventory &&
+                ['HELD', 'PAYMENT_PENDING', 'CONFIRMED', 'TICKETED'].includes(b.status) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () =>
+                      saveBlob(
+                        await api.bookings.documents.reservationPdf(b.id),
+                        `${b.reference}-reservation.pdf`,
+                      )
+                    }
+                  >
+                    <Download /> Reservation
+                  </Button>
+                )}
+              {isInventory && b.status === 'TICKETED' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () =>
+                    saveBlob(
+                      await api.bookings.documents.confirmationPdf(b.id),
+                      `${b.reference}-confirmation.pdf`,
+                    )
+                  }
+                >
+                  <Download /> Confirmation
+                </Button>
+              )}
+              {b.invoice && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link to={`/invoices/${b.invoice.id}`}>
+                    <FileText /> {b.invoice.number}
+                  </Link>
+                </Button>
+              )}
+            </div>
           }
         />
         <CardBody>
@@ -548,14 +686,119 @@ function BookingDetail({ id }: { id: string }) {
                 label: 'Travel',
                 value: `${formatDate(b.departureDate)} – ${formatDate(b.returnDate)}`,
               },
-              { label: 'Seats', value: b.seats },
-              { label: 'Supplier', value: b.supplierName },
-              { label: 'Supplier ref', value: b.supplierBookingRef },
+              {
+                label: 'Seats',
+                value: isInventory
+                  ? [
+                      b.bookedAdults
+                        ? `${b.bookedAdults} adult${b.bookedAdults > 1 ? 's' : ''}`
+                        : null,
+                      b.bookedChildren
+                        ? `${b.bookedChildren} child${b.bookedChildren > 1 ? 'ren' : ''}`
+                        : null,
+                      b.bookedInfants
+                        ? `${b.bookedInfants} infant${b.bookedInfants > 1 ? 's' : ''}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || b.seats
+                  : b.seats,
+              },
+              ...(isInventory
+                ? []
+                : [
+                    { label: 'Supplier', value: b.supplierName },
+                    { label: 'Supplier ref', value: b.supplierBookingRef },
+                  ]),
               { label: 'PNR', value: b.pnr && <span className="font-mono">{b.pnr}</span> },
             ]}
           />
         </CardBody>
       </Card>
+
+      {isInventory && (b.fareSubtotalAmount != null || b.discountAmount) && (
+        <Card>
+          <CardHeader title="Fare" />
+          <CardBody className="space-y-2 text-sm">
+            {b.fareSubtotalAmount != null && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Fare subtotal</span>
+                <Money value={b.fareSubtotalAmount} />
+              </div>
+            )}
+            {!!b.discountAmount && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Concession discount</span>
+                <span>
+                  -<Money value={b.discountAmount} />
+                </span>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      {isInventory && (
+        <Card>
+          <CardHeader title="Concession requests" icon={<Gift className="size-4" />} />
+          {concessions.data && concessions.data.length > 0 ? (
+            <DataTable
+              dense
+              rowKey={(r: BookingConcessionRequestDto) => r.id}
+              rows={concessions.data}
+              columns={[
+                { key: 'k', header: 'Type', cell: (r) => titleCase(r.kind) },
+                {
+                  key: 'q',
+                  header: 'Requested',
+                  cell: (r) =>
+                    r.kind === 'DISCOUNT' ? (
+                      r.requestedDiscountAmount != null ? (
+                        <Money value={r.requestedDiscountAmount} />
+                      ) : (
+                        '—'
+                      )
+                    ) : (
+                      (r.requestedChildSeats ?? r.requestedInfantSeats ?? 0)
+                    ),
+                },
+                { key: 's', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
+                {
+                  key: 'a',
+                  header: '',
+                  align: 'right',
+                  cell: (r) =>
+                    r.status === 'REQUESTED' && can('bookings:approve') ? (
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          size="xs"
+                          onClick={() =>
+                            decideConcession.mutate({ requestId: r.id, decision: 'APPROVED' })
+                          }
+                          loading={decideConcession.isPending}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="danger-outline"
+                          onClick={() =>
+                            decideConcession.mutate({ requestId: r.id, decision: 'REJECTED' })
+                          }
+                          loading={decideConcession.isPending}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ) : null,
+                },
+              ]}
+            />
+          ) : (
+            <CardBody className="text-sm text-muted-foreground">No concession requests.</CardBody>
+          )}
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="Price" />
@@ -797,16 +1040,155 @@ function BookingDetail({ id }: { id: string }) {
         onOpenChange={(o) => !o && setDialog(null)}
         title={`Cancel ${b.reference}?`}
         description={
-          b.status === 'CONFIRMED'
-            ? 'The supplier booking is cancelled and the full amount is credited back to the partner. The invoice is voided.'
-            : 'Held seats are released.'
+          isInventory
+            ? b.status === 'CONFIRMED'
+              ? 'Confirmed seats are released back to the pool and the invoice is voided.'
+              : 'Held/pending seats are released back to the pool.'
+            : b.status === 'CONFIRMED'
+              ? 'The supplier booking is cancelled and the full amount is credited back to the partner. The invoice is voided.'
+              : 'Held seats are released.'
         }
         confirmLabel="Cancel booking"
         tone="danger"
         reasonLabel="Reason (sent to partner)"
         onConfirm={(r) => run('cancel', r)}
       />
+      {isInventory && (
+        <ExtendDeadlineDialog
+          open={extendOpen}
+          onOpenChange={setExtendOpen}
+          onSubmit={(minutes) => extendDeadline.mutate(minutes)}
+          loading={extendDeadline.isPending}
+        />
+      )}
+      {isInventory && (
+        <MarkTicketedDialog
+          open={ticketOpen}
+          onOpenChange={setTicketOpen}
+          booking={b}
+          onDone={(x) => {
+            onDone(x, `${x.reference}: ticketed`);
+            setTicketOpen(false);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function ExtendDeadlineDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (minutes: number) => void;
+  loading: boolean;
+}) {
+  const [minutes, setMinutes] = useState(60);
+  useEffect(() => {
+    if (open) setMinutes(60);
+  }, [open]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Extend deadline"
+      description="Moves both the seat hold and payment deadline. Use a negative value to pull it in."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSubmit(minutes)} loading={loading}>
+            Extend
+          </Button>
+        </>
+      }
+    >
+      <Field label="Extension">
+        <Select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
+          <option value={-60}>-1 hour</option>
+          <option value={30}>+30 minutes</option>
+          <option value={60}>+1 hour</option>
+          <option value={120}>+2 hours</option>
+          <option value={240}>+4 hours</option>
+          <option value={1440}>+24 hours</option>
+        </Select>
+      </Field>
+    </Dialog>
+  );
+}
+
+function MarkTicketedDialog({
+  open,
+  onOpenChange,
+  booking: b,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  booking: AdminBookingDetailDto;
+  onDone: (b: AdminBookingDetailDto) => void;
+}) {
+  const toast = useToast();
+  const [tickets, setTickets] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (open) setTickets({});
+  }, [open]);
+
+  const ticket = useMutation({
+    mutationFn: () =>
+      api.bookings.ticket(b.id, {
+        passengerTickets: b.passengers.map((p) => ({
+          passengerId: p.id,
+          ticketNumber: (tickets[p.id] ?? '').trim(),
+        })),
+      }),
+    onSuccess: onDone,
+    onError: (e) => toast.error('Could not mark ticketed', errorMessage(e)),
+  });
+
+  const complete = b.passengers.every((p) => (tickets[p.id] ?? '').trim().length >= 3);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Mark ${b.reference} ticketed`}
+      description="Enter the airline e-ticket number issued for each passenger."
+      size="md"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={ticket.isPending}
+          >
+            Cancel
+          </Button>
+          <Button onClick={() => ticket.mutate()} loading={ticket.isPending} disabled={!complete}>
+            Mark ticketed
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {b.passengers.map((p) => (
+          <Field key={p.id} label={`${titleCase(p.title)} ${p.firstName} ${p.lastName}`}>
+            <Input
+              placeholder="Ticket number"
+              className="tabular"
+              value={tickets[p.id] ?? ''}
+              onChange={(e) => setTickets((t) => ({ ...t, [p.id]: e.target.value }))}
+            />
+          </Field>
+        ))}
+      </div>
+    </Dialog>
   );
 }
 

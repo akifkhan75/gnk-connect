@@ -23,9 +23,11 @@ const TABS = [
   { value: 'all', label: 'All' },
   { value: 'PENDING_APPROVAL', label: 'Pending approval' },
   { value: 'APPROVED', label: 'Approved' },
-  { value: 'PROCESSING', label: 'Processing' },
+  { value: 'PAYMENT_PENDING', label: 'Payment pending' },
   { value: 'CONFIRMED', label: 'Confirmed' },
-  { value: 'CLOSED', label: 'Cancelled / rejected' },
+  { value: 'TICKETED', label: 'Ticketed' },
+  { value: 'EXPIRED_HOLD', label: 'Expired holds' },
+  { value: 'CANCELLED', label: 'Cancelled' },
 ] as const;
 
 export function BookingsPage() {

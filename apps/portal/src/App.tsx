@@ -39,6 +39,9 @@ const GroupsRedirect = lazy(() =>
 const GroupDetailPage = lazy(() =>
   import('@/pages/GroupDetailPage').then((m) => ({ default: m.GroupDetailPage })),
 );
+const InventoryGroupDetailPage = lazy(() =>
+  import('@/pages/InventoryGroupDetailPage').then((m) => ({ default: m.InventoryGroupDetailPage })),
+);
 const NewBookingPage = lazy(() =>
   import('@/pages/NewBookingPage').then((m) => ({ default: m.NewBookingPage })),
 );
@@ -111,6 +114,7 @@ const router = createBrowserRouter([
               { path: 'book/:service', element: <GroupsPage /> },
               { path: 'groups', element: <GroupsRedirect /> },
               { path: 'groups/:productId', element: <GroupDetailPage /> },
+              { path: 'inventory/groups/:groupId', element: <InventoryGroupDetailPage /> },
               { path: 'bookings', element: <BookingsPage /> },
               { path: 'bookings/new', element: <NewBookingPage /> },
               { path: 'bookings/:id', element: <BookingDetailPage /> },

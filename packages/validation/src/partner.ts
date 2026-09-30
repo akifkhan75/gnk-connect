@@ -137,20 +137,92 @@ export const passengerSchema = z
   });
 export type PassengerInput = z.input<typeof passengerSchema>;
 
-export const createBookingSchema = z.object({
-  quoteId: uuidSchema,
-  passengers: z.array(passengerSchema).min(1).max(MAX_SEATS_PER_BOOKING),
-  agentNotes: optionalText(1000),
-  acceptTerms: z.literal(true, { error: 'Accept the booking terms to continue' }),
-});
+export const createBookingSchema = z
+  .object({
+    quoteId: uuidSchema.optional(),
+    inventoryLotId: uuidSchema.optional(),
+    adults: z.coerce.number().int().min(1).max(MAX_SEATS_PER_BOOKING).optional(),
+    children: z.coerce.number().int().min(0).max(MAX_SEATS_PER_BOOKING).optional(),
+    infants: z.coerce.number().int().min(0).max(MAX_SEATS_PER_BOOKING).optional(),
+    /** Empty = hold seats now; add passport details later. */
+    passengers: z.array(passengerSchema).max(MAX_SEATS_PER_BOOKING).default([]),
+    agentNotes: optionalText(1000),
+    acceptTerms: z.literal(true, { error: 'Accept the booking terms to continue' }),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.quoteId && !v.inventoryLotId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['inventoryLotId'],
+        message: 'Select a cabin / inventory lot',
+      });
+    }
+    if (v.inventoryLotId && (v.adults == null || v.adults < 1)) {
+      ctx.addIssue({ code: 'custom', path: ['adults'], message: 'At least 1 adult is required' });
+    }
+  });
 export type CreateBookingInput = z.input<typeof createBookingSchema>;
+
+export const setBookingPassengersSchema = z.object({
+  passengers: z.array(passengerSchema).min(1).max(MAX_SEATS_PER_BOOKING),
+});
+export type SetBookingPassengersInput = z.input<typeof setBookingPassengersSchema>;
+
+export const ticketBookingSchema = z.object({
+  passengerTickets: z
+    .array(
+      z.object({
+        passengerId: uuidSchema,
+        ticketNumber: z.string().trim().min(3).max(32),
+      }),
+    )
+    .min(1),
+});
+
+export const concessionRequestSchema = z.object({
+  kind: z.enum(['CHILD_SEATS', 'INFANT_SEATS', 'DISCOUNT']),
+  requestedChildSeats: z.coerce.number().int().min(1).max(50).optional(),
+  requestedInfantSeats: z.coerce.number().int().min(1).max(50).optional(),
+  requestedDiscountAmount: moneySchema.optional(),
+  reason: optionalText(500),
+});
+
+export const concessionDecisionSchema = z.object({
+  decision: z.enum(['APPROVED', 'REJECTED']),
+  approvedChildSeats: z.coerce.number().int().min(0).max(50).optional(),
+  approvedInfantSeats: z.coerce.number().int().min(0).max(50).optional(),
+  approvedDiscountAmount: moneySchema.optional(),
+  decisionNote: optionalText(500),
+  pnrCode: optionalText(48),
+});
+
+export const extendDeadlineSchema = z.object({
+  extensionMinutes: z.coerce.number().int().min(-1440).max(1440),
+});
+
+/** Agent-side ask: doesn't move the deadline itself, just flags it for platform review. */
+export const extensionRequestSchema = z.object({
+  minutes: z.coerce.number().int().min(15).max(1440).default(60),
+  reason: optionalText(500),
+});
+export type ExtensionRequestInput = z.input<typeof extensionRequestSchema>;
 
 export const bookingListSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   q: z.string().trim().max(100).optional(),
   tab: z
-    .enum(['all', 'PENDING_APPROVAL', 'APPROVED', 'PROCESSING', 'CONFIRMED', 'CLOSED'])
+    .enum([
+      'all',
+      'PENDING_APPROVAL',
+      'APPROVED',
+      'PAYMENT_PENDING',
+      'CONFIRMED',
+      'TICKETED',
+      'EXPIRED',
+      'EXPIRED_HOLD',
+      'CANCELLED',
+    ])
     .default('all'),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),

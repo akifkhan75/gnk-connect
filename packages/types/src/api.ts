@@ -6,6 +6,8 @@
 // references. Those fields exist only on Admin* DTOs.
 
 import type {
+  BookingConcessionKind,
+  BookingConcessionStatus,
   BookingStatus,
   DepartureStatus,
   Gender,
@@ -308,6 +310,13 @@ export interface BookingListItem {
   departureDate: string;
   seats: number;
   totalPrice: number;
+  amountPaid: number;
+  holdExpiresAt: string | null;
+  passengerCount: number;
+  infantCount: number;
+  bookedAdults?: number | null;
+  bookedChildren?: number | null;
+  bookedInfants?: number | null;
   createdAt: string;
   createdByName: string;
   leadPassenger: string | null;
@@ -324,6 +333,7 @@ export interface PassengerDto {
   nationality: string;
   passportMasked: string;
   passportExpiry: string;
+  ticketNumber?: string | null;
 }
 
 export interface BookingDetailDto extends BookingListItem {
@@ -331,7 +341,6 @@ export interface BookingDetailDto extends BookingListItem {
   returnDate: string | null;
   baggage: string | null;
   unitPrice: number;
-  amountPaid: number;
   pnr: string | null;
   agentNotes: string | null;
   rejectionReason: string | null;
@@ -341,15 +350,123 @@ export interface BookingDetailDto extends BookingListItem {
   outbound: FlightLegDto | null;
   inbound: FlightLegDto | null;
   canCancel: boolean;
+  heldUntil?: string | null;
+  paymentDeadlineAt?: string | null;
+  inventoryLotId?: string | null;
+  groupPnrId?: string | null;
+  /** Inventory (AirDesk) fare fields — only meaningful when inventoryLotId is set. */
+  fareSubtotalAmount?: number;
+  discountAmount?: number;
+  grantedChildSeats?: number;
+  grantedInfantSeats?: number;
+  confirmedAt?: string | null;
+  cancelledAt?: string | null;
+  passengerDetailsRequestedAt?: string | null;
 }
 
 export interface BookingStatusCounts {
   all: number;
   PENDING_APPROVAL: number;
+  /** Approved seats awaiting payment/issuance — dashboard, not a list tab. */
   APPROVED: number;
-  PROCESSING: number;
+  PAYMENT_PENDING: number;
   CONFIRMED: number;
-  CLOSED: number;
+  TICKETED: number;
+  EXPIRED: number;
+  EXPIRED_HOLD: number;
+  CANCELLED: number;
+}
+
+// ---------- Inventory groups (AirDesk port) ----------
+
+export interface InventoryFlightLeg {
+  /** Underlying FlightSegment id — needed to attach a new lot (admin only). */
+  segmentId: string;
+  direction: string;
+  flightNo: string;
+  from: string;
+  to: string;
+  departAt: string;
+  arriveAt: string;
+}
+
+export interface InventoryLotSummary {
+  id: string;
+  bucketCode: string;
+  cabinClass: string;
+  status: string;
+  fareAmount: number | null;
+  childFareAmount: number | null;
+  infantFareAmount: number | null;
+  currency: string;
+  seatsAvailable: number | null;
+  adultSeatsAvailable: number | null;
+  childSeatsAvailable: number | null;
+  infantSeatsAvailable: number | null;
+  hasInfantFare: boolean;
+}
+
+export interface InventoryGroupListItem {
+  id: string;
+  code: string;
+  name: string;
+  sector: string | null;
+  airline: string | null;
+  currency: string;
+  status: string;
+  paymentDeadlineHours: number;
+  showAvailableSeats: boolean;
+  departureDate: string | null;
+  price: number | null;
+  seatsAvailable: number | null;
+  legs: InventoryFlightLeg[];
+  lots: InventoryLotSummary[];
+}
+
+export interface InventoryGroupDetail extends InventoryGroupListItem {
+  description: string | null;
+}
+
+export interface GroupPnrDto {
+  id: string;
+  pnrCode: string;
+  allocatedSeats: number;
+  availableSeats: number;
+  heldSeats: number;
+  confirmedSeats: number;
+  status: string;
+  sortOrder: number;
+  paxKind: 'ADULT' | 'CHILD' | 'INFANT' | null;
+}
+
+/** Staff-only lot fields: real totals, cost and PNR board. */
+export interface AdminInventoryLotSummary extends InventoryLotSummary {
+  seatsTotal?: number;
+  costAmount?: number | null;
+  pnrs?: GroupPnrDto[];
+}
+
+export interface AdminInventoryGroupDetail extends Omit<InventoryGroupDetail, 'lots'> {
+  lots: AdminInventoryLotSummary[];
+}
+
+export interface BookingConcessionRequestDto {
+  id: string;
+  bookingId: string;
+  kind: BookingConcessionKind;
+  status: BookingConcessionStatus;
+  initiatedBy: 'AGENT' | 'PLATFORM';
+  requestedChildSeats: number | null;
+  approvedChildSeats: number | null;
+  requestedInfantSeats: number | null;
+  approvedInfantSeats: number | null;
+  requestedDiscountAmount: number | null;
+  approvedDiscountAmount: number | null;
+  approvedPnrCode: string | null;
+  reason: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
 }
 
 // ---------- Partner: money ----------

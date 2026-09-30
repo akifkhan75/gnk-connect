@@ -345,6 +345,8 @@ model Supplier {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   products         Product[]
+  flightSegments   FlightSegment[]
+  sellingGroups    SellingGroup[]
 }
 
 model Product {
@@ -484,17 +486,28 @@ model PriceQuote {
 
 enum BookingStatus {
   DRAFT
+  QUOTED
+  HELD
+  PAYMENT_PENDING
+  AWAITING_RECEIPT
+  RECEIPT_ADDED
   PENDING_APPROVAL
   APPROVED
   REJECTED
   SUBMITTED_TO_SUPPLIER
   SUPPLIER_PENDING
   CONFIRMED
+  TICKETED
   SUPPLIER_FAILED
   CANCELLATION_REQUESTED
   CANCELLED
   COMPLETED
   EXPIRED
+  EXPIRED_HOLD
+  REFUND_REQUESTED
+  REFUNDED
+  REFUNDED_PARTIAL
+  REFUND_REJECTED
 }
 
 enum PaymentState {
@@ -533,38 +546,57 @@ model DocumentSequence {
 
 model Booking {
   id                   String               @id @default(uuid(7)) @db.Uuid
-  reference            String               @unique // GNK-2026-000124 (agent-visible)
+  reference            String               @unique // GNK-2026-000124 / BK-XXXXXX
   accountId            String               @db.Uuid
   createdByUserId      String               @db.Uuid
-  supplierId           String               @db.Uuid
-  productId            String               @db.Uuid
-  departureId          String               @db.Uuid
-  supplierBookingRef   String? // AD-849302 (staff-only)
+  /// Legacy Quote-path supplier/product/departure — nullable for inventory bookings.
+  supplierId           String?              @db.Uuid
+  productId            String?              @db.Uuid
+  departureId          String?              @db.Uuid
+  supplierBookingRef   String?
   supplierPnr          String?
   seats                Int
   currency             String               @default("PKR") @db.Char(3)
-  supplierNetUnit      Decimal              @db.Decimal(14, 2) // staff-only
-  /// Supplier cost as posted on confirmation, when the supplier bills in a foreign currency (staff-only).
+  supplierNetUnit      Decimal              @default(0) @db.Decimal(14, 2)
   supplierCostCurrency String?              @db.Char(3)
   supplierCostFc       Decimal?             @db.Decimal(14, 2)
   supplierCostRate     Decimal?             @db.Decimal(18, 6)
-  markupUnit           Decimal              @db.Decimal(14, 2) // staff-only
+  markupUnit           Decimal              @default(0) @db.Decimal(14, 2)
   unitPrice            Decimal              @db.Decimal(14, 2)
   totalPrice           Decimal              @db.Decimal(14, 2)
   amountPaid           Decimal              @default(0) @db.Decimal(14, 2)
-  pricingSnapshot      Json // copy of PriceQuote.breakdown
-  quoteId              String               @unique @db.Uuid
-  status               BookingStatus        @default(PENDING_APPROVAL)
+  pricingSnapshot      Json                 @default("{}")
+  quoteId              String?              @unique @db.Uuid
+  status               BookingStatus        @default(DRAFT)
   paymentState         PaymentState         @default(UNPAID)
   holdExpiresAt        DateTime?
   agentNotes           String?
-  internalNotes        String? // staff-only
-  assignedStaffId      String?              @db.Uuid // staff member who owns this request
+  internalNotes        String?
+  assignedStaffId      String?              @db.Uuid
   rejectionReason      String?
   idempotencyKey       String
   version              Int                  @default(0)
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+
+  /// Inventory group-ticket fields (AirDesk port).
+  inventoryLotId              String?   @db.Uuid
+  groupPnrId                  String?   @db.Uuid
+  pnrAssignedSeatCount        Int?
+  bookedAdults                Int?
+  bookedChildren              Int?
+  bookedInfants               Int?
+  grantedChildSeats           Int       @default(0)
+  grantedInfantSeats          Int       @default(0)
+  fareSubtotalAmount          Decimal   @default(0) @db.Decimal(14, 2)
+  discountAmount              Decimal   @default(0) @db.Decimal(14, 2)
+  paymentDeadlineAt           DateTime?
+  heldUntil                   DateTime?
+  confirmedAt                 DateTime?
+  cancelledAt                 DateTime?
+  passengerDetailsRequestedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   passengers           Passenger[]
   statusHistory        BookingStatusEvent[]
   payments             Payment[]
@@ -572,32 +604,44 @@ model Booking {
   supplierCalls        SupplierCallLog[]
   invoice              Invoice?
   account              PartnerAccount       @relation(fields: [accountId], references: [id])
-  product              Product              @relation(fields: [productId], references: [id])
-  departure            Departure            @relation(fields: [departureId], references: [id])
+  product              Product?             @relation(fields: [productId], references: [id])
+  departure            Departure?           @relation(fields: [departureId], references: [id])
+  inventoryLot         InventoryLot?        @relation(fields: [inventoryLotId], references: [id])
+  groupPnr             GroupPnr?            @relation(fields: [groupPnrId], references: [id])
+  pnrAllocations       BookingPnrAllocation[]
+  inventoryHolds       InventoryHold[]
+  inventoryMovements   InventoryMovement[]
+  concessionRequests   BookingConcessionRequest[]
 
   @@unique([accountId, idempotencyKey])
   @@index([accountId, createdAt])
   @@index([createdAt])
   @@index([departureId])
+  @@index([inventoryLotId])
+  @@index([status])
 }
 
 model Passenger {
-  id                String   @id @default(uuid(7)) @db.Uuid
-  bookingId         String   @db.Uuid
+  id                String    @id @default(uuid(7)) @db.Uuid
+  bookingId         String    @db.Uuid
   type              PaxType
   title             Title
   firstName         String
   lastName          String
   gender            Gender
-  dateOfBirth       DateTime @db.Date
-  nationality       String   @db.Char(2)
-  passportNumberEnc String // encrypted; last4 stored for search
-  passportLast4     String   @db.Char(4)
-  passportExpiry    DateTime @db.Date
+  dateOfBirth       DateTime  @db.Date
+  nationality       String    @db.Char(2)
+  passportNumberEnc String
+  passportLast4     String    @db.Char(4)
+  passportExpiry    DateTime  @db.Date
   cnicEnc           String?
-  booking           Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketNumber      String?
+  groupPnrId        String?   @db.Uuid
+  booking           Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  groupPnr          GroupPnr? @relation(fields: [groupPnrId], references: [id], onDelete: SetNull)
 
   @@index([bookingId])
+  @@index([groupPnrId])
 }
 
 model BookingStatusEvent {
@@ -905,4 +949,300 @@ model Setting {
   value       Json
   updatedById String?  @db.Uuid
   updatedAt   DateTime @updatedAt
+}
+
+// ---------- Group inventory (AirDesk port, single-tenant) ----------
+
+enum SellingGroupStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum CabinClass {
+  ECONOMY
+  PREMIUM_ECONOMY
+  BUSINESS
+  FIRST
+}
+
+enum InventoryLotStatus {
+  OPEN
+  FROZEN
+  CLOSED
+}
+
+enum GroupPnrStatus {
+  AVAILABLE
+  LOW_INVENTORY
+  FULL
+  INACTIVE
+}
+
+enum GroupPnrPaxKind {
+  ADULT
+  CHILD
+  INFANT
+}
+
+enum FlightSegmentDirection {
+  OUTBOUND
+  INBOUND
+  SINGLE
+}
+
+enum InventoryMovementType {
+  INITIAL_LOAD
+  HOLD
+  RELEASE_HOLD
+  HOLD_EXPIRED
+  CONFIRM
+  CANCEL_BOOKING_ADJUSTMENT
+  MANUAL_ADJUSTMENT
+  RECONCILE_ADJUSTMENT
+}
+
+enum InventoryHoldStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+  EXPIRED
+}
+
+enum BookingConcessionKind {
+  CHILD_SEATS
+  INFANT_SEATS
+  DISCOUNT
+}
+
+enum BookingConcessionStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum BookingConcessionInitiatedBy {
+  AGENT
+  PLATFORM
+}
+
+model SellingGroup {
+  id                   String             @id @default(uuid(7)) @db.Uuid
+  supplierId           String?            @db.Uuid
+  code                 String             @unique
+  name                 String?
+  description          String?
+  currency             String             @default("PKR") @db.Char(3)
+  status               SellingGroupStatus @default(DRAFT)
+  validFrom            DateTime?
+  validUntil           DateTime?
+  paymentDeadlineHours Int                @default(24)
+  showAvailableSeats   Boolean            @default(true)
+  fareRuleRefs         Json               @default("[]")
+  sector               String?
+  airline              String?
+  rowVersion           Int                @default(0)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  deletedAt            DateTime?
+
+  supplier      Supplier?                     @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  memberships   SellingGroupFlightSegment[]
+  inventoryLots InventoryLot[]
+  groupPnrs     GroupPnr[]
+
+  @@index([status, deletedAt])
+}
+
+model FlightSegment {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  carrierSupplierId     String?   @db.Uuid
+  marketingFlightNumber String
+  departureAirport      String    @db.Char(3)
+  arrivalAirport        String    @db.Char(3)
+  departureTimeUtc      DateTime
+  arrivalTimeUtc        DateTime
+  cabinClassBucket      String    @default("ECONOMY")
+  operatingCarrier      String?
+  meta                  Json      @default("{}")
+  rowVersion            Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  carrier           Supplier?                     @relation(fields: [carrierSupplierId], references: [id], onDelete: SetNull)
+  sellingGroupLinks SellingGroupFlightSegment[]
+  inventoryLots     InventoryLot[]
+
+  @@index([departureAirport, arrivalAirport, departureTimeUtc])
+}
+
+model SellingGroupFlightSegment {
+  sellingGroupId  String                 @db.Uuid
+  flightSegmentId String                 @db.Uuid
+  seq             Int                    @default(0)
+  legDirection    FlightSegmentDirection @default(OUTBOUND)
+
+  sellingGroup SellingGroup  @relation(fields: [sellingGroupId], references: [id], onDelete: Cascade)
+  segment      FlightSegment @relation(fields: [flightSegmentId], references: [id], onDelete: Cascade)
+
+  @@id([sellingGroupId, flightSegmentId])
+  @@index([flightSegmentId])
+}
+
+model InventoryLot {
+  id                  String             @id @default(uuid(7)) @db.Uuid
+  sellingGroupId      String             @db.Uuid
+  flightSegmentId     String             @db.Uuid
+  bucketCode          String
+  cabinClass          CabinClass         @default(ECONOMY)
+  status              InventoryLotStatus @default(OPEN)
+  seatsTotal          Int                @default(0)
+  seatsHeld           Int                @default(0)
+  seatsConfirmed      Int                @default(0)
+  childSeatsTotal     Int                @default(0)
+  childSeatsHeld      Int                @default(0)
+  childSeatsConfirmed Int                @default(0)
+  infantSeatsTotal    Int                @default(0)
+  infantSeatsHeld     Int                @default(0)
+  infantSeatsConfirmed Int               @default(0)
+  fareAmount          Decimal?           @db.Decimal(14, 2)
+  costAmount          Decimal?           @db.Decimal(14, 2)
+  fareCurrency        String?            @db.Char(3)
+  childFareAmount     Decimal?           @db.Decimal(14, 2)
+  infantFareAmount    Decimal?           @db.Decimal(14, 2)
+  rowVersion          Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  deletedAt           DateTime?
+
+  sellingGroup  SellingGroup         @relation(fields: [sellingGroupId], references: [id], onDelete: Cascade)
+  flightSegment FlightSegment        @relation(fields: [flightSegmentId], references: [id], onDelete: Restrict)
+  bookings      Booking[]
+  movements     InventoryMovement[]
+  holds         InventoryHold[]
+  groupPnrs     GroupPnr[]
+
+  @@unique([sellingGroupId, flightSegmentId, bucketCode])
+  @@index([status, deletedAt])
+  @@index([sellingGroupId])
+}
+
+model GroupPnr {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  sellingGroupId String          @db.Uuid
+  inventoryLotId String          @db.Uuid
+  pnrCode        String          @db.VarChar(48)
+  allocatedSeats Int
+  bookedSeats    Int             @default(0)
+  confirmedSeats Int             @default(0)
+  heldSeats      Int             @default(0)
+  availableSeats Int             @default(0)
+  sortOrder      Int             @default(0)
+  isActive       Boolean         @default(true)
+  status         GroupPnrStatus  @default(AVAILABLE)
+  paxKind        GroupPnrPaxKind?
+  notes          String?
+  rowVersion     Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  sellingGroup       SellingGroup                @relation(fields: [sellingGroupId], references: [id], onDelete: Cascade)
+  inventoryLot       InventoryLot                @relation(fields: [inventoryLotId], references: [id], onDelete: Cascade)
+  bookings           Booking[]
+  allocations        BookingPnrAllocation[]
+  passengers         Passenger[]
+  concessionRequests BookingConcessionRequest[]
+
+  @@unique([inventoryLotId, pnrCode])
+  @@index([sellingGroupId, deletedAt])
+  @@index([inventoryLotId, isActive, deletedAt])
+}
+
+model InventoryMovement {
+  id              String                @id @default(uuid(7)) @db.Uuid
+  inventoryLotId  String                @db.Uuid
+  movementType    InventoryMovementType
+  seatsDelta      Int
+  correlationType String?
+  correlationId   String?               @db.Uuid
+  bookingId       String?               @db.Uuid
+  meta            Json                  @default("{}")
+  createdAt       DateTime              @default(now())
+
+  inventoryLot InventoryLot @relation(fields: [inventoryLotId], references: [id], onDelete: Cascade)
+  booking      Booking?     @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([inventoryLotId, createdAt])
+  @@index([bookingId])
+}
+
+model InventoryHold {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  inventoryLotId String              @db.Uuid
+  bookingId      String?             @db.Uuid
+  seatsHeld      Int                 @default(1)
+  adultsHeld     Int                 @default(0)
+  childrenHeld   Int                 @default(0)
+  infantsHeld    Int                 @default(0)
+  status         InventoryHoldStatus @default(ACTIVE)
+  expiresAt      DateTime
+  idempotencyKey String?             @db.VarChar(128)
+  releasedAt     DateTime?
+  createdAt      DateTime            @default(now())
+
+  inventoryLot InventoryLot @relation(fields: [inventoryLotId], references: [id], onDelete: Cascade)
+  booking      Booking?     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt, status])
+  @@index([bookingId])
+  @@index([inventoryLotId])
+}
+
+model BookingPnrAllocation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  bookingId      String   @db.Uuid
+  groupPnrId     String   @db.Uuid
+  heldSeats      Int      @default(0)
+  confirmedSeats Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  groupPnr GroupPnr @relation(fields: [groupPnrId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, groupPnrId])
+  @@index([groupPnrId])
+}
+
+model BookingConcessionRequest {
+  id                   String                        @id @default(uuid(7)) @db.Uuid
+  accountId            String                        @db.Uuid
+  bookingId            String                        @db.Uuid
+  kind                 BookingConcessionKind
+  status               BookingConcessionStatus       @default(REQUESTED)
+  initiatedBy          BookingConcessionInitiatedBy
+  requestedChildSeats  Int?
+  approvedChildSeats   Int?
+  requestedInfantSeats Int?
+  approvedInfantSeats  Int?
+  approvedPnrCode      String?
+  groupPnrId           String?                       @db.Uuid
+  requestedDiscountAmount Decimal?                   @db.Decimal(14, 2)
+  approvedDiscountAmount  Decimal?                   @db.Decimal(14, 2)
+  reason               String?
+  decisionNote         String?
+  reviewedById         String?                       @db.Uuid
+  reviewedAt           DateTime?
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+
+  booking  Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  groupPnr GroupPnr? @relation(fields: [groupPnrId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, status])
+  @@index([status, createdAt])
 }

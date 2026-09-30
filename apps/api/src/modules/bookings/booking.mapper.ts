@@ -24,12 +24,27 @@ export function partnerStatus(s: BookingStatus): BookingStatus {
 const listInclude = {
   product: { select: { title: true, sector: true, airline: true, content: true } },
   departure: { select: { departureDate: true, returnDate: true, baggage: true } },
+  inventoryLot: {
+    select: {
+      fareAmount: true,
+      fareCurrency: true,
+      sellingGroup: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          sector: true,
+          airline: true,
+          paymentDeadlineHours: true,
+        },
+      },
+    },
+  },
   account: {
     select: { id: true, code: true, legalName: true, tradeName: true, phone: true, email: true },
   },
   passengers: {
-    select: { firstName: true, lastName: true, title: true },
-    take: 1,
+    select: { firstName: true, lastName: true, title: true, type: true },
     orderBy: { id: 'asc' },
   },
   statusHistory: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -102,17 +117,25 @@ export class BookingMapper {
     forPartner = true,
   ): BookingListItem {
     const lead = b.passengers[0];
+    const group = b.inventoryLot?.sellingGroup;
     return {
       id: b.id,
       reference: b.reference,
       status: forPartner ? partnerStatus(b.status) : b.status,
       paymentState: b.paymentState,
-      title: b.product.title,
-      sector: b.product.sector,
-      airline: b.product.airline,
-      departureDate: isoDate(b.departure.departureDate)!,
+      title: group?.name ?? group?.code ?? b.product?.title ?? b.reference,
+      sector: group?.sector ?? b.product?.sector ?? null,
+      airline: group?.airline ?? b.product?.airline ?? null,
+      departureDate: b.departure ? isoDate(b.departure.departureDate)! : isoDate(b.createdAt)!,
       seats: b.seats,
       totalPrice: num(b.totalPrice),
+      amountPaid: num(b.amountPaid),
+      holdExpiresAt: iso(b.heldUntil ?? b.holdExpiresAt),
+      passengerCount: b.passengers.length,
+      infantCount: b.passengers.filter((p) => p.type === 'INFANT').length,
+      bookedAdults: b.bookedAdults,
+      bookedChildren: b.bookedChildren,
+      bookedInfants: b.bookedInfants,
       createdAt: iso(b.createdAt)!,
       createdByName: names.get(b.createdByUserId) ?? '—',
       leadPassenger: lead ? `${lead.title} ${lead.firstName} ${lead.lastName}` : null,
@@ -150,6 +173,8 @@ export class BookingMapper {
       nationality: p.nationality,
       passportMasked: maskTail(p.passportLast4),
       passportExpiry: isoDate(p.passportExpiry)!,
+      ticketNumber:
+        'ticketNumber' in p ? ((p as { ticketNumber?: string | null }).ticketNumber ?? null) : null,
     }));
   }
 
@@ -172,7 +197,7 @@ export class BookingMapper {
   }
 
   private legs(b: BookingListRow) {
-    const c = b.product.content as unknown as ProductContentDto;
+    const c = b.product?.content as unknown as ProductContentDto | null;
     return {
       outbound: (c?.outbound as FlightLegDto) ?? null,
       inbound: (c?.inbound as FlightLegDto) ?? null,
@@ -186,12 +211,11 @@ export class BookingMapper {
   ): BookingDetailDto {
     return {
       ...this.toListItem(b, names),
-      productId: b.productId,
-      returnDate: isoDate(b.departure.returnDate),
-      baggage: b.departure.baggage,
+      productId: b.productId ?? b.inventoryLot?.sellingGroup?.id ?? '',
+      returnDate: isoDate(b.departure?.returnDate ?? null),
+      baggage: b.departure?.baggage ?? null,
       unitPrice: num(b.unitPrice),
-      amountPaid: num(b.amountPaid),
-      pnr: ['CONFIRMED', 'COMPLETED'].includes(b.status) ? b.supplierPnr : null,
+      pnr: ['CONFIRMED', 'TICKETED', 'COMPLETED'].includes(b.status) ? b.supplierPnr : null,
       agentNotes: b.agentNotes,
       rejectionReason: b.rejectionReason,
       passengers: this.passengers(b),
@@ -200,6 +224,17 @@ export class BookingMapper {
         b.invoice && !b.invoice.voidedAt ? { id: b.invoice.id, number: b.invoice.number } : null,
       ...this.legs(b),
       canCancel,
+      heldUntil: iso(b.heldUntil ?? b.holdExpiresAt),
+      paymentDeadlineAt: iso(b.paymentDeadlineAt),
+      inventoryLotId: b.inventoryLotId,
+      groupPnrId: b.groupPnrId,
+      fareSubtotalAmount: num(b.fareSubtotalAmount),
+      discountAmount: num(b.discountAmount),
+      grantedChildSeats: b.grantedChildSeats,
+      grantedInfantSeats: b.grantedInfantSeats,
+      confirmedAt: iso(b.confirmedAt),
+      cancelledAt: iso(b.cancelledAt),
+      passengerDetailsRequestedAt: iso(b.passengerDetailsRequestedAt),
     };
   }
 
@@ -231,7 +266,7 @@ export class BookingMapper {
       balance: extra.balance,
       supplierName: extra.supplierName,
       supplierBookingRef: b.supplierBookingRef,
-      departureId: b.departureId,
+      departureId: b.departureId ?? '',
       priceAudit: seeNet
         ? {
             supplierNetUnit: num(b.supplierNetUnit),

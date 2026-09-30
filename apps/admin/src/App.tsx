@@ -20,6 +20,14 @@ const ResetPasswordPage = page(() => import('@/pages/auth/ResetPasswordPage'), '
 const AcceptInvitePage = page(() => import('@/pages/auth/AcceptInvitePage'), 'AcceptInvitePage');
 const DashboardPage = page(() => import('@/pages/DashboardPage'), 'DashboardPage');
 const BookingsPage = page(() => import('@/pages/BookingsPage'), 'BookingsPage');
+const InventoryGroupsPage = page(
+  () => import('@/pages/InventoryGroupsPage'),
+  'InventoryGroupsPage',
+);
+const InventoryGroupDetailPage = page(
+  () => import('@/pages/InventoryGroupDetailPage'),
+  'InventoryGroupDetailPage',
+);
 const PaymentsPage = page(() => import('@/pages/PaymentsPage'), 'PaymentsPage');
 const PartnersPage = page(() => import('@/pages/PartnersPage'), 'PartnersPage');
 const PartnerDetailPage = page(() => import('@/pages/PartnerDetailPage'), 'PartnerDetailPage');
@@ -80,6 +88,8 @@ const router = createBrowserRouter([
               { index: true, element: <DashboardPage /> },
               { path: 'bookings', element: <BookingsPage /> },
               { path: 'bookings/:id', element: <BookingsPage /> },
+              { path: 'inventory-groups', element: <InventoryGroupsPage /> },
+              { path: 'inventory-groups/:groupId', element: <InventoryGroupDetailPage /> },
               { path: 'payments', element: <PaymentsPage /> },
               { path: 'partners', element: <PartnersPage /> },
               { path: 'partners/:id', element: <PartnerDetailPage /> },
