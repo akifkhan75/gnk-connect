@@ -1,3 +1,4 @@
+import { RouteMeta } from './components/RouteMeta';
 import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -46,6 +47,7 @@ const AppContent: React.FC = () => {
   return (
     <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink">
       <ScrollToTop />
+      <RouteMeta />
       <Navbar />
 
       <main className="flex-grow">

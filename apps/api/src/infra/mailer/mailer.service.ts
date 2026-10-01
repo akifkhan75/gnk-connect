@@ -1,23 +1,35 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createTransport, type Transporter } from 'nodemailer';
 import type { EnvConfig } from '../../core/config/env.config';
+
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
 
 export interface MailMessage {
   to: string;
   subject: string;
   text: string;
+  attachments?: MailAttachment[];
 }
 
 /**
- * Transactional email. No provider is configured yet, so messages are written to
- * the API log (including any action link) and nothing leaves the machine.
- * Swap `deliver()` for Resend/SES/SMTP when a provider is chosen; callers don't change.
+ * Transactional email over SMTP (any provider: Resend, SES, Postmark, Gmail…) when SMTP_URL is
+ * set. Without it, messages are written to the API log (including any action link) and nothing
+ * leaves the machine.
  */
 @Injectable()
 export class MailerService {
   private readonly logger = new Logger('Mailer');
+  private readonly transport: Transporter | null;
 
-  constructor(private readonly config: ConfigService<EnvConfig, true>) {}
+  constructor(private readonly config: ConfigService<EnvConfig, true>) {
+    const url = this.config.get('SMTP_URL', { infer: true });
+    this.transport = url ? createTransport(url) : null;
+  }
 
   portalUrl(path: string) {
     return this.config.get('PORTAL_URL', { infer: true }).replace(/\/+$/, '') + path;
@@ -31,9 +43,22 @@ export class MailerService {
     await this.deliver(message);
   }
 
-  private async deliver({ to, subject, text }: MailMessage) {
+  private async deliver({ to, subject, text, attachments }: MailMessage) {
+    if (this.transport) {
+      await this.transport.sendMail({
+        from: this.config.get('MAIL_FROM', { infer: true }),
+        to,
+        subject,
+        text,
+        attachments,
+      });
+      return;
+    }
+    const files = attachments?.length
+      ? `\nAttachments: ${attachments.map((a) => `${a.filename} (${a.content.length} bytes)`).join(', ')}`
+      : '';
     this.logger.log(
-      `\n──── email (not sent: no provider configured) ────\nTo: ${to}\nSubject: ${subject}\n\n${text}\n──────────────────────────────────────────────`,
+      `\n──── email (not sent: no provider configured) ────\nTo: ${to}\nSubject: ${subject}${files}\n\n${text}\n──────────────────────────────────────────────`,
     );
   }
 
@@ -107,8 +132,14 @@ export class MailerService {
     body: string,
     link?: string | null,
     realm: 'PARTNER' | 'STAFF' = 'PARTNER',
+    attachments?: MailAttachment[],
   ) {
     const url = link ? (realm === 'PARTNER' ? this.portalUrl(link) : this.adminUrl(link)) : null;
-    return this.send({ to, subject: title, text: `${body}${url ? `\n\n${url}` : ''}` });
+    return this.send({
+      to,
+      subject: title,
+      text: `${body}${url ? `\n\n${url}` : ''}`,
+      attachments,
+    });
   }
 }

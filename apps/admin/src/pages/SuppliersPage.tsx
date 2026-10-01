@@ -10,6 +10,7 @@ import {
   CardHeader,
   DataTable,
   ErrorState,
+  Field,
   KeyValue,
   PageHeader,
   Pagination,
@@ -54,6 +55,26 @@ function Suppliers() {
     mutationFn: ({ id, s }: { id: string; s: 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE' }) =>
       api.suppliers.setStatus(id, s),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['suppliers'] }),
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const accounts = useQuery({
+    queryKey: ['accounting', 'options'],
+    queryFn: api.accounting.options,
+    enabled: can('ledger:read'),
+  });
+  const payables = (accounts.data ?? []).filter((a) => a.class === 'LIABILITY');
+  const payable = useMutation({
+    mutationFn: ({ id, accountId }: { id: string; accountId: string | null }) =>
+      api.suppliers.setPayable(id, accountId),
+    onSuccess: (s) => {
+      void qc.invalidateQueries({ queryKey: ['suppliers'] });
+      toast.success(
+        'Payable account saved',
+        s?.payableAccount && s.payableAccount.currency !== 'PKR'
+          ? `New bookings post in ${s.payableAccount.currency} at the latest rate.`
+          : 'New bookings post in PKR.',
+      );
+    },
     onError: (e) => toast.error(errorMessage(e)),
   });
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -115,6 +136,10 @@ function Suppliers() {
                         ? `${formatRelative(s.lastSyncAt)} (${s.lastSyncStatus})`
                         : 'Never',
                     },
+                    {
+                      label: 'Bills in',
+                      value: s.payableAccount?.currency ?? 'PKR',
+                    },
                     { label: 'Calls (24h)', value: s.calls24h },
                     {
                       label: 'Failures (24h)',
@@ -124,6 +149,28 @@ function Suppliers() {
                     },
                   ]}
                 />
+                {can('ledger:coa') && payables.length > 0 && (
+                  <Field
+                    label="Payable account"
+                    hint="Confirmed bookings are credited here. Pick a SAR (or other foreign) account if this supplier bills in that currency; the cost is posted at the latest rate from Accounting → Setup."
+                    className="max-w-md"
+                  >
+                    <Select
+                      value={s.payableAccount?.id ?? ''}
+                      disabled={payable.isPending}
+                      onChange={(e) =>
+                        payable.mutate({ id: s.id, accountId: e.target.value || null })
+                      }
+                    >
+                      <option value="">Supplier payables (PKR, default)</option>
+                      {payables.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.code} · {a.name} ({a.currency})
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
               </CardBody>
             </Card>
             <CallLog supplierId={s.id} />

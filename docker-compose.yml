@@ -70,6 +70,31 @@ services:
     networks:
       - gnk_network
 
+  # ---------------- Nightly backups (database + uploads) ---------------- #
+  # Keeps BACKUP_KEEP_DAYS of dumps in the `backups` volume. Copy that volume off the server
+  # (e.g. rclone/rsync to S3, R2 or another machine) — a backup on the same disk is not enough.
+  backup:
+    image: postgres:16-alpine
+    container_name: gnk_backup
+    restart: always
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_AT: ${BACKUP_AT:-21:00}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./scripts/backup:/usr/local/bin/gnk:ro
+      - backups:/backups
+      - uploads:/uploads
+    entrypoint: ['sh', '-c', 'export PATH=/usr/local/bin/gnk:$$PATH && exec schedule.sh']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - gnk_network
+
   # ---------------- Admin Operations Center ---------------- #
   admin:
     build:
@@ -127,6 +152,8 @@ volumes:
   redisdata:
     driver: local
   uploads:
+    driver: local
+  backups:
     driver: local
 
 networks:

@@ -9,6 +9,8 @@ import { validateEnv, type EnvConfig } from './core/config/env.config';
 import { ProblemDetailsFilter } from './core/filters/problem-details.filter';
 import { CryptoModule } from './infra/crypto/crypto.module';
 import { MailerModule } from './infra/mailer/mailer.module';
+import { MonitoringModule } from './infra/monitoring/monitoring.module';
+import { WhatsAppModule } from './infra/whatsapp/whatsapp.module';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { REDIS, RedisModule, type RedisClient } from './infra/redis/redis.module';
 import { StorageModule } from './infra/storage/storage.module';
@@ -64,6 +66,8 @@ import { RealmAuthGuard } from './modules/auth/guards/realm-auth.guard';
     PrismaModule,
     CryptoModule,
     MailerModule,
+    WhatsAppModule,
+    MonitoringModule,
     StorageModule,
     AuditModule,
     AuthModule,

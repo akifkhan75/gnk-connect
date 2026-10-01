@@ -4,11 +4,13 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
+  Injectable,
   Logger,
 } from '@nestjs/common';
 import { ThrottlerException } from '@nestjs/throttler';
 import { Prisma } from '@prisma/client';
 import type { Request, Response } from 'express';
+import { ErrorReporter } from '../../infra/monitoring/error-reporter.service';
 
 const TITLES: Record<number, string> = {
   400: 'Bad request',
@@ -26,8 +28,11 @@ const TITLES: Record<number, string> = {
 
 /** Every error leaves the API as RFC 7807 problem details (plan 05). */
 @Catch()
+@Injectable()
 export class ProblemDetailsFilter implements ExceptionFilter {
   private readonly logger = new Logger('HTTP');
+
+  constructor(private readonly reporter: ErrorReporter) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -70,6 +75,12 @@ export class ProblemDetailsFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+      this.reporter.report(exception, {
+        status,
+        method: request.method,
+        route: request.route?.path ?? request.path,
+        traceId: (request as any).id,
+      });
       if (
         process.env.NODE_ENV !== 'production' &&
         exception instanceof Error &&

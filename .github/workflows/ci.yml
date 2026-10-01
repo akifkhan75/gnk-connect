@@ -68,12 +68,45 @@ jobs:
         working-directory: apps/api
         run: pnpm exec prisma migrate deploy && NODE_ENV=development pnpm exec ts-node --transpile-only prisma/seed.ts
 
-      - name: End-to-end API smoke test
+      - name: Start API
         working-directory: apps/api
+        env:
+          CORS_ORIGINS: http://localhost:4301,http://localhost:4302
         run: |
-          NODE_ENV=development node dist/apps/api/src/main.js &
+          NODE_ENV=development nohup node dist/apps/api/src/main.js > api.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:4000/api/v1/health && break; sleep 1; done
-          API_URL=http://localhost:4000/api/v1 ADMIN_EMAIL=$SEED_ADMIN_EMAIL ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD \
-            PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=$SEED_DEMO_PASSWORD node test/smoke.mjs
-          API_URL=http://localhost:4000/api/v1 ADMIN_EMAIL=$SEED_ADMIN_EMAIL ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD \
-            PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=$SEED_DEMO_PASSWORD node test/erp.mjs
+
+      - name: End-to-end API tests
+        working-directory: apps/api
+        env:
+          API_URL: http://localhost:4000/api/v1
+          ADMIN_EMAIL: ${{ env.SEED_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.SEED_ADMIN_PASSWORD }}
+          PARTNER_EMAIL: owner@alnoor.demo
+          PARTNER_PASSWORD: ${{ env.SEED_DEMO_PASSWORD }}
+        run: node test/smoke.mjs && node test/erp.mjs
+
+      - name: Install Playwright browser
+        run: pnpm --filter @gnk/e2e exec playwright install --with-deps chromium
+
+      - name: Browser tests (sign-in, booking, payment approval, journal voucher)
+        env:
+          API_URL: http://localhost:4000/api/v1
+          ADMIN_EMAIL: ${{ env.SEED_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.SEED_ADMIN_PASSWORD }}
+          PARTNER_EMAIL: owner@alnoor.demo
+          PARTNER_PASSWORD: ${{ env.SEED_DEMO_PASSWORD }}
+          FINANCE_EMAIL: finance@gnkconnect.pk
+          FINANCE_PASSWORD: ${{ env.SEED_DEMO_PASSWORD }}
+        run: pnpm --filter @gnk/e2e run e2e
+
+      - name: Upload browser test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+            apps/api/api.log
+          retention-days: 7

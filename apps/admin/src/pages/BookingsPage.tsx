@@ -582,6 +582,24 @@ function BookingDetail({ id }: { id: string }) {
                 <p className="text-xs text-muted-foreground">GNK margin</p>
                 <Money value={b.priceAudit.margin} className="font-semibold text-success" />
               </div>
+              {b.priceAudit.supplierCost && (
+                <p className="text-xs sm:col-span-3">
+                  <span className="text-muted-foreground">Posted to supplier: </span>
+                  <span className="font-medium tabular">
+                    {b.priceAudit.supplierCost.currency}{' '}
+                    {b.priceAudit.supplierCost.amount.toLocaleString('en-PK', {
+                      minimumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    @ {b.priceAudit.supplierCost.rate} = PKR{' '}
+                    {Math.round(
+                      b.priceAudit.supplierCost.amount * b.priceAudit.supplierCost.rate,
+                    ).toLocaleString('en-PK')}
+                  </span>
+                </p>
+              )}
               <p className="text-xs text-muted-foreground sm:col-span-3">
                 Rules applied:{' '}
                 {((b.priceAudit.snapshot as { applied?: { name: string }[] })?.applied ?? [])

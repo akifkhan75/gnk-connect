@@ -1,0 +1,15 @@
+# Never upload secrets, user uploads or local build output to Vercel.
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/uploads
+**/scratch
+.turbo
+coverage
+tests/e2e/playwright-report
+tests/e2e/test-results
+/gnk-connect-logo.png
+/logo.png
+*.dump

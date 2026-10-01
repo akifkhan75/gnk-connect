@@ -132,7 +132,7 @@ export function ProfilePage() {
           <NotificationPreferences
             value={prefs.data}
             categories={['bookings', 'payments', 'accounting', 'team']}
-            onChange={(c, email) => setPrefs.mutate({ [c]: { email } })}
+            onChange={(c, patch) => setPrefs.mutate({ [c]: patch })}
           />
         </CardBody>
       </Card>

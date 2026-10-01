@@ -1,11 +1,5 @@
-export type ServiceIconType = 
-  | 'Moon' 
-  | 'FileCheck' 
-  | 'Hotel' 
-  | 'Plane' 
-  | 'Map' 
-  | 'ShieldCheck' 
-  | 'Globe';
+export type ServiceIconType =
+  'Moon' | 'FileCheck' | 'Hotel' | 'Plane' | 'Map' | 'ShieldCheck' | 'Globe';
 
 export interface ServicePackage {
   name: string;
@@ -96,4 +90,13 @@ export interface VisaFormData {
   phone: string;
   passportFileName?: string;
   bankStatementFileName?: string;
+}
+
+/** Latest exchange rates from the admin rate table, for showing website prices. */
+export interface PublicRatesDto {
+  base: 'PKR';
+  /** PKR per 1 unit of each currency, e.g. { USD: 280.5, SAR: 74.8 }. */
+  rates: Record<string, number>;
+  /** Date of the newest rate used (YYYY-MM-DD), or null when none are set. */
+  asOf: string | null;
 }

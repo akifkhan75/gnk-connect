@@ -535,6 +535,8 @@ export class BookingsService {
         code: 'INSUFFICIENT_FUNDS',
       });
     }
+    // A supplier billing in SAR etc. needs a rate before its booking can be charged.
+    await this.ledger.supplierPayable(this.prisma, b.supplierId);
 
     await this.transition(b.id, b.status, 'SUBMITTED_TO_SUPPLIER', {
       realm: 'STAFF',
@@ -847,7 +849,16 @@ export class BookingsService {
         where: { id: b.departureId },
         data: { supplierAvailable: { decrement: b.seats } },
       });
-      await this.ledger.postBookingCharge(tx, b, actorId);
+      const { cost } = await this.ledger.postBookingCharge(tx, b, actorId);
+      if (cost)
+        await tx.booking.update({
+          where: { id },
+          data: {
+            supplierCostCurrency: cost.currency,
+            supplierCostFc: cost.fcAmount,
+            supplierCostRate: cost.rate,
+          },
+        });
       await tx.invoice.create({
         data: {
           number: await this.sequences.next('INVOICE', tx),

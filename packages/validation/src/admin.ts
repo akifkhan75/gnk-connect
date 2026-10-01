@@ -378,6 +378,11 @@ export const settingsSchema = z.object({
     quoteTtlMinutes: z.coerce.number().int().min(5).max(240),
     paymentTermsNote: z.string().trim().max(500),
   }),
-  accounting: z.object({ requireJvApproval: z.boolean() }).default({ requireJvApproval: true }),
+  accounting: z
+    .object({
+      requireJvApproval: z.boolean(),
+      paymentDualApprovalFrom: z.coerce.number().min(0).max(1_000_000_000).default(500_000),
+    })
+    .default({ requireJvApproval: true, paymentDualApprovalFrom: 500_000 }),
 });
 export type SettingsInput = z.input<typeof settingsSchema>;

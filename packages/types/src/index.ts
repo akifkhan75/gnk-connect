@@ -4,3 +4,4 @@ export * from './api';
 export * from './website';
 export * from './accounting';
 export * from './realtime';
+export * from './words';

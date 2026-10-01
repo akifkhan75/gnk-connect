@@ -8,6 +8,7 @@ import type { AdminPaymentListItem } from '@gnk/types';
 import { recordPaymentSchema, todayPk, type RecordPaymentInput } from '@gnk/validation';
 import {
   Alert,
+  Badge,
   Button,
   Card,
   ConfirmDialog,
@@ -33,7 +34,7 @@ import {
   titleCase,
   useToast,
 } from '@gnk/ui';
-import { api } from '@/lib/api';
+import { api, useAuth } from '@/lib/api';
 import { applyServerErrors, errorMessage } from '@/lib/forms';
 import { useCan } from '@/lib/useCan';
 import { useFileUrl } from '@/lib/useFileUrl';
@@ -179,7 +180,14 @@ function Payments() {
                   key: 's',
                   header: 'Status',
                   align: 'right',
-                  cell: (p) => <StatusBadge status={p.status} />,
+                  cell: (p) =>
+                    p.needsSecondApproval ? (
+                      <Badge tone="info" dot>
+                        1 of 2 approved
+                      </Badge>
+                    ) : (
+                      <StatusBadge status={p.status} />
+                    ),
                 },
               ]}
             />
@@ -208,9 +216,12 @@ function PaymentDrawer({
   onClose: () => void;
 }) {
   const can = useCan();
+  const { session } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
   const [rejecting, setRejecting] = useState(false);
+  const iGaveFirstApproval = !!p?.firstApproval && p.firstApproval.byId === session?.user.id;
+  const isFirstOfTwo = p?.approvalsRequired === 2 && !p.firstApproval;
   const [deposit, setDeposit] = useState('');
   const [fileIndex, setFileIndex] = useState(0);
   const accounts = useQuery({
@@ -230,10 +241,16 @@ function PaymentDrawer({
     mutationFn: () => api.payments.verify(p!.id, deposit || undefined),
     onSuccess: (x) => {
       refresh();
-      toast.success(
-        `${x.reference} approved — receipt ${x.receipt?.number ?? ''}`,
-        `PKR ${x.amount.toLocaleString('en-PK')} credited to ${x.accountName}.`,
-      );
+      if (x.status === 'SUBMITTED')
+        toast.success(
+          `First approval recorded for ${x.reference}`,
+          'A second approver has been notified. It is posted once they confirm.',
+        );
+      else
+        toast.success(
+          `${x.reference} approved — receipt ${x.receipt?.number ?? ''}`,
+          `PKR ${x.amount.toLocaleString('en-PK')} credited to ${x.accountName}.`,
+        );
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -258,8 +275,28 @@ function PaymentDrawer({
             <Button variant="danger-outline" onClick={() => setRejecting(true)}>
               <X /> Reject
             </Button>
-            <Button onClick={() => verify.mutate()} loading={verify.isPending}>
-              <Check /> Approve and credit <Money value={p.amount} />
+            <Button
+              onClick={() => verify.mutate()}
+              loading={verify.isPending}
+              disabled={iGaveFirstApproval}
+              title={
+                iGaveFirstApproval ? 'A different person must give the second approval' : undefined
+              }
+            >
+              <Check />{' '}
+              {isFirstOfTwo ? (
+                <>
+                  First approval · <Money value={p.amount} />
+                </>
+              ) : p.needsSecondApproval ? (
+                <>
+                  Second approval and credit <Money value={p.amount} />
+                </>
+              ) : (
+                <>
+                  Approve and credit <Money value={p.amount} />
+                </>
+              )}
             </Button>
           </>
         )
@@ -301,11 +338,25 @@ function PaymentDrawer({
                 The same bank reference was used on {p.duplicateOf}.
               </Alert>
             )}
+            {p.status === 'SUBMITTED' && p.approvalsRequired === 2 && (
+              <Alert
+                tone={p.needsSecondApproval ? 'info' : 'warning'}
+                title={p.needsSecondApproval ? 'Awaiting second approval' : 'Needs two approvers'}
+              >
+                {p.firstApproval
+                  ? `${p.firstApproval.byName ?? 'A colleague'} gave the first approval on ${formatDateTime(p.firstApproval.at)}. ${iGaveFirstApproval ? 'Someone else must confirm it.' : 'Your approval posts it.'}`
+                  : 'This amount is above the dual-approval limit. Two different people must approve it before it is posted.'}
+              </Alert>
+            )}
             {p.status === 'SUBMITTED' && can('payments:verify') && cashBank.length > 0 && (
               <Field label="Deposit into" hint="The bank or cash account that received the money">
                 <Select value={deposit} onChange={(e) => setDeposit(e.target.value)}>
                   <option value="">
-                    {p.method === 'CASH' ? 'Cash in hand (default)' : 'Main bank account (default)'}
+                    {p.depositAccount
+                      ? `${p.depositAccount.code} · ${p.depositAccount.name} (chosen at first approval)`
+                      : p.method === 'CASH'
+                        ? 'Cash in hand (default)'
+                        : 'Main bank account (default)'}
                   </option>
                   {cashBank.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -375,6 +426,14 @@ function PaymentDrawer({
                   label: 'Submitted by',
                   value: `${p.submittedByName ?? '—'} · ${formatDateTime(p.createdAt)}`,
                 },
+                ...(p.firstApproval && p.approvalsRequired === 2
+                  ? [
+                      {
+                        label: 'First approval',
+                        value: `${p.firstApproval.byName ?? '—'} · ${formatDateTime(p.firstApproval.at)}`,
+                      },
+                    ]
+                  : []),
                 ...(p.verifiedAt
                   ? [
                       {

@@ -8,6 +8,7 @@ import type {
   ExchangeRateDto,
   IncomeStatementDto,
   NotificationPrefsDto,
+  NotificationPrefsPatch,
   PeriodDto,
   ReceiptDto,
   TrialBalanceDto,
@@ -200,6 +201,7 @@ export const partnerApi = (http: HttpClient) => ({
     list: () => http.get<PaymentDto[]>('partner/payments'),
     submit: (dto: SubmitPaymentInput) => http.post<PaymentDto>('partner/payments', dto),
     receipt: (id: string) => http.get<ReceiptDto>(`partner/payments/${id}/receipt`),
+    receiptPdf: (id: string) => http.blob(`partner/payments/${id}/receipt/pdf`),
     instructions: () =>
       http.get<{ bankAccounts: BankAccountDto[]; note: string; company: CompanyInfoDto }>(
         'partner/payment-instructions',
@@ -215,7 +217,7 @@ export const partnerApi = (http: HttpClient) => ({
     read: (id: string) => http.post<void>(`partner/notifications/${id}/read`),
     readAll: () => http.post<void>('partner/notifications/read-all'),
     preferences: () => http.get<NotificationPrefsDto>('partner/notifications/preferences'),
-    setPreferences: (dto: Partial<NotificationPrefsDto>) =>
+    setPreferences: (dto: NotificationPrefsPatch) =>
       http.put<NotificationPrefsDto>('partner/notifications/preferences', dto),
   },
   files: {
@@ -301,6 +303,7 @@ export const adminApi = (http: HttpClient) => ({
     counts: () => http.get<Record<string, number>>('admin/payments/counts'),
     get: (id: string) => http.get<AdminPaymentListItem>(`admin/payments/${id}`),
     receipt: (id: string) => http.get<ReceiptDto>(`admin/payments/${id}/receipt`),
+    receiptPdf: (id: string) => http.blob(`admin/payments/${id}/receipt/pdf`),
     verify: (id: string, depositAccountId?: string) =>
       http.post<AdminPaymentListItem>(`admin/payments/${id}/verify`, { depositAccountId }),
     reject: (id: string, reason: string) =>
@@ -390,6 +393,8 @@ export const adminApi = (http: HttpClient) => ({
     sync: (id: string) => http.post<SyncResultDto>(`admin/suppliers/${id}/sync`),
     setStatus: (id: string, status: 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE') =>
       http.patch<SupplierDto>(`admin/suppliers/${id}`, { status }),
+    setPayable: (id: string, payableAccountId: string | null) =>
+      http.patch<SupplierDto>(`admin/suppliers/${id}/payable`, { payableAccountId }),
     calls: (id: string, q: Page & { failed?: 'true' | 'false' }) =>
       http.get<Paginated<SupplierCallDto & { bookingId: string | null }>>(
         `admin/suppliers/${id}/calls`,
@@ -422,7 +427,7 @@ export const adminApi = (http: HttpClient) => ({
     read: (id: string) => http.post<void>(`admin/notifications/${id}/read`),
     readAll: () => http.post<void>('admin/notifications/read-all'),
     preferences: () => http.get<NotificationPrefsDto>('admin/notifications/preferences'),
-    setPreferences: (dto: Partial<NotificationPrefsDto>) =>
+    setPreferences: (dto: NotificationPrefsPatch) =>
       http.put<NotificationPrefsDto>('admin/notifications/preferences', dto),
   },
   files: {

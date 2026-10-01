@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  StreamableFile,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { z } from 'zod';
 import {
@@ -20,6 +29,13 @@ import {
 } from '../auth/decorators';
 import { PaymentsService } from './payments.service';
 
+const pdfFile = ({ filename, content }: { filename: string; content: Buffer }) =>
+  new StreamableFile(content, {
+    type: 'application/pdf',
+    disposition: `attachment; filename="${filename}"`,
+    length: content.length,
+  });
+
 @Controller('partner/payments')
 export class PartnerPaymentsController {
   constructor(private readonly payments: PaymentsService) {}
@@ -34,6 +50,12 @@ export class PartnerPaymentsController {
   @RequirePartnerCapability('payments:view')
   receipt(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
     return this.payments.receipt(id, actor.accountId);
+  }
+
+  @Get(':id/receipt/pdf')
+  @RequirePartnerCapability('payments:view')
+  async receiptPdf(@CurrentActor() actor: PartnerActor, @Param('id', UUID) id: string) {
+    return pdfFile(await this.payments.receiptPdf(id, actor.accountId));
   }
 
   @Post()
@@ -75,6 +97,12 @@ export class AdminPaymentsController {
   @RequirePermission('payments:read')
   receipt(@Param('id', UUID) id: string) {
     return this.payments.receipt(id);
+  }
+
+  @Get(':id/receipt/pdf')
+  @RequirePermission('payments:read')
+  async receiptPdf(@Param('id', UUID) id: string) {
+    return pdfFile(await this.payments.receiptPdf(id));
   }
 
   @Post()

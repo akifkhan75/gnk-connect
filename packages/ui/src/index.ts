@@ -22,3 +22,4 @@ export * from './documents/PrintSheet';
 export * from './documents/InvoiceDocument';
 export * from './documents/ReceiptDocument';
 export * from './documents/VoucherDocument';
+export * from './lib/monitoring';

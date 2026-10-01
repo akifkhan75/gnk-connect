@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback } from 'react';
+import { RouteError } from '@/components/RouteError';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, ToastProvider, type Theme } from '@gnk/ui';
@@ -56,46 +57,51 @@ const NotFoundPage = page(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 
 const router = createBrowserRouter([
   {
-    element: <GuestOnly />,
+    errorElement: <RouteError />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
-      { path: '/reset-password', element: <ResetPasswordPage /> },
-      { path: '/accept-invite', element: <AcceptInvitePage /> },
-    ],
-  },
-  {
-    element: <RequireAuth />,
-    children: [
-      { path: '/invoices/:id', element: <InvoicePage /> },
-      { path: '/payments/:id/receipt', element: <ReceiptPage /> },
-      { path: '/accounting/vouchers/:id/print', element: <VoucherPrintPage /> },
       {
-        element: <AdminLayout />,
+        element: <GuestOnly />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'bookings', element: <BookingsPage /> },
-          { path: 'bookings/:id', element: <BookingsPage /> },
-          { path: 'payments', element: <PaymentsPage /> },
-          { path: 'partners', element: <PartnersPage /> },
-          { path: 'partners/:id', element: <PartnerDetailPage /> },
-          { path: 'catalog', element: <CatalogPage /> },
-          { path: 'suppliers', element: <SuppliersPage /> },
-          { path: 'pricing', element: <PricingPage /> },
-          { path: 'ledger', element: <LedgerPage /> },
-          { path: 'ledger/:accountId', element: <StatementPage /> },
-          { path: 'accounting/vouchers', element: <VouchersPage /> },
-          { path: 'accounting/vouchers/new', element: <VoucherEditorPage /> },
-          { path: 'accounting/vouchers/:id', element: <VoucherDetailPage /> },
-          { path: 'accounting/vouchers/:id/edit', element: <VoucherEditorPage /> },
-          { path: 'accounting/accounts', element: <ChartOfAccountsPage /> },
-          { path: 'accounting/reports', element: <ReportsPage /> },
-          { path: 'accounting/setup', element: <SetupPage /> },
-          { path: 'staff', element: <StaffPage /> },
-          { path: 'audit', element: <AuditPage /> },
-          { path: 'settings', element: <SettingsPage /> },
-          { path: 'profile', element: <ProfilePage /> },
-          { path: '*', element: <NotFoundPage /> },
+          { path: '/login', element: <LoginPage /> },
+          { path: '/forgot-password', element: <ForgotPasswordPage /> },
+          { path: '/reset-password', element: <ResetPasswordPage /> },
+          { path: '/accept-invite', element: <AcceptInvitePage /> },
+        ],
+      },
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: '/invoices/:id', element: <InvoicePage /> },
+          { path: '/payments/:id/receipt', element: <ReceiptPage /> },
+          { path: '/accounting/vouchers/:id/print', element: <VoucherPrintPage /> },
+          {
+            element: <AdminLayout />,
+            children: [
+              { index: true, element: <DashboardPage /> },
+              { path: 'bookings', element: <BookingsPage /> },
+              { path: 'bookings/:id', element: <BookingsPage /> },
+              { path: 'payments', element: <PaymentsPage /> },
+              { path: 'partners', element: <PartnersPage /> },
+              { path: 'partners/:id', element: <PartnerDetailPage /> },
+              { path: 'catalog', element: <CatalogPage /> },
+              { path: 'suppliers', element: <SuppliersPage /> },
+              { path: 'pricing', element: <PricingPage /> },
+              { path: 'ledger', element: <LedgerPage /> },
+              { path: 'ledger/:accountId', element: <StatementPage /> },
+              { path: 'accounting/vouchers', element: <VouchersPage /> },
+              { path: 'accounting/vouchers/new', element: <VoucherEditorPage /> },
+              { path: 'accounting/vouchers/:id', element: <VoucherDetailPage /> },
+              { path: 'accounting/vouchers/:id/edit', element: <VoucherEditorPage /> },
+              { path: 'accounting/accounts', element: <ChartOfAccountsPage /> },
+              { path: 'accounting/reports', element: <ReportsPage /> },
+              { path: 'accounting/setup', element: <SetupPage /> },
+              { path: 'staff', element: <StaffPage /> },
+              { path: 'audit', element: <AuditPage /> },
+              { path: 'settings', element: <SettingsPage /> },
+              { path: 'profile', element: <ProfilePage /> },
+              { path: '*', element: <NotFoundPage /> },
+            ],
+          },
         ],
       },
     ],

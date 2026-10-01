@@ -9,8 +9,9 @@ import {
   type Permission,
 } from '@gnk/types';
 import { iso } from '../../core/money';
-import { MailerService } from '../../infra/mailer/mailer.service';
+import { MailerService, type MailAttachment } from '../../infra/mailer/mailer.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { WhatsAppService } from '../../infra/whatsapp/whatsapp.service';
 import { RealtimeService } from '../realtime/realtime.service';
 
 interface NotifyInput {
@@ -18,12 +19,17 @@ interface NotifyInput {
   title: string;
   body: string;
   link?: string;
-  /** Also email the recipients, unless they turned email off for this category. */
+  /**
+   * Also send outside the app: email (unless the user turned it off for this category) and, for
+   * partners who opted in, WhatsApp.
+   */
   email?: boolean;
+  /** Files attached to the email copy (e.g. a PDF receipt). */
+  attachments?: MailAttachment[];
 }
 
 const DEFAULT_PREFS = Object.fromEntries(
-  Object.keys(NOTIFICATION_CATEGORIES).map((k) => [k, { email: true }]),
+  Object.keys(NOTIFICATION_CATEGORIES).map((k) => [k, { email: true, whatsapp: false }]),
 ) as NotificationPrefsDto;
 
 /** In-app notifications (bell + page, pushed live) with optional email copies. */
@@ -35,6 +41,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly mailer: MailerService,
     private readonly realtime: RealtimeService,
+    private readonly whatsapp: WhatsAppService,
   ) {}
 
   /** Notify members of a partner account, optionally only some roles. */
@@ -52,19 +59,27 @@ export class NotificationsService {
       members.map((m) => m.userId),
       input,
     );
-    if (input.email)
+    if (input.email) {
       await this.email(
         members.map((m) => m.user),
         input,
         'PARTNER',
       );
+      await this.sendWhatsApp(
+        members.map((m) => m.user),
+        input,
+      );
+    }
   }
 
   async notifyPartnerUser(userId: string, input: NotifyInput) {
     await this.create('PARTNER', [userId], input);
     if (input.email) {
       const user = await this.prisma.partnerUser.findUnique({ where: { id: userId } });
-      if (user) await this.email([user], input, 'PARTNER');
+      if (user) {
+        await this.email([user], input, 'PARTNER');
+        await this.sendWhatsApp([user], input);
+      }
     }
   }
 
@@ -137,8 +152,17 @@ export class NotificationsService {
     return prefsOf(user.notificationPrefs);
   }
 
-  async setPrefs(realm: Realm, userId: string, prefs: Partial<NotificationPrefsDto>) {
-    const merged = { ...(await this.getPrefs(realm, userId)), ...prefs };
+  async setPrefs(
+    realm: Realm,
+    userId: string,
+    prefs: Partial<Record<NotificationCategory, { email?: boolean; whatsapp?: boolean }>>,
+  ) {
+    const merged = await this.getPrefs(realm, userId);
+    for (const [k, v] of Object.entries(prefs) as [NotificationCategory, object][])
+      merged[k] = { ...merged[k], ...v };
+    // Staff have no WhatsApp channel.
+    if (realm === 'STAFF')
+      for (const k of Object.keys(merged)) merged[k as NotificationCategory].whatsapp = false;
     const data = { notificationPrefs: merged as Prisma.InputJsonValue };
     if (realm === 'PARTNER') await this.prisma.partnerUser.update({ where: { id: userId }, data });
     else await this.prisma.staffUser.update({ where: { id: userId }, data });
@@ -154,8 +178,22 @@ export class NotificationsService {
     for (const u of users) {
       if (!prefsOf(u.notificationPrefs)[category].email) continue;
       await this.mailer
-        .notification(u.email, input.title, input.body, input.link, realm)
+        .notification(u.email, input.title, input.body, input.link, realm, input.attachments)
         .catch((e: Error) => this.logger.warn(`Email to ${u.email} failed: ${e.message}`));
+    }
+  }
+
+  private async sendWhatsApp(
+    users: { phone: string | null; notificationPrefs: Prisma.JsonValue }[],
+    input: NotifyInput,
+  ) {
+    const category = notificationCategory(input.type);
+    const link = input.link ? this.mailer.portalUrl(input.link) : '';
+    for (const u of users) {
+      if (!u.phone || !prefsOf(u.notificationPrefs)[category].whatsapp) continue;
+      await this.whatsapp
+        .send(u.phone, input.title, `${input.body}${link ? ` ${link}` : ''}`)
+        .catch((e: Error) => this.logger.warn(`WhatsApp to ${u.phone} failed: ${e.message}`));
     }
   }
 
@@ -181,8 +219,12 @@ export class NotificationsService {
 
 function prefsOf(raw: Prisma.JsonValue): NotificationPrefsDto {
   const stored = (raw && typeof raw === 'object' ? raw : {}) as Partial<NotificationPrefsDto>;
-  const out = { ...DEFAULT_PREFS };
+  const out = structuredClone(DEFAULT_PREFS);
   for (const k of Object.keys(DEFAULT_PREFS) as NotificationCategory[])
-    if (stored[k]) out[k] = { email: !!stored[k]!.email };
+    if (stored[k])
+      out[k] = {
+        email: stored[k]!.email ?? DEFAULT_PREFS[k].email,
+        whatsapp: !!stored[k]!.whatsapp,
+      };
   return out;
 }

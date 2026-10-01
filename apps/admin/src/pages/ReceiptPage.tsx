@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ErrorState, ReceiptDocument, Spinner } from '@gnk/ui';
+import { ErrorState, ReceiptDocument, Spinner, saveBlob } from '@gnk/ui';
 import { api } from '@/lib/api';
 
 export function ReceiptPage() {
@@ -12,5 +12,12 @@ export function ReceiptPage() {
   });
   if (q.isLoading) return <Spinner className="py-24" />;
   if (!q.data) return <ErrorState error={q.error} />;
-  return <ReceiptDocument receipt={q.data} onBack={() => navigate(`/payments?id=${id}`)} />;
+  const receipt = q.data;
+  return (
+    <ReceiptDocument
+      receipt={receipt}
+      onBack={() => navigate(`/payments?id=${id}`)}
+      onDownload={async () => saveBlob(await api.payments.receiptPdf(id), `${receipt.number}.pdf`)}
+    />
+  );
 }

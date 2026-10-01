@@ -103,20 +103,42 @@ export function Field({
   className?: string;
   children: React.ReactNode;
 }) {
+  // Link the label, hint and error to a single control so screen readers announce them.
+  const auto = React.useId();
+  const only = React.Children.count(children) === 1 && React.isValidElement(children);
+  const child = only
+    ? (children as React.ReactElement<{
+        id?: string;
+        'aria-describedby'?: string;
+        'aria-invalid'?: boolean | 'true' | 'false';
+      }>)
+    : null;
+  const id = htmlFor ?? child?.props.id ?? (child ? auto : undefined);
+  const noteId = error || hint ? `${id ?? auto}-note` : undefined;
+  const control = child
+    ? React.cloneElement(child, {
+        id,
+        'aria-describedby':
+          [child.props['aria-describedby'], noteId].filter(Boolean).join(' ') || undefined,
+        'aria-invalid': error ? true : child.props['aria-invalid'],
+      })
+    : children;
   return (
     <div className={cn('grid gap-1.5', className)}>
       {label && (
-        <Label htmlFor={htmlFor} required={required}>
+        <Label htmlFor={id} required={required}>
           {label}
         </Label>
       )}
-      {children}
+      {control}
       {error ? (
-        <p role="alert" className="text-xs font-medium text-danger">
+        <p id={noteId} role="alert" className="text-xs font-medium text-danger">
           {error}
         </p>
       ) : hint ? (
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        <p id={noteId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
       ) : null}
     </div>
   );

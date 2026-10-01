@@ -6,13 +6,15 @@ import { PrintSheet } from './PrintSheet';
 export function ReceiptDocument({
   receipt: r,
   onBack,
+  onDownload,
 }: {
   receipt: ReceiptDto;
   onBack: () => void;
+  onDownload?: () => Promise<void>;
 }) {
   const p = r.payment;
   return (
-    <PrintSheet title="Payment receipt" onBack={onBack}>
+    <PrintSheet title="Payment receipt" onBack={onBack} onDownload={onDownload}>
       <section className="mb-8 grid grid-cols-2 gap-8">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-slate-500">Issued by</p>

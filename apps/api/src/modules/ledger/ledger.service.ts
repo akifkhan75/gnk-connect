@@ -282,13 +282,19 @@ export class LedgerService {
     });
   }
 
-  /** Confirmed booking (sale voucher): Dr partner (total), Cr supplier payable (net), Cr revenue (margin). */
+  /**
+   * Confirmed booking (sale voucher): Dr partner (total), Cr supplier payable (net), Cr revenue
+   * (margin). When the supplier's payable account is in a foreign currency, the net is posted
+   * there as fcAmount × rate using the latest rate; any rounding lands in the margin.
+   * Returns the voucher and, for foreign suppliers, the cost that was posted.
+   */
   async postBookingCharge(
     tx: Tx,
     b: {
       id: string;
       reference: string;
       accountId: string;
+      supplierId: string;
       seats: number;
       supplierNetUnit: Prisma.Decimal;
       markupUnit: Prisma.Decimal;
@@ -297,11 +303,20 @@ export class LedgerService {
     actorId?: string,
   ) {
     const partner = await this.partnerAccount(tx, b.accountId);
-    const payable = await this.systemAccount(tx, 'SUPPLIER_PAYABLE');
     const revenue = await this.systemAccount(tx, 'REVENUE');
+    const payable = await this.supplierPayable(tx, b.supplierId);
     const net = b.supplierNetUnit.times(b.seats);
-    const margin = b.totalPrice.minus(net);
-    return this.post(tx, {
+
+    let payableLine: PostLine = { ledgerAccountId: payable.account.id, credit: net };
+    let cost: { currency: string; fcAmount: Prisma.Decimal; rate: Prisma.Decimal } | null = null;
+    if (payable.rate) {
+      const fcAmount = round2(net.dividedBy(payable.rate));
+      const pkr = round2(fcAmount.times(payable.rate));
+      cost = { currency: payable.account.currency, fcAmount, rate: payable.rate };
+      payableLine = { ledgerAccountId: payable.account.id, credit: pkr, ...cost };
+    }
+    const margin = b.totalPrice.minus(new Prisma.Decimal(payableLine.credit ?? 0));
+    const voucher = await this.post(tx, {
       type: 'SALE',
       description: `Booking ${b.reference} (${b.seats} seat${b.seats > 1 ? 's' : ''})`,
       bookingId: b.id,
@@ -309,10 +324,39 @@ export class LedgerService {
       createdById: actorId,
       lines: [
         { ledgerAccountId: partner.id, debit: b.totalPrice },
-        { ledgerAccountId: payable.id, credit: net },
+        payableLine,
         ...(margin.gt(0) ? [{ ledgerAccountId: revenue.id, credit: margin }] : []),
+        // Sold below cost: the loss reduces revenue instead of unbalancing the voucher.
+        ...(margin.lt(0) ? [{ ledgerAccountId: revenue.id, debit: margin.negated() }] : []),
       ],
     });
+    return { voucher, cost };
+  }
+
+  /**
+   * The account a supplier's bookings are payable to, and for a foreign-currency account the
+   * latest rate from the rate table. Throws FX_RATE_MISSING when no rate has been entered.
+   */
+  async supplierPayable(tx: Tx, supplierId: string) {
+    const supplier = await tx.supplier.findUnique({
+      where: { id: supplierId },
+      include: { payableAccount: true },
+    });
+    const account =
+      supplier?.payableAccount && supplier.payableAccount.isActive
+        ? supplier.payableAccount
+        : await this.systemAccount(tx, 'SUPPLIER_PAYABLE');
+    if (account.currency === BASE) return { account, rate: null };
+    const latest = await tx.exchangeRate.findFirst({
+      where: { currency: account.currency },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+    if (!latest)
+      throw new ConflictException({
+        message: `${supplier?.name ?? 'This supplier'} bills in ${account.currency}, but no ${account.currency} rate has been entered. Add one under Accounting → Setup.`,
+        code: 'FX_RATE_MISSING',
+      });
+    return { account, rate: latest.rate };
   }
 
   /** Reverses a booking's sale voucher in full (cancellation after confirmation). */

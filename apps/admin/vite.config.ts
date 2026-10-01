@@ -21,16 +21,15 @@ export default defineConfig({
     },
   },
   build: {
+    // The single vendor chunk below is ~640 kB (~200 kB gzipped) and cached across releases.
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
+        // All third-party code in one long-cached chunk. Splitting it further (react / vendor /
+        // radix…) created a circular import between chunks that left React undefined at start-up.
+        // PostHog stays a lazy chunk: it loads only when monitoring is switched on.
         manualChunks(id) {
-          if (!id.includes('node_modules')) return;
-          if (/[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id))
-            return 'react';
-          if (/[\\/](zod|react-hook-form|@hookform)[\\/]/.test(id)) return 'forms';
-          if (/[\\/](@radix-ui|@floating-ui)[\\/]/.test(id)) return 'radix';
-          if (/[\\/]@tanstack[\\/]/.test(id)) return 'query';
-          return 'vendor';
+          if (id.includes('node_modules') && !id.includes('posthog')) return 'vendor';
         },
       },
     },
