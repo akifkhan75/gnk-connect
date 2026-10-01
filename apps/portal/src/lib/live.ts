@@ -12,6 +12,8 @@ const STALE: Record<RealtimeTopic, string[]> = {
     'balance',
     'statement',
     'invoices',
+    'inventory-groups',
+    'inventory-group',
   ],
   payment: ['payments', 'balance', 'statement', 'dashboard'],
   voucher: ['balance', 'statement'],

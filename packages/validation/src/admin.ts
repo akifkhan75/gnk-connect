@@ -84,6 +84,13 @@ export const adminBookingListSchema = z.object({
   tab: z
     .enum([
       'all',
+      // Inventory (AirDesk group-PNR) ops queue — leads the admin inbox.
+      'PAYMENT_PENDING',
+      'TICKETED',
+      'EXPIRED_HOLD',
+      'REFUND_REQUESTED',
+      'REFUNDED',
+      // Legacy supplier-push queue.
       'PENDING_APPROVAL',
       'APPROVED',
       'SUPPLIER',
@@ -106,6 +113,78 @@ export const bookingRejectSchema = z.object({
   reason: z.string().trim().min(3, 'Give a reason').max(1000),
 });
 export const internalNoteSchema = z.object({ internalNotes: z.string().trim().max(4000) });
+
+// ---------- Platform concession ops (admin) ----------
+
+export const grantConcessionSchema = z
+  .object({
+    kind: z.enum(['CHILD_SEATS', 'INFANT_SEATS', 'DISCOUNT']),
+    childSeats: z.coerce.number().int().min(1).max(50).optional(),
+    infantSeats: z.coerce.number().int().min(1).max(50).optional(),
+    discountAmount: moneySchema.optional(),
+    pnrCode: optionalText(48),
+    reason: optionalText(500),
+  })
+  .superRefine((v, ctx) => {
+    if (v.kind === 'CHILD_SEATS' && !v.childSeats)
+      ctx.addIssue({ code: 'custom', path: ['childSeats'], message: 'Enter the seats to grant' });
+    if (v.kind === 'INFANT_SEATS' && !v.infantSeats)
+      ctx.addIssue({ code: 'custom', path: ['infantSeats'], message: 'Enter the seats to grant' });
+    if (v.kind === 'DISCOUNT' && v.discountAmount == null)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['discountAmount'],
+        message: 'Enter the discount amount',
+      });
+  });
+export type GrantConcessionInput = z.input<typeof grantConcessionSchema>;
+
+export const reviseDiscountSchema = z.object({
+  approvedDiscountAmount: moneySchema,
+  reason: optionalText(500),
+});
+export type ReviseDiscountInput = z.input<typeof reviseDiscountSchema>;
+
+export const assignConcessionPnrSchema = z.object({
+  pnrCode: z.string().trim().min(2).max(48),
+});
+export type AssignConcessionPnrInput = z.input<typeof assignConcessionPnrSchema>;
+
+export const assignPassengerSeatPnrSchema = z.object({
+  pnrCode: z.string().trim().min(2).max(48),
+  seats: z.coerce.number().int().min(1).max(50),
+  kind: z.enum(['child', 'infant']),
+});
+export type AssignPassengerSeatPnrInput = z.input<typeof assignPassengerSeatPnrSchema>;
+
+// ---------- Manifest export ----------
+
+export const manifestExportFormatSchema = z.object({
+  format: z.enum(['pdf', 'xlsx']).default('pdf'),
+});
+export type ManifestExportFormatInput = z.input<typeof manifestExportFormatSchema>;
+
+const bookingIdsList = z
+  .string()
+  .trim()
+  .min(1, 'List at least one booking id')
+  .transform((v) =>
+    v
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+
+export const bulkPassengerExportSchema = z.object({
+  bookingIds: bookingIdsList,
+  format: z.enum(['pdf', 'xlsx']).default('xlsx'),
+});
+export type BulkPassengerExportInput = z.input<typeof bulkPassengerExportSchema>;
+
+export const airlineManifestExportSchema = z.object({
+  bookingIds: bookingIdsList,
+});
+export type AirlineManifestExportInput = z.input<typeof airlineManifestExportSchema>;
 
 // ---------- Payments ----------
 

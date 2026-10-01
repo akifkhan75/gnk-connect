@@ -33,7 +33,201 @@ export function GroupsPage() {
   const { service: slug } = useParams();
   const service = serviceBySlug(slug);
   if (!service) return <Navigate to="/book/groups" replace />;
+  if (service.type === 'GROUP') return <InventoryListing key={service.slug} />;
   return <Listing key={service.slug} slug={service.slug} />;
+}
+
+function InventoryListing() {
+  const { session } = useAuth();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const [text, setText] = useState(params.get('q') ?? '');
+  const page = Number(params.get('page') ?? 1);
+  const query = {
+    q: params.get('q') || undefined,
+    sector: params.get('sector') || undefined,
+    airline: params.get('airline') || undefined,
+    from: params.get('from') || undefined,
+    to: params.get('to') || undefined,
+    minSeats: params.get('minSeats') || undefined,
+    sort: params.get('sort') || undefined,
+    page,
+    pageSize: 25,
+  };
+  const filters = useQuery({
+    queryKey: ['inventory-group-filters'],
+    queryFn: api.inventory.groups.filters,
+    staleTime: 5 * 60_000,
+  });
+  const groups = useQuery({
+    queryKey: ['inventory-groups', query],
+    queryFn: () => api.inventory.groups.list(query),
+    placeholderData: keepPreviousData,
+  });
+
+  const set = (k: string, v: string | undefined) => {
+    const next = new URLSearchParams(params);
+    if (v) next.set(k, v);
+    else next.delete(k);
+    if (k !== 'page') next.delete('page');
+    setParams(next, { replace: true });
+  };
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (text.trim() !== (params.get('q') ?? '')) set('q', text.trim() || undefined);
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+
+  const approved = session!.account.accountStatus === 'APPROVED';
+  const active = FILTERS.some((k) => k !== 'sort' && params.get(k));
+
+  return (
+    <>
+      <PageHeader
+        title="Group tickets"
+        description="Book group inventory seats. Hold first, add passengers before ticketing."
+      />
+      <Card>
+        <div className="grid gap-3 border-b p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,1fr))_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.6fr)_auto]">
+          <SearchInput
+            placeholder="Code, sector or airline"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            aria-label="Search groups"
+          />
+          <Select
+            value={params.get('sector') ?? ''}
+            onChange={(e) => set('sector', e.target.value)}
+            aria-label="Sector"
+          >
+            <option value="">All sectors</option>
+            {filters.data?.sectors.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </Select>
+          <Select
+            value={params.get('airline') ?? ''}
+            onChange={(e) => set('airline', e.target.value)}
+            aria-label="Airline"
+          >
+            <option value="">All airlines</option>
+            {filters.data?.airlines.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </Select>
+          <Input
+            type="date"
+            value={params.get('from') ?? ''}
+            onChange={(e) => set('from', e.target.value)}
+            aria-label="Departing from"
+            title="Departing from"
+          />
+          <Input
+            type="date"
+            value={params.get('to') ?? ''}
+            onChange={(e) => set('to', e.target.value)}
+            aria-label="Departing until"
+            title="Departing until"
+          />
+          <Input
+            type="number"
+            min={1}
+            placeholder="Min seats"
+            value={params.get('minSeats') ?? ''}
+            onChange={(e) => set('minSeats', e.target.value || undefined)}
+            aria-label="Minimum seats available"
+            title="Minimum seats available"
+          />
+          <div className="flex gap-2">
+            <Select
+              value={params.get('sort') ?? 'recent'}
+              onChange={(e) =>
+                set('sort', e.target.value === 'recent' ? undefined : e.target.value)
+              }
+              aria-label="Sort"
+              className="min-w-32"
+            >
+              <option value="recent">Sort: newest</option>
+              <option value="departure">Sort: departure</option>
+              {approved && <option value="price">Sort: fare</option>}
+              <option value="seats">Sort: seats</option>
+            </Select>
+            {active && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setText('');
+                  setParams(new URLSearchParams(), { replace: true });
+                }}
+                aria-label="Clear filters"
+                title="Clear filters"
+              >
+                <RotateCcw />
+              </Button>
+            )}
+          </div>
+        </div>
+        {groups.error ? (
+          <ErrorState error={groups.error} onRetry={() => groups.refetch()} />
+        ) : groups.isLoading ? (
+          <div className="p-8 text-sm text-muted-foreground">Loading groups…</div>
+        ) : !groups.data?.items.length ? (
+          <EmptyState
+            icon={<SearchIcon />}
+            title="No active groups"
+            description="Ask GNK to publish inventory groups, or clear your search."
+          />
+        ) : (
+          <ul className="divide-y">
+            {groups.data.items.map((g) => (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left hover:bg-muted/50"
+                  onClick={() => navigate(`/inventory/groups/${g.id}`)}
+                >
+                  <div>
+                    <p className="font-semibold">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {g.sector ?? g.code}
+                      {g.airline ? ` · ${g.airline}` : ''}
+                      {g.departureDate ? ` · ${g.departureDate}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {approved && g.price != null && (
+                      <p className="font-semibold tabular">{g.price.toLocaleString('en-PK')} PKR</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {g.showAvailableSeats && g.seatsAvailable != null
+                        ? `${g.seatsAvailable} seats`
+                        : 'Bookable'}
+                    </p>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {groups.data && (
+          <Pagination
+            page={page}
+            pageSize={25}
+            total={groups.data.total}
+            onChange={(p) => {
+              const next = new URLSearchParams(params);
+              next.set('page', String(p));
+              setParams(next, { replace: true });
+            }}
+          />
+        )}
+      </Card>
+    </>
+  );
 }
 
 function Listing({ slug }: { slug: string }) {

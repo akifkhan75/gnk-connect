@@ -1,8 +1,31 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Check, Download, Eye, FileText, RefreshCw, Send, X } from 'lucide-react';
-import type { AdminBookingDetailDto, AdminBookingListItem } from '@gnk/types';
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  Clock,
+  Download,
+  Eye,
+  FileSpreadsheet,
+  FileText,
+  Gift,
+  Mail,
+  Plane,
+  RefreshCw,
+  Scissors,
+  Send,
+  Ticket,
+  UserPlus,
+  X,
+} from 'lucide-react';
+
+import type {
+  AdminBookingDetailDto,
+  AdminBookingListItem,
+  BookingConcessionRequestDto,
+} from '@gnk/types';
 import {
   Alert,
   Avatar,
@@ -10,11 +33,19 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Checkbox,
   ConfirmDialog,
   DataTable,
+  Dialog,
   Drawer,
+  DropdownContent,
+  DropdownItem,
+  DropdownMenu,
+  DropdownSeparator,
+  DropdownTrigger,
   EmptyState,
   ErrorState,
+  Field,
   Input,
   KeyValue,
   Money,
@@ -22,6 +53,7 @@ import {
   Pagination,
   SearchInput,
   SegmentedControl,
+  Select,
   Spinner,
   StatusBadge,
   Tabs,
@@ -29,6 +61,7 @@ import {
   Timeline,
   formatDate,
   formatDateTime,
+  saveBlob,
   statusLabel,
   statusTone,
   titleCase,
@@ -40,6 +73,14 @@ import { downloadCsv } from '@/lib/csv';
 import { errorMessage } from '@/lib/forms';
 import { useCan } from '@/lib/useCan';
 import { RequirePerm } from '@/components/guards';
+import {
+  ConcessionDecideDialog,
+  type ConcessionDecisionPayload,
+} from '@/components/ConcessionDecideDialog';
+
+/** Statuses on the inventory (group-PNR) lifecycle where confirm/extend apply —
+ *  separate from the legacy supplier-push flow below. */
+const INVENTORY_ACTIVE = ['HELD', 'PAYMENT_PENDING', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'];
 
 // Statuses where someone is waiting on us: show how long.
 const WAITING = [
@@ -75,15 +116,48 @@ function Waiting({ since }: { since: string }) {
 }
 
 const TABS = [
+  // Inventory (AirDesk group-PNR) ops queue leads the admin inbox.
+  { value: 'PAYMENT_PENDING', label: 'Pending payment' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+  { value: 'TICKETED', label: 'Ticketed' },
+  { value: 'EXPIRED_HOLD', label: 'Expired hold' },
+  { value: 'REFUND_REQUESTED', label: 'Refunds requested' },
+  // Legacy supplier-push queue.
   { value: 'PENDING_APPROVAL', label: 'Pending approval' },
   { value: 'APPROVED', label: 'Approved' },
   { value: 'SUPPLIER', label: 'With supplier' },
   { value: 'SUPPLIER_FAILED', label: 'Failed' },
-  { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled / rejected' },
   { value: 'all', label: 'All' },
 ] as const;
+
+/** Statuses with a live seat/payment countdown, shown inline next to the status badge. */
+const COUNTDOWN_STATUSES = ['HELD', 'PAYMENT_PENDING'];
+
+/** Ticking countdown to a deadline. Turns danger-toned inside the last 15 minutes. */
+function Countdown({ until }: { until: string }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const ms = new Date(until).getTime() - now;
+  if (ms <= 0) return <span className="text-[11px] font-semibold text-danger">Expired</span>;
+  const totalMin = Math.floor(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  const s = Math.floor((ms % 60_000) / 1000);
+  const label = h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+  const danger = ms < 15 * 60_000;
+  return (
+    <span
+      className={`text-[11px] font-semibold tabular ${danger ? 'text-danger' : 'text-warning'}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export function BookingsPage() {
   return (
@@ -99,9 +173,10 @@ function Bookings() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [text, setText] = useState(params.get('q') ?? '');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const q = {
     tab: (params.get('tab') ??
-      (params.get('q') ? 'all' : 'PENDING_APPROVAL')) as (typeof TABS)[number]['value'],
+      (params.get('q') ? 'all' : 'PAYMENT_PENDING')) as (typeof TABS)[number]['value'],
     q: params.get('q') || undefined,
     accountId: params.get('accountId') || undefined,
     from: params.get('from') || undefined,
@@ -133,6 +208,33 @@ function Bookings() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
+  useEffect(() => setSelected(new Set()), [q.tab, q.page, q.q, q.accountId, q.owner]);
+
+  const toggleSelected = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selectedIds = [...selected];
+  const toast = useToast();
+  const bulkExportPassengers = async (format: 'pdf' | 'xlsx') => {
+    try {
+      const blob = await api.bookings.exportPassengersBulk(selectedIds, format);
+      saveBlob(blob, `passengers-${new Date().toISOString().slice(0, 10)}.${format}`);
+    } catch (e) {
+      toast.error('Export failed', errorMessage(e));
+    }
+  };
+  const bulkExportAirline = async (airline: 'airblue' | 'airsial' | 'saudi') => {
+    try {
+      const blob = await api.bookings.exportAirline(airline, selectedIds);
+      saveBlob(blob, `${airline}-manifest-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e) {
+      toast.error('Export failed', errorMessage(e));
+    }
+  };
 
   const exportCsv = async () => {
     const all = await api.bookings.list({ ...q, page: 1, pageSize: 100 });
@@ -169,6 +271,19 @@ function Bookings() {
   };
 
   const columns: Column<AdminBookingListItem>[] = [
+    {
+      key: 'sel',
+      header: '',
+      cell: (b) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selected.has(b.id)}
+            onChange={() => toggleSelected(b.id)}
+            aria-label={`Select ${b.reference}`}
+          />
+        </div>
+      ),
+    },
     {
       key: 'ref',
       header: 'Booking',
@@ -243,6 +358,9 @@ function Bookings() {
         <div className="flex flex-col items-end gap-0.5">
           <StatusBadge status={b.status} />
           {WAITING.includes(b.status) && <Waiting since={b.statusSince} />}
+          {COUNTDOWN_STATUSES.includes(b.status) && b.holdExpiresAt && (
+            <Countdown until={b.holdExpiresAt} />
+          )}
         </div>
       ),
     },
@@ -310,6 +428,40 @@ function Bookings() {
             </button>
           </div>
         )}
+        {selectedIds.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-b bg-accent-soft/50 px-4 py-2.5 text-[13px]">
+            <span className="font-medium">{selectedIds.length} selected</span>
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <Button size="sm" variant="secondary">
+                  <Download /> Export passengers <ChevronDown className="opacity-70" />
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent>
+                <DropdownItem onSelect={() => bulkExportPassengers('pdf')}>PDF</DropdownItem>
+                <DropdownItem onSelect={() => bulkExportPassengers('xlsx')}>Excel</DropdownItem>
+              </DropdownContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <Button size="sm" variant="secondary">
+                  <Download /> Airline manifest <ChevronDown className="opacity-70" />
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent>
+                <DropdownItem onSelect={() => bulkExportAirline('airblue')}>Airblue</DropdownItem>
+                <DropdownItem onSelect={() => bulkExportAirline('airsial')}>Airsial</DropdownItem>
+                <DropdownItem onSelect={() => bulkExportAirline('saudi')}>Saudia</DropdownItem>
+              </DropdownContent>
+            </DropdownMenu>
+            <button
+              className="ml-auto text-muted-foreground hover:underline"
+              onClick={() => setSelected(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        )}
         {list.error ? (
           <ErrorState error={list.error} onRetry={() => list.refetch()} />
         ) : (
@@ -368,9 +520,27 @@ function BookingDetail({ id }: { id: string }) {
   const can = useCan();
   const qc = useQueryClient();
   const toast = useToast();
-  const [dialog, setDialog] = useState<null | 'reject' | 'cancel' | 'approve' | 'push'>(null);
+  const [dialog, setDialog] = useState<
+    null | 'reject' | 'cancel' | 'approve' | 'push' | 'reject-refund'
+  >(null);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [rejectExtOpen, setRejectExtOpen] = useState(false);
+  const [concessionDecide, setConcessionDecide] = useState<{
+    request: BookingConcessionRequestDto;
+    decision: 'APPROVED' | 'REJECTED';
+  } | null>(null);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [reviseOpen, setReviseOpen] = useState(false);
+  const [splitPnrOpen, setSplitPnrOpen] = useState(false);
+  const [assignPnr, setAssignPnr] = useState<BookingConcessionRequestDto | null>(null);
+  const [emailTicketOpen, setEmailTicketOpen] = useState(false);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const q = useQuery({ queryKey: ['booking', id], queryFn: () => api.bookings.get(id) });
+  const concessions = useQuery({
+    queryKey: ['booking', id, 'concessions'],
+    queryFn: () => api.bookings.concessions(id),
+  });
   const [notes, setNotes] = useState('');
   useEffect(() => setNotes(q.data?.internalNotes ?? ''), [q.data?.internalNotes]);
 
@@ -423,6 +593,137 @@ function BookingDetail({ id }: { id: string }) {
     mutationFn: () => api.bookings.setNotes(id, notes),
     onSuccess: (b) => onDone(b, 'Notes saved'),
   });
+  const confirmInventory = useMutation({
+    mutationFn: () => api.bookings.confirm(id),
+    onSuccess: (b) => onDone(b, `${b.reference}: confirmed with the airline`),
+    onError: (e) => toast.error('Could not confirm', errorMessage(e)),
+  });
+  const extendDeadline = useMutation({
+    mutationFn: (extensionMinutes: number) => api.bookings.extendDeadline(id, { extensionMinutes }),
+    onSuccess: (b) => {
+      onDone(b, 'Deadline extended');
+      setExtendOpen(false);
+    },
+    onError: (e) => toast.error('Could not extend', errorMessage(e)),
+  });
+  const decideConcession = useMutation({
+    mutationFn: ({
+      requestId,
+      payload,
+    }: {
+      requestId: string;
+      payload: ConcessionDecisionPayload;
+    }) => api.bookings.decideConcession(requestId, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['booking', id, 'concessions'] });
+      void qc.invalidateQueries({ queryKey: ['concession-queue'] });
+      void qc.invalidateQueries({ queryKey: ['booking', id] });
+      toast.success('Concession decided');
+      setConcessionDecide(null);
+    },
+    onError: (e) => toast.error('Could not decide', errorMessage(e)),
+  });
+  const grantConcession = useMutation({
+    mutationFn: (dto: {
+      kind: 'CHILD_SEATS' | 'INFANT_SEATS' | 'DISCOUNT';
+      childSeats?: number;
+      infantSeats?: number;
+      discountAmount?: number;
+      pnrCode?: string;
+      reason?: string;
+    }) => api.bookings.grantConcession(id, dto),
+    onSuccess: (b) => {
+      onDone(b, 'Concession granted');
+      void qc.invalidateQueries({ queryKey: ['booking', id, 'concessions'] });
+      setGrantOpen(false);
+    },
+    onError: (e) => toast.error('Could not grant concession', errorMessage(e)),
+  });
+  const reviseDiscount = useMutation({
+    mutationFn: (dto: { approvedDiscountAmount: number; reason?: string }) =>
+      api.bookings.reviseDiscount(id, dto),
+    onSuccess: (b) => {
+      onDone(b, 'Discount updated');
+      void qc.invalidateQueries({ queryKey: ['booking', id, 'concessions'] });
+      setReviseOpen(false);
+    },
+    onError: (e) => toast.error('Could not update discount', errorMessage(e)),
+  });
+  const splitPassengerSeatPnr = useMutation({
+    mutationFn: (dto: { pnrCode: string; seats: number; kind: 'child' | 'infant' }) =>
+      api.bookings.assignPassengerSeatPnr(id, dto),
+    onSuccess: (b) => {
+      onDone(b, 'Seats moved to a dedicated PNR');
+      setSplitPnrOpen(false);
+    },
+    onError: (e) => toast.error('Could not split PNR', errorMessage(e)),
+  });
+  const assignConcessionPnr = useMutation({
+    mutationFn: ({ requestId, pnrCode }: { requestId: string; pnrCode: string }) =>
+      api.bookings.assignConcessionPnr(requestId, pnrCode),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['booking', id, 'concessions'] });
+      void qc.invalidateQueries({ queryKey: ['booking', id] });
+      toast.success('PNR assigned');
+      setAssignPnr(null);
+    },
+    onError: (e) => toast.error('Could not assign PNR', errorMessage(e)),
+  });
+  const emailTicket = useMutation({
+    mutationFn: (to?: string) => api.bookings.emailTicket(id, to),
+    onSuccess: (res) => {
+      toast.success(res.message ?? 'E-ticket emailed');
+      setEmailTicketOpen(false);
+    },
+    onError: (e) => toast.error('Could not email ticket', errorMessage(e)),
+  });
+  const rejectExtension = useMutation({
+    mutationFn: (note?: string) => api.bookings.rejectExtension(id, note),
+    onSuccess: (b) => {
+      onDone(b as AdminBookingDetailDto, 'Extension request declined');
+      setRejectExtOpen(false);
+    },
+    onError: (e) => toast.error('Could not reject extension', errorMessage(e)),
+  });
+  const requestPassengers = useMutation({
+    mutationFn: () => api.bookings.requestPassengers(id),
+    onSuccess: (b) => onDone(b as AdminBookingDetailDto, 'Passenger details requested'),
+    onError: (e) => toast.error('Could not request passengers', errorMessage(e)),
+  });
+  const approveRefund = useMutation({
+    mutationFn: () => api.bookings.approveRefund(id),
+    onSuccess: (b) => onDone(b, `${b.reference}: refund approved and seats released`),
+    onError: (e) => toast.error('Could not approve refund', errorMessage(e)),
+  });
+  const rejectRefund = useMutation({
+    mutationFn: (reason: string) => api.bookings.rejectRefund(id, reason),
+    onSuccess: (b) => {
+      onDone(b, 'Refund request declined');
+      setDialog(null);
+    },
+    onError: (e) => toast.error('Could not reject refund', errorMessage(e)),
+  });
+
+  const exportPassengers = async (format: 'pdf' | 'xlsx') => {
+    try {
+      saveBlob(
+        await api.bookings.exportPassengers(id, format),
+        `${q.data!.reference}-passengers.${format}`,
+      );
+    } catch (e) {
+      toast.error('Export failed', errorMessage(e));
+    }
+  };
+  const exportAirline = async (airline: 'airblue' | 'airsial' | 'saudi') => {
+    try {
+      saveBlob(
+        await api.bookings.exportAirline(airline, [id]),
+        `${q.data!.reference}-${airline}.xlsx`,
+      );
+    } catch (e) {
+      toast.error('Export failed', errorMessage(e));
+    }
+  };
 
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return <Spinner className="py-20" />;
@@ -430,6 +731,7 @@ function BookingDetail({ id }: { id: string }) {
   const has = (a: AdminBookingDetailDto['allowedActions'][number]) => b.allowedActions.includes(a);
   const shortfall = b.totalPrice - b.balance.availableFunds;
   const run = (action: string, reason?: string) => act.mutateAsync({ action, reason });
+  const isInventory = !!b.inventoryLotId;
 
   return (
     <div className="space-y-5">
@@ -437,8 +739,77 @@ function BookingDetail({ id }: { id: string }) {
         booking={b}
         onChanged={(x) => onDone(x, x.assignedTo ? `Assigned to ${x.assignedTo.name}` : 'Released')}
       />
-      {/* Action bar */}
-      {b.allowedActions.length > 0 && (
+
+      {/* Inventory (group-PNR) action bar — confirm/ticket/extend replace the supplier push flow. */}
+      {isInventory && (
+        <div className="flex flex-wrap gap-2">
+          {INVENTORY_ACTIVE.includes(b.status) && can('bookings:approve') && (
+            <>
+              <Button
+                onClick={() => confirmInventory.mutate()}
+                loading={confirmInventory.isPending}
+              >
+                <Check /> Confirm booking
+              </Button>
+              <Button variant="secondary" onClick={() => setExtendOpen(true)}>
+                <Clock /> Extend deadline
+              </Button>
+              <Button variant="secondary" onClick={() => setRejectExtOpen(true)}>
+                <X /> Reject extension
+              </Button>
+            </>
+          )}
+          {isInventory &&
+            ['HELD', 'PAYMENT_PENDING', 'CONFIRMED', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'].includes(
+              b.status,
+            ) &&
+            can('bookings:approve') && (
+              <Button
+                variant="secondary"
+                onClick={() => requestPassengers.mutate()}
+                loading={requestPassengers.isPending}
+              >
+                <UserPlus /> Request passengers
+              </Button>
+            )}
+          {b.status === 'CONFIRMED' && can('bookings:approve') && (
+            <Button onClick={() => setTicketOpen(true)}>
+              <Ticket /> Mark ticketed
+            </Button>
+          )}
+          {b.status === 'REFUND_REQUESTED' && can('bookings:approve') && (
+            <>
+              <Button
+                variant="accent"
+                onClick={() => approveRefund.mutate()}
+                loading={approveRefund.isPending}
+              >
+                <Check /> Approve refund
+              </Button>
+              <Button
+                variant="danger-outline"
+                onClick={() => setDialog('reject-refund')}
+                className="ml-auto"
+              >
+                <X /> Reject refund
+              </Button>
+            </>
+          )}
+          {!['CANCELLED', 'EXPIRED_HOLD', 'TICKETED', 'REFUND_REQUESTED'].includes(b.status) &&
+            can('bookings:cancel') && (
+              <Button
+                variant="danger-outline"
+                onClick={() => setDialog('cancel')}
+                className="ml-auto"
+              >
+                Cancel booking
+              </Button>
+            )}
+        </div>
+      )}
+
+      {/* Action bar (legacy supplier-push flow — never shown for group-PNR/inventory bookings) */}
+      {!isInventory && b.allowedActions.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {has('approve') && (
             <>
@@ -514,18 +885,108 @@ function BookingDetail({ id }: { id: string }) {
           {b.rejectionReason}
         </Alert>
       )}
+      {isInventory &&
+        INVENTORY_ACTIVE.includes(b.status) &&
+        (b.heldUntil || b.paymentDeadlineAt) && (
+          <Alert tone="warning" title={b.status === 'HELD' ? 'Hold expires' : 'Payment due'}>
+            {formatDateTime((b.status === 'HELD' ? b.heldUntil : b.paymentDeadlineAt) ?? '')} —
+            confirm or extend before it lapses and seats are released automatically.
+          </Alert>
+        )}
+      {isInventory && b.status === 'EXPIRED_HOLD' && (
+        <Alert tone="danger" title="Hold expired">
+          Seats were released automatically. The partner can rebook if seats remain.
+        </Alert>
+      )}
 
       <Card>
         <CardHeader
           title="Booking"
           actions={
-            b.invoice && (
-              <Button asChild variant="ghost" size="sm">
-                <Link to={`/invoices/${b.invoice.id}`}>
-                  <FileText /> {b.invoice.number}
-                </Link>
-              </Button>
-            )
+            <div className="flex items-center gap-1.5">
+              {isInventory &&
+                ['HELD', 'PAYMENT_PENDING', 'CONFIRMED', 'TICKETED'].includes(b.status) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () =>
+                      saveBlob(
+                        await api.bookings.documents.reservationPdf(b.id),
+                        `${b.reference}-reservation.pdf`,
+                      )
+                    }
+                  >
+                    <Download /> Reservation
+                  </Button>
+                )}
+              {isInventory && b.status === 'TICKETED' && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () =>
+                      saveBlob(
+                        await api.bookings.documents.confirmationPdf(b.id),
+                        `${b.reference}-confirmation.pdf`,
+                      )
+                    }
+                  >
+                    <Download /> Confirmation
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () =>
+                      saveBlob(
+                        await api.bookings.documents.ticketPdf(b.id),
+                        `${b.reference}-ticket.pdf`,
+                      )
+                    }
+                  >
+                    <Ticket /> E-ticket
+                  </Button>
+                  {can('bookings:approve') && (
+                    <Button variant="ghost" size="sm" onClick={() => setEmailTicketOpen(true)}>
+                      <Mail /> Email ticket
+                    </Button>
+                  )}
+                </>
+              )}
+              {isInventory && b.passengers.length > 0 && can('bookings:reveal_pii') && (
+                <DropdownMenu>
+                  <DropdownTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <FileSpreadsheet /> Export <ChevronDown className="opacity-70" />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownContent className="w-56">
+                    <DropdownItem onSelect={() => exportPassengers('pdf')}>
+                      <FileText /> Passenger manifest (PDF)
+                    </DropdownItem>
+                    <DropdownItem onSelect={() => exportPassengers('xlsx')}>
+                      <FileSpreadsheet /> Passenger manifest (XLSX)
+                    </DropdownItem>
+                    <DropdownSeparator />
+                    <DropdownItem onSelect={() => exportAirline('airblue')}>
+                      <Plane /> AirBlue manifest
+                    </DropdownItem>
+                    <DropdownItem onSelect={() => exportAirline('airsial')}>
+                      <Plane /> AirSial manifest
+                    </DropdownItem>
+                    <DropdownItem onSelect={() => exportAirline('saudi')}>
+                      <Plane /> Saudia manifest
+                    </DropdownItem>
+                  </DropdownContent>
+                </DropdownMenu>
+              )}
+              {b.invoice && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link to={`/invoices/${b.invoice.id}`}>
+                    <FileText /> {b.invoice.number}
+                  </Link>
+                </Button>
+              )}
+            </div>
           }
         />
         <CardBody>
@@ -548,14 +1009,161 @@ function BookingDetail({ id }: { id: string }) {
                 label: 'Travel',
                 value: `${formatDate(b.departureDate)} – ${formatDate(b.returnDate)}`,
               },
-              { label: 'Seats', value: b.seats },
-              { label: 'Supplier', value: b.supplierName },
-              { label: 'Supplier ref', value: b.supplierBookingRef },
+              {
+                label: 'Seats',
+                value: isInventory
+                  ? [
+                      b.bookedAdults
+                        ? `${b.bookedAdults} adult${b.bookedAdults > 1 ? 's' : ''}`
+                        : null,
+                      b.bookedChildren
+                        ? `${b.bookedChildren} child${b.bookedChildren > 1 ? 'ren' : ''}`
+                        : null,
+                      b.bookedInfants
+                        ? `${b.bookedInfants} infant${b.bookedInfants > 1 ? 's' : ''}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(', ') || b.seats
+                  : b.seats,
+              },
+              ...(isInventory
+                ? []
+                : [
+                    { label: 'Supplier', value: b.supplierName },
+                    { label: 'Supplier ref', value: b.supplierBookingRef },
+                  ]),
               { label: 'PNR', value: b.pnr && <span className="font-mono">{b.pnr}</span> },
             ]}
           />
         </CardBody>
       </Card>
+
+      {isInventory && (b.fareSubtotalAmount != null || b.discountAmount) && (
+        <Card>
+          <CardHeader title="Fare" />
+          <CardBody className="space-y-2 text-sm">
+            {b.fareSubtotalAmount != null && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Fare subtotal</span>
+                <Money value={b.fareSubtotalAmount} />
+              </div>
+            )}
+            {!!b.discountAmount && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Concession discount</span>
+                <span>
+                  -<Money value={b.discountAmount} />
+                </span>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      {isInventory && (
+        <Card>
+          <CardHeader
+            title="Concession requests"
+            icon={<Gift className="size-4" />}
+            actions={
+              can('bookings:approve') &&
+              !['CANCELLED', 'EXPIRED_HOLD'].includes(b.status) && (
+                <div className="flex items-center gap-1.5">
+                  <Button size="sm" variant="secondary" onClick={() => setSplitPnrOpen(true)}>
+                    <Scissors /> Split PNR
+                  </Button>
+                  <Button size="sm" onClick={() => setGrantOpen(true)}>
+                    <Gift /> Grant concession
+                  </Button>
+                </div>
+              )
+            }
+          />
+          {concessions.data && concessions.data.length > 0 ? (
+            <DataTable
+              dense
+              rowKey={(r: BookingConcessionRequestDto) => r.id}
+              rows={concessions.data}
+              columns={[
+                { key: 'k', header: 'Type', cell: (r) => titleCase(r.kind) },
+                {
+                  key: 'q',
+                  header: 'Requested',
+                  cell: (r) =>
+                    r.kind === 'DISCOUNT' ? (
+                      r.requestedDiscountAmount != null ? (
+                        <Money value={r.requestedDiscountAmount} />
+                      ) : (
+                        '—'
+                      )
+                    ) : (
+                      (r.requestedChildSeats ?? r.requestedInfantSeats ?? 0)
+                    ),
+                },
+                {
+                  key: 'pnr',
+                  header: 'PNR',
+                  cell: (r) =>
+                    r.kind !== 'DISCOUNT' ? (
+                      <span className="font-mono text-xs">{r.approvedPnrCode ?? '—'}</span>
+                    ) : null,
+                },
+                { key: 's', header: 'Status', cell: (r) => <StatusBadge status={r.status} /> },
+                {
+                  key: 'a',
+                  header: '',
+                  align: 'right',
+                  cell: (r) =>
+                    can('bookings:approve') ? (
+                      <div className="flex justify-end gap-1.5">
+                        {r.status === 'REQUESTED' && (
+                          <>
+                            <Button
+                              size="xs"
+                              onClick={() =>
+                                setConcessionDecide({ request: r, decision: 'APPROVED' })
+                              }
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="danger-outline"
+                              onClick={() =>
+                                setConcessionDecide({ request: r, decision: 'REJECTED' })
+                              }
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        {r.status === 'APPROVED' && r.kind !== 'DISCOUNT' && (
+                          <Button size="xs" variant="secondary" onClick={() => setAssignPnr(r)}>
+                            {r.approvedPnrCode ? 'Rename PNR' : 'Assign PNR'}
+                          </Button>
+                        )}
+                        {r.status === 'APPROVED' &&
+                          r.kind === 'DISCOUNT' &&
+                          b.status !== 'TICKETED' && (
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => setReviseOpen(true)}
+                            >
+                              Edit discount
+                            </Button>
+                          )}
+                      </div>
+                    ) : null,
+                },
+              ]}
+            />
+          ) : (
+            <CardBody className="text-sm text-muted-foreground">No concession requests.</CardBody>
+          )}
+        </Card>
+      )}
 
       <Card>
         <CardHeader title="Price" />
@@ -793,20 +1401,562 @@ function BookingDetail({ id }: { id: string }) {
         onConfirm={(r) => run('reject', r)}
       />
       <ConfirmDialog
+        open={dialog === 'reject-refund'}
+        onOpenChange={(o) => !o && setDialog(null)}
+        title={`Decline refund for ${b.reference}?`}
+        description="The booking is restored to its prior status and the partner is told the reason."
+        confirmLabel="Decline refund"
+        tone="danger"
+        reasonLabel="Reason (sent to partner)"
+        onConfirm={(r) => rejectRefund.mutate(r)}
+      />
+      <ConfirmDialog
         open={dialog === 'cancel'}
         onOpenChange={(o) => !o && setDialog(null)}
         title={`Cancel ${b.reference}?`}
         description={
-          b.status === 'CONFIRMED'
-            ? 'The supplier booking is cancelled and the full amount is credited back to the partner. The invoice is voided.'
-            : 'Held seats are released.'
+          isInventory
+            ? b.status === 'CONFIRMED'
+              ? 'Confirmed seats are released back to the pool and the invoice is voided.'
+              : 'Held/pending seats are released back to the pool.'
+            : b.status === 'CONFIRMED'
+              ? 'The supplier booking is cancelled and the full amount is credited back to the partner. The invoice is voided.'
+              : 'Held seats are released.'
         }
         confirmLabel="Cancel booking"
         tone="danger"
         reasonLabel="Reason (sent to partner)"
         onConfirm={(r) => run('cancel', r)}
       />
+      {isInventory && (
+        <ExtendDeadlineDialog
+          open={extendOpen}
+          onOpenChange={setExtendOpen}
+          onSubmit={(minutes) => extendDeadline.mutate(minutes)}
+          loading={extendDeadline.isPending}
+        />
+      )}
+      {isInventory && (
+        <MarkTicketedDialog
+          open={ticketOpen}
+          onOpenChange={setTicketOpen}
+          booking={b}
+          onDone={(x) => {
+            onDone(x, `${x.reference}: ticketed`);
+            setTicketOpen(false);
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={rejectExtOpen}
+        onOpenChange={setRejectExtOpen}
+        title="Reject extension request?"
+        description="The partner is notified that their deadline extension was not approved."
+        confirmLabel="Reject extension"
+        tone="danger"
+        reasonLabel="Note to partner (optional)"
+        reasonRequired={false}
+        onConfirm={(note) => rejectExtension.mutate(note)}
+      />
+      <ConcessionDecideDialog
+        open={!!concessionDecide}
+        onOpenChange={(o) => !o && setConcessionDecide(null)}
+        request={concessionDecide?.request ?? null}
+        decision={concessionDecide?.decision ?? 'APPROVED'}
+        loading={decideConcession.isPending}
+        onSubmit={(payload) =>
+          concessionDecide &&
+          decideConcession.mutate({ requestId: concessionDecide.request.id, payload })
+        }
+      />
+      <GrantConcessionDialog
+        open={grantOpen}
+        onOpenChange={setGrantOpen}
+        loading={grantConcession.isPending}
+        onSubmit={(dto) => grantConcession.mutate(dto)}
+      />
+      <ReviseDiscountDialog
+        open={reviseOpen}
+        onOpenChange={setReviseOpen}
+        currentDiscount={b.discountAmount ?? 0}
+        loading={reviseDiscount.isPending}
+        onSubmit={(dto) => reviseDiscount.mutate(dto)}
+      />
+      <SplitPnrDialog
+        open={splitPnrOpen}
+        onOpenChange={setSplitPnrOpen}
+        loading={splitPassengerSeatPnr.isPending}
+        onSubmit={(dto) => splitPassengerSeatPnr.mutate(dto)}
+      />
+      <AssignPnrDialog
+        open={!!assignPnr}
+        onOpenChange={(o) => !o && setAssignPnr(null)}
+        request={assignPnr}
+        loading={assignConcessionPnr.isPending}
+        onSubmit={(pnrCode) =>
+          assignPnr && assignConcessionPnr.mutate({ requestId: assignPnr.id, pnrCode })
+        }
+      />
+      <EmailTicketDialog
+        open={emailTicketOpen}
+        onOpenChange={setEmailTicketOpen}
+        defaultEmail={b.account.email}
+        loading={emailTicket.isPending}
+        onSubmit={(to) => emailTicket.mutate(to)}
+      />
     </div>
+  );
+}
+
+function GrantConcessionDialog({
+  open,
+  onOpenChange,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  loading: boolean;
+  onSubmit: (dto: {
+    kind: 'CHILD_SEATS' | 'INFANT_SEATS' | 'DISCOUNT';
+    childSeats?: number;
+    infantSeats?: number;
+    discountAmount?: number;
+    pnrCode?: string;
+    reason?: string;
+  }) => void;
+}) {
+  const [kind, setKind] = useState<'CHILD_SEATS' | 'INFANT_SEATS' | 'DISCOUNT'>('CHILD_SEATS');
+  const [seats, setSeats] = useState('1');
+  const [discount, setDiscount] = useState('');
+  const [pnrCode, setPnrCode] = useState('');
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setKind('CHILD_SEATS');
+      setSeats('1');
+      setDiscount('');
+      setPnrCode('');
+      setReason('');
+    }
+  }, [open]);
+
+  const submit = () => {
+    onSubmit({
+      kind,
+      childSeats: kind === 'CHILD_SEATS' ? Number(seats) : undefined,
+      infantSeats: kind === 'INFANT_SEATS' ? Number(seats) : undefined,
+      discountAmount: kind === 'DISCOUNT' ? Number(discount) : undefined,
+      pnrCode: kind !== 'DISCOUNT' && pnrCode.trim() ? pnrCode.trim() : undefined,
+      reason: reason.trim() || undefined,
+    });
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Grant concession"
+      description="Grants take effect immediately — no partner request or approval step needed."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={submit} loading={loading}>
+            Grant
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <Field label="Type">
+          <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+            <option value="CHILD_SEATS">Extra child seats</option>
+            <option value="INFANT_SEATS">Extra infant seats</option>
+            <option value="DISCOUNT">Discount</option>
+          </Select>
+        </Field>
+        {kind !== 'DISCOUNT' ? (
+          <>
+            <Field label="Seats">
+              <Input
+                type="number"
+                min={1}
+                max={50}
+                value={seats}
+                onChange={(e) => setSeats(e.target.value)}
+              />
+            </Field>
+            <Field label="PNR code (optional)">
+              <Input
+                value={pnrCode}
+                onChange={(e) => setPnrCode(e.target.value)}
+                placeholder="ABC123"
+              />
+            </Field>
+          </>
+        ) : (
+          <Field label="Discount amount (PKR)">
+            <Input
+              type="number"
+              min={0}
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+            />
+          </Field>
+        )}
+        <Field label="Reason (optional)">
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+function ReviseDiscountDialog({
+  open,
+  onOpenChange,
+  currentDiscount,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  currentDiscount: number;
+  loading: boolean;
+  onSubmit: (dto: { approvedDiscountAmount: number; reason?: string }) => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  useEffect(() => {
+    if (open) {
+      setAmount(String(currentDiscount || ''));
+      setReason('');
+    }
+  }, [open, currentDiscount]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit discount"
+      description="Updates the booking's flat discount and re-posts the fare difference to the ledger if already confirmed."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() =>
+              onSubmit({
+                approvedDiscountAmount: Number(amount),
+                reason: reason.trim() || undefined,
+              })
+            }
+            loading={loading}
+            disabled={!amount.trim()}
+          >
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <Field label="New discount amount (PKR)">
+          <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+        <Field label="Reason (optional)">
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+function SplitPnrDialog({
+  open,
+  onOpenChange,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  loading: boolean;
+  onSubmit: (dto: { pnrCode: string; seats: number; kind: 'child' | 'infant' }) => void;
+}) {
+  const [kind, setKind] = useState<'child' | 'infant'>('child');
+  const [seats, setSeats] = useState('1');
+  const [pnrCode, setPnrCode] = useState('');
+  useEffect(() => {
+    if (open) {
+      setKind('child');
+      setSeats('1');
+      setPnrCode('');
+    }
+  }, [open]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Split into a dedicated PNR"
+      description="Moves seats already held/confirmed on this booking off the shared pool PNR onto a new, dedicated PNR code."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onSubmit({ pnrCode: pnrCode.trim(), seats: Number(seats), kind })}
+            loading={loading}
+            disabled={!pnrCode.trim()}
+          >
+            Split
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <Field label="Seat type">
+          <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+            <option value="child">Child</option>
+            <option value="infant">Infant</option>
+          </Select>
+        </Field>
+        <Field label="Seats to move">
+          <Input
+            type="number"
+            min={1}
+            max={50}
+            value={seats}
+            onChange={(e) => setSeats(e.target.value)}
+          />
+        </Field>
+        <Field label="New PNR code">
+          <Input
+            value={pnrCode}
+            onChange={(e) => setPnrCode(e.target.value)}
+            placeholder="ABC123"
+          />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+function AssignPnrDialog({
+  open,
+  onOpenChange,
+  request,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  request: BookingConcessionRequestDto | null;
+  loading: boolean;
+  onSubmit: (pnrCode: string) => void;
+}) {
+  const [pnrCode, setPnrCode] = useState('');
+  useEffect(() => {
+    if (open) setPnrCode(request?.approvedPnrCode ?? '');
+  }, [open, request]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={request?.approvedPnrCode ? 'Rename PNR' : 'Assign PNR'}
+      description={
+        request
+          ? `${titleCase(request.kind)} · ${request.approvedChildSeats ?? request.approvedInfantSeats ?? 0} seat(s)`
+          : undefined
+      }
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onSubmit(pnrCode.trim())}
+            loading={loading}
+            disabled={!pnrCode.trim()}
+          >
+            Save
+          </Button>
+        </>
+      }
+    >
+      <Field label="PNR code">
+        <Input
+          value={pnrCode}
+          onChange={(e) => setPnrCode(e.target.value)}
+          placeholder="ABC123"
+          autoFocus
+        />
+      </Field>
+    </Dialog>
+  );
+}
+
+function EmailTicketDialog({
+  open,
+  onOpenChange,
+  defaultEmail,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  defaultEmail?: string;
+  loading: boolean;
+  onSubmit: (to?: string) => void;
+}) {
+  const [to, setTo] = useState('');
+  useEffect(() => {
+    if (open) setTo(defaultEmail ?? '');
+  }, [open, defaultEmail]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Email e-ticket"
+      description="Sends the e-ticket PDF to this address."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSubmit(to.trim() || undefined)} loading={loading}>
+            <Mail /> Send
+          </Button>
+        </>
+      }
+    >
+      <Field label="Recipient email">
+        <Input type="email" value={to} onChange={(e) => setTo(e.target.value)} />
+      </Field>
+    </Dialog>
+  );
+}
+
+function ExtendDeadlineDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  loading,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (minutes: number) => void;
+  loading: boolean;
+}) {
+  const [minutes, setMinutes] = useState(60);
+  useEffect(() => {
+    if (open) setMinutes(60);
+  }, [open]);
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Extend deadline"
+      description="Moves both the seat hold and payment deadline. Use a negative value to pull it in."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={() => onSubmit(minutes)} loading={loading}>
+            Extend
+          </Button>
+        </>
+      }
+    >
+      <Field label="Extension">
+        <Select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))}>
+          <option value={-60}>-1 hour</option>
+          <option value={30}>+30 minutes</option>
+          <option value={60}>+1 hour</option>
+          <option value={120}>+2 hours</option>
+          <option value={240}>+4 hours</option>
+          <option value={1440}>+24 hours</option>
+        </Select>
+      </Field>
+    </Dialog>
+  );
+}
+
+function MarkTicketedDialog({
+  open,
+  onOpenChange,
+  booking: b,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  booking: AdminBookingDetailDto;
+  onDone: (b: AdminBookingDetailDto) => void;
+}) {
+  const toast = useToast();
+  const [tickets, setTickets] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (open) setTickets({});
+  }, [open]);
+
+  const ticket = useMutation({
+    mutationFn: () =>
+      api.bookings.ticket(b.id, {
+        passengerTickets: b.passengers.map((p) => ({
+          passengerId: p.id,
+          ticketNumber: (tickets[p.id] ?? '').trim(),
+        })),
+      }),
+    onSuccess: onDone,
+    onError: (e) => toast.error('Could not mark ticketed', errorMessage(e)),
+  });
+
+  const complete = b.passengers.every((p) => (tickets[p.id] ?? '').trim().length >= 3);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Mark ${b.reference} ticketed`}
+      description="Enter the airline e-ticket number issued for each passenger."
+      size="md"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={ticket.isPending}
+          >
+            Cancel
+          </Button>
+          <Button onClick={() => ticket.mutate()} loading={ticket.isPending} disabled={!complete}>
+            Mark ticketed
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {b.passengers.map((p) => (
+          <Field key={p.id} label={`${titleCase(p.title)} ${p.firstName} ${p.lastName}`}>
+            <Input
+              placeholder="Ticket number"
+              className="tabular"
+              value={tickets[p.id] ?? ''}
+              onChange={(e) => setTickets((t) => ({ ...t, [p.id]: e.target.value }))}
+            />
+          </Field>
+        ))}
+      </div>
+    </Dialog>
   );
 }
 

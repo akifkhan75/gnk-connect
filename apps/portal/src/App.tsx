@@ -39,6 +39,9 @@ const GroupsRedirect = lazy(() =>
 const GroupDetailPage = lazy(() =>
   import('@/pages/GroupDetailPage').then((m) => ({ default: m.GroupDetailPage })),
 );
+const InventoryGroupDetailPage = lazy(() =>
+  import('@/pages/InventoryGroupDetailPage').then((m) => ({ default: m.InventoryGroupDetailPage })),
+);
 const NewBookingPage = lazy(() =>
   import('@/pages/NewBookingPage').then((m) => ({ default: m.NewBookingPage })),
 );
@@ -47,6 +50,9 @@ const BookingsPage = lazy(() =>
 );
 const BookingDetailPage = lazy(() =>
   import('@/pages/BookingDetailPage').then((m) => ({ default: m.BookingDetailPage })),
+);
+const ConcessionQueuePage = lazy(() =>
+  import('@/pages/ConcessionQueuePage').then((m) => ({ default: m.ConcessionQueuePage })),
 );
 const VoucherPage = lazy(() =>
   import('@/pages/VoucherPage').then((m) => ({ default: m.VoucherPage })),
@@ -111,9 +117,11 @@ const router = createBrowserRouter([
               { path: 'book/:service', element: <GroupsPage /> },
               { path: 'groups', element: <GroupsRedirect /> },
               { path: 'groups/:productId', element: <GroupDetailPage /> },
+              { path: 'inventory/groups/:groupId', element: <InventoryGroupDetailPage /> },
               { path: 'bookings', element: <BookingsPage /> },
               { path: 'bookings/new', element: <NewBookingPage /> },
               { path: 'bookings/:id', element: <BookingDetailPage /> },
+              { path: 'concessions', element: <ConcessionQueuePage /> },
               { path: 'invoices', element: <InvoicesPage /> },
               { path: 'payments', element: <PaymentsPage /> },
               { path: 'ledger', element: <LedgerPage /> },

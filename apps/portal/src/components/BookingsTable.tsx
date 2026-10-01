@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { Eye } from 'lucide-react';
 import type { BookingListItem } from '@gnk/types';
 import { DataTable, Money, StatusBadge, formatDate, type Column } from '@gnk/ui';
 
@@ -72,6 +73,21 @@ export function BookingsTable({
       header: 'Status',
       align: 'right',
       cell: (b) => <StatusBadge status={b.status} />,
+    },
+    {
+      key: 'view',
+      header: '',
+      align: 'right',
+      cell: () => (
+        <div className="flex cursor-pointer flex-col items-center justify-center gap-1 text-primary">
+          <Eye className="size-4" />
+          <span className="text-[10px] font-semibold leading-none">
+            View
+            <br />
+            details
+          </span>
+        </div>
+      ),
     },
   ];
   return (

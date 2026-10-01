@@ -1,9 +1,11 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { Prisma, type PaymentMethod, type PaymentStatus } from '@prisma/client';
 import type { AdminPaymentListItem, Paginated, PaymentDto, ReceiptDto } from '@gnk/types';
@@ -14,6 +16,7 @@ import { SequencesService } from '../../core/sequences.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { PartnerActor, StaffActor } from '../auth/auth.types';
+import { BookingEngineService } from '../bookings/booking-engine.service';
 import { paymentDto } from '../bookings/booking.mapper';
 import { FilesService } from '../files/files.service';
 import { LedgerService } from '../ledger/ledger.service';
@@ -63,6 +66,8 @@ interface SubmitInput {
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
 
+  private readonly log = new Logger(PaymentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sequences: SequencesService,
@@ -72,6 +77,8 @@ export class PaymentsService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly settings: SettingsService,
+    @Inject(forwardRef(() => BookingEngineService))
+    private readonly bookingEngine: BookingEngineService,
   ) {}
 
   // =============== Partner ===============
@@ -95,7 +102,41 @@ export class PaymentsService {
     const allocations = this.allocationsOf(dto);
     await this.assertBookings(actor.accountId, allocations);
 
-    const payment = await this.create({
+    // Upgrade hold stub (PENDING) when submitting proof against a single inventory booking.
+    let payment;
+    if (allocations.length === 1) {
+      const stub = await this.prisma.payment.findFirst({
+        where: {
+          accountId: actor.accountId,
+          bookingId: allocations[0].bookingId,
+          status: 'PENDING',
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (stub) {
+        payment = await this.prisma.payment.update({
+          where: { id: stub.id },
+          data: {
+            status: 'SUBMITTED',
+            method: dto.method as PaymentMethod,
+            amount: dto.amount,
+            bankName: dto.bankName ?? null,
+            transactionRef: dto.transactionRef.trim(),
+            paidAt: new Date(`${dto.paidAt}T00:00:00Z`),
+            proofFileId: fileIds[0] ?? null,
+            notes: dto.notes ?? stub.notes,
+            submittedById: actor.userId,
+            attachments: { create: fileIds.map((fileId) => ({ fileId })) },
+            allocations: {
+              deleteMany: {},
+              create: allocations.map((a) => ({ bookingId: a.bookingId, amount: a.amount })),
+            },
+          },
+          include,
+        });
+      }
+    }
+    payment ??= await this.create({
       ...dto,
       allocations,
       attachmentIds: fileIds,
@@ -240,6 +281,14 @@ export class PaymentsService {
     depositAccountId: string | undefined,
     meta: RequestMeta,
   ) {
+    // Block the whole verify (both stages) if any allocated booking's hold has already expired —
+    // extending the deadline or rebooking must happen before the payment can be posted.
+    const allocated = await this.prisma.paymentAllocation.findMany({
+      where: { paymentId: id },
+      select: { bookingId: true },
+    });
+    await this.assertHoldsNotExpired(allocated.map((a) => a.bookingId));
+
     const { accounting } = await this.settings.get();
     const result = await this.prisma.$transaction(async (tx) => {
       const p = await tx.payment.findUnique({ where: { id } });
@@ -342,6 +391,7 @@ export class PaymentsService {
         body: `${actor.fullName} gave the second approval.`,
         link: `/payments?id=${id}`,
       });
+    await this.confirmInventoryBookingsAfterPayment(actor, payment.id, meta);
     this.changed(payment.accountId, id);
     return this.adminGet(id);
   }
@@ -463,12 +513,84 @@ export class PaymentsService {
         },
         [...FINANCE_ROLES],
       );
+      await this.confirmInventoryBookingsAfterPayment(actor, payment.id, meta);
     }
     this.changed(dto.accountId, payment.id);
     return this.adminGet(payment.id);
   }
 
   // =============== internals ===============
+
+  /**
+   * After a payment is fully verified, apply allocations to inventory bookings and
+   * auto-confirm those still in a hold/payment-pending state (AirDesk happy path).
+   */
+  private async confirmInventoryBookingsAfterPayment(
+    actor: StaffActor,
+    paymentId: string,
+    meta: RequestMeta,
+  ) {
+    const allocations = await this.prisma.paymentAllocation.findMany({
+      where: { paymentId },
+      include: {
+        booking: {
+          select: {
+            id: true,
+            inventoryLotId: true,
+            status: true,
+            amountPaid: true,
+            totalPrice: true,
+            heldUntil: true,
+            reference: true,
+          },
+        },
+      },
+    });
+    const confirmable = new Set(['PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED']);
+    const now = new Date();
+    for (const a of allocations) {
+      const b = a.booking;
+      if (!b.inventoryLotId) continue;
+      const paid = num(b.amountPaid) + num(a.amount);
+      await this.prisma.booking.update({
+        where: { id: b.id },
+        data: {
+          amountPaid: paid,
+          paymentState: paid >= num(b.totalPrice) ? 'PAID' : 'PARTIALLY_PAID',
+        },
+      });
+      if (!confirmable.has(b.status)) continue;
+      // Defensive: the hold expired between verify() and here (e.g. the sweep job just ran).
+      // The payment stays verified/credited; leave the booking for manual review instead of
+      // auto-confirming a lapsed hold.
+      if (b.heldUntil && b.heldUntil < now) {
+        this.log.warn(
+          `Booking ${b.reference}'s hold expired before auto-confirm after payment ${paymentId}; leaving for manual review.`,
+        );
+        continue;
+      }
+      try {
+        await this.bookingEngine.confirm(actor, b.id, meta);
+        await this.prisma.payment.updateMany({
+          where: {
+            bookingId: b.id,
+            status: 'PENDING',
+            id: { not: paymentId },
+          },
+          data: {
+            status: 'FAILED',
+            rejectionReason: 'Superseded by verified payment',
+          },
+        });
+      } catch (e) {
+        this.log.warn(
+          `Could not auto-confirm inventory booking ${b.id} after payment ${paymentId}: ${
+            e instanceof Error ? e.message : e
+          }`,
+        );
+      }
+    }
+  }
 
   /** Legacy single bookingId becomes one allocation of the full amount. */
   private allocationsOf(dto: SubmitInput) {
@@ -485,6 +607,37 @@ export class PaymentsService {
         message: 'A booking in the allocation was not found on this account',
         code: 'VALIDATION_FAILED',
         errors: [{ path: 'allocations', message: 'Booking not found' }],
+      });
+    await this.assertHoldsNotExpired(ids);
+  }
+
+  /**
+   * Blocks submitting or verifying a payment allocated to a booking whose seat hold has already
+   * expired (or is sitting in EXPIRED_HOLD): staff must extend the deadline or the partner must
+   * rebook before proof can be accepted for it.
+   */
+  private async assertHoldsNotExpired(bookingIds: string[]) {
+    if (!bookingIds.length) return;
+    const now = new Date();
+    const confirmableHeld = new Set([
+      'PAYMENT_PENDING',
+      'HELD',
+      'AWAITING_RECEIPT',
+      'RECEIPT_ADDED',
+    ]);
+    const rows = await this.prisma.booking.findMany({
+      where: { id: { in: bookingIds } },
+      select: { reference: true, status: true, heldUntil: true },
+    });
+    const expired = rows.find(
+      (b) =>
+        b.status === 'EXPIRED_HOLD' ||
+        (confirmableHeld.has(b.status) && b.heldUntil != null && b.heldUntil < now),
+    );
+    if (expired)
+      throw new ConflictException({
+        message: `${expired.reference}'s seat hold has expired. Extend the deadline or ask the partner to rebook before this payment can be accepted.`,
+        code: 'booking.hold_expired_cannot_verify',
       });
   }
 

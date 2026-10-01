@@ -4,3 +4,6 @@ export * from './auth';
 export * from './partner';
 export * from './admin';
 export * from './accounting';
+export * from './booking-passenger-rules';
+export * from './booking-seat-manifest';
+export * from './booking-display-status';

@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AirlineManifestExportService } from './bookings/manifest-export/airline-manifest-export.service';
+import { BookingDocumentsService } from './bookings/booking-documents.service';
+import { BookingEngineService } from './bookings/booking-engine.service';
+import { BookingConcessionService } from './bookings/booking-concession.service';
 import { BookingMaintenanceService } from './bookings/booking-maintenance.service';
 import { BookingMapper } from './bookings/booking.mapper';
+import { PassengerManifestExportService } from './bookings/passenger-manifest-export.service';
+import { PassportOcrService } from './bookings/passport-ocr.service';
 import {
   AdminBookingsController,
   AdminInvoicesController,
@@ -8,6 +14,13 @@ import {
   PartnerInvoicesController,
 } from './bookings/bookings.controller';
 import { BookingsService } from './bookings/bookings.service';
+import {
+  AdminInventoryGroupsController,
+  PartnerInventoryGroupsController,
+} from './inventory/inventory.controller';
+import { InventoryCatalogService } from './inventory/inventory-catalog.service';
+import { InventoryEngineService } from './inventory/inventory-engine.service';
+import { GroupPnrService } from './inventory/group-pnr.service';
 import {
   AdminCatalogController,
   PartnerGroupsController,
@@ -72,6 +85,7 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     PartnerAccountController,
     PartnerTeamController,
     PartnerGroupsController,
+    PartnerInventoryGroupsController,
     PartnerQuotesController,
     PartnerBookingsController,
     PartnerInvoicesController,
@@ -91,6 +105,7 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
     AdminAccountingController,
     AdminPricingController,
     AdminCatalogController,
+    AdminInventoryGroupsController,
     AdminSuppliersController,
     AdminStaffController,
     AdminRolesController,
@@ -103,7 +118,16 @@ import { AdminSuppliersController } from './suppliers/suppliers.controller';
   providers: [
     BookingMapper,
     BookingsService,
+    BookingEngineService,
+    BookingConcessionService,
     BookingMaintenanceService,
+    BookingDocumentsService,
+    PassengerManifestExportService,
+    AirlineManifestExportService,
+    PassportOcrService,
+    InventoryEngineService,
+    InventoryCatalogService,
+    GroupPnrService,
     CatalogService,
     FilesService,
     LedgerService,

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -51,12 +52,22 @@ const HOLDING: BookingStatus[] = [
 const PARTNER_TABS: Record<Exclude<BookingListInput['tab'], 'all'>, BookingStatus[]> = {
   PENDING_APPROVAL: ['PENDING_APPROVAL'],
   APPROVED: ['APPROVED'],
-  PROCESSING: ['SUBMITTED_TO_SUPPLIER', 'SUPPLIER_PENDING', 'SUPPLIER_FAILED'],
+  PAYMENT_PENDING: ['PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'],
   CONFIRMED: ['CONFIRMED', 'COMPLETED'],
-  CLOSED: ['REJECTED', 'CANCELLED', 'CANCELLATION_REQUESTED', 'EXPIRED'],
+  TICKETED: ['TICKETED'],
+  EXPIRED: ['EXPIRED'],
+  EXPIRED_HOLD: ['EXPIRED_HOLD'],
+  CANCELLED: ['CANCELLED', 'REJECTED', 'CANCELLATION_REQUESTED'],
 };
 
 const ADMIN_TABS: Record<Exclude<AdminBookingListInput['tab'], 'all'>, BookingStatus[]> = {
+  // Inventory (AirDesk group-PNR) ops queue.
+  PAYMENT_PENDING: ['PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'],
+  TICKETED: ['TICKETED'],
+  EXPIRED_HOLD: ['EXPIRED_HOLD'],
+  REFUND_REQUESTED: ['REFUND_REQUESTED'],
+  REFUNDED: ['REFUNDED', 'REFUNDED_PARTIAL'],
+  // Legacy supplier-push queue.
   PENDING_APPROVAL: ['PENDING_APPROVAL'],
   APPROVED: ['APPROVED'],
   SUPPLIER: ['SUBMITTED_TO_SUPPLIER', 'SUPPLIER_PENDING'],
@@ -66,7 +77,14 @@ const ADMIN_TABS: Record<Exclude<AdminBookingListInput['tab'], 'all'>, BookingSt
   COMPLETED: ['COMPLETED'],
 };
 
-const PARTNER_CANCELLABLE: BookingStatus[] = ['PENDING_APPROVAL', 'APPROVED'];
+const PARTNER_CANCELLABLE: BookingStatus[] = [
+  'PENDING_APPROVAL',
+  'APPROVED',
+  'DRAFT',
+  'QUOTED',
+  'HELD',
+  'PAYMENT_PENDING',
+];
 const ADMIN_CANCELLABLE: BookingStatus[] = [
   'PENDING_APPROVAL',
   'APPROVED',
@@ -91,6 +109,37 @@ export class BookingsService {
     private readonly mapper: BookingMapper,
     private readonly realtime: RealtimeService,
   ) {}
+
+  /** Quote/supplier path requires product + departure; inventory bookings use BookingEngine. */
+  private assertLegacyBooking<
+    T extends {
+      inventoryLotId?: string | null;
+      productId?: string | null;
+      departureId?: string | null;
+      supplierId?: string | null;
+      product?: unknown;
+      departure?: unknown;
+    },
+  >(
+    b: T,
+  ): asserts b is T & {
+    productId: string;
+    departureId: string;
+    supplierId: string;
+    product: NonNullable<T['product']>;
+    departure: NonNullable<T['departure']>;
+  } {
+    if (
+      b.inventoryLotId ||
+      !b.productId ||
+      !b.departureId ||
+      !b.supplierId ||
+      !b.product ||
+      !b.departure
+    ) {
+      throw new ConflictException('This action only applies to legacy quote-based bookings');
+    }
+  }
 
   // =============== Partner ===============
 
@@ -138,9 +187,12 @@ export class BookingsService {
       all: 0,
       PENDING_APPROVAL: 0,
       APPROVED: 0,
-      PROCESSING: 0,
+      PAYMENT_PENDING: 0,
       CONFIRMED: 0,
-      CLOSED: 0,
+      TICKETED: 0,
+      EXPIRED: 0,
+      EXPIRED_HOLD: 0,
+      CANCELLED: 0,
     };
     for (const g of groups) {
       counts.all += g._count;
@@ -192,9 +244,10 @@ export class BookingsService {
         message: 'This price quote has expired. Get a new quote.',
         code: 'QUOTE_EXPIRED',
       });
-    if (quote.seats !== dto.passengers.length) {
+    const seatPax = dto.passengers.filter((p) => p.type !== 'INFANT');
+    if (dto.passengers.length > 0 && seatPax.length !== quote.seats) {
       throw new UnprocessableEntityException(
-        `Enter details for exactly ${quote.seats} passenger${quote.seats > 1 ? 's' : ''}`,
+        `Enter details for exactly ${quote.seats} passenger${quote.seats > 1 ? 's' : ''} (or none to add later)`,
       );
     }
 
@@ -202,21 +255,8 @@ export class BookingsService {
       where: { id: quote.departureId },
       include: { product: true },
     });
-    const returnDate = isoDate(departure.returnDate ?? departure.departureDate)!;
-    const expiring = dto.passengers.findIndex(
-      (p) => (p.passportExpiry as string) < addMonths(returnDate, 6),
-    );
-    if (expiring >= 0) {
-      throw new UnprocessableEntityException({
-        message: 'Passports must be valid for 6 months after the return date',
-        code: 'VALIDATION_FAILED',
-        errors: [
-          {
-            path: `passengers.${expiring}.passportExpiry`,
-            message: 'Must be valid 6 months after return',
-          },
-        ],
-      });
+    if (dto.passengers.length > 0) {
+      this.assertPassportsValid(dto.passengers, departure.returnDate ?? departure.departureDate);
     }
 
     const booking = await this.prisma.$transaction(async (tx) => {
@@ -260,18 +300,7 @@ export class BookingsService {
           idempotencyKey,
           agentNotes: dto.agentNotes,
           passengers: {
-            create: dto.passengers.map((p) => ({
-              type: p.type,
-              title: p.title,
-              firstName: p.firstName.toUpperCase(),
-              lastName: p.lastName.toUpperCase(),
-              gender: p.gender,
-              dateOfBirth: new Date(`${p.dateOfBirth}T00:00:00Z`),
-              nationality: p.nationality.toUpperCase(),
-              passportNumberEnc: this.crypto.encrypt(p.passportNumber.toUpperCase()),
-              passportLast4: p.passportNumber.toUpperCase().slice(-4),
-              passportExpiry: new Date(`${p.passportExpiry}T00:00:00Z`),
-            })),
+            create: dto.passengers.map((p) => this.passengerCreateData(p)),
           },
           statusHistory: {
             create: { to: 'PENDING_APPROVAL', actorRealm: 'PARTNER', actorId: actor.userId },
@@ -300,6 +329,91 @@ export class BookingsService {
     });
     await this.changed(booking.id, booking.accountId);
     return this.partnerGet(actor, booking.id);
+  }
+
+  async setPassengers(
+    actor: PartnerActor,
+    id: string,
+    passengers: PassengerInput[],
+    meta: RequestMeta,
+  ): Promise<BookingDetailDto> {
+    const b = await this.prisma.booking.findFirst({
+      where: { id, ...this.partnerScope(actor) },
+      include: { departure: true },
+    });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (!['PENDING_APPROVAL', 'APPROVED'].includes(b.status)) {
+      throw new ConflictException(
+        'Passenger details can only be updated before the booking is sent for ticketing.',
+      );
+    }
+    if (actor.role === 'ACCOUNTANT')
+      throw new ForbiddenException('Your role cannot update passenger details.');
+    if (actor.role === 'STAFF' && b.createdByUserId !== actor.userId)
+      throw new ForbiddenException('You can only update bookings you created.');
+
+    const seatPax = passengers.filter((p) => p.type !== 'INFANT');
+    if (seatPax.length !== b.seats) {
+      throw new UnprocessableEntityException(
+        `Enter details for exactly ${b.seats} passenger${b.seats > 1 ? 's' : ''}`,
+      );
+    }
+    this.assertPassportsValid(
+      passengers,
+      b.departure?.returnDate ?? b.departure?.departureDate ?? new Date(Date.now() + 90 * 86400000),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.passenger.deleteMany({ where: { bookingId: id } });
+      await tx.passenger.createMany({
+        data: passengers.map((p) => ({ bookingId: id, ...this.passengerCreateData(p) })),
+      });
+    });
+
+    await this.audit.log({
+      actor: { realm: 'PARTNER', userId: actor.userId },
+      action: 'booking.set_passengers',
+      entityType: 'Booking',
+      entityId: id,
+      after: { count: passengers.length },
+      meta,
+    });
+    await this.changed(id, b.accountId);
+    return this.partnerGet(actor, id);
+  }
+
+  private assertPassportsValid(passengers: PassengerInput[], returnOrDep: Date) {
+    const returnDate = isoDate(returnOrDep)!;
+    const expiring = passengers.findIndex(
+      (p) => (p.passportExpiry as string) < addMonths(returnDate, 6),
+    );
+    if (expiring >= 0) {
+      throw new UnprocessableEntityException({
+        message: 'Passports must be valid for 6 months after the return date',
+        code: 'VALIDATION_FAILED',
+        errors: [
+          {
+            path: `passengers.${expiring}.passportExpiry`,
+            message: 'Must be valid 6 months after return',
+          },
+        ],
+      });
+    }
+  }
+
+  private passengerCreateData(p: PassengerInput) {
+    return {
+      type: p.type,
+      title: p.title,
+      firstName: p.firstName.toUpperCase(),
+      lastName: p.lastName.toUpperCase(),
+      gender: p.gender,
+      dateOfBirth: new Date(`${p.dateOfBirth}T00:00:00Z`),
+      nationality: p.nationality.toUpperCase(),
+      passportNumberEnc: this.crypto.encrypt(p.passportNumber.toUpperCase()),
+      passportLast4: p.passportNumber.toUpperCase().slice(-4),
+      passportExpiry: new Date(`${p.passportExpiry}T00:00:00Z`),
+    };
   }
 
   async partnerCancel(actor: PartnerActor, id: string, reason: string, meta: RequestMeta) {
@@ -391,7 +505,9 @@ export class BookingsService {
     const [names, balance, supplier] = await Promise.all([
       this.namesFor(b),
       this.ledger.balance(b.accountId),
-      this.prisma.supplier.findUnique({ where: { id: b.supplierId } }),
+      b.supplierId
+        ? this.prisma.supplier.findUnique({ where: { id: b.supplierId } })
+        : Promise.resolve(null),
     ]);
     return this.mapper.toAdminDetail(b, names, actor, {
       supplierName: supplier?.name ?? '—',
@@ -429,9 +545,10 @@ export class BookingsService {
     if (!b) throw new NotFoundException('Booking not found');
     if (b.status !== 'PENDING_APPROVAL')
       throw new ConflictException('Only bookings awaiting approval can be approved');
+    this.assertLegacyBooking(b);
 
     // Live check: seats must still exist at the supplier before we commit to the partner.
-    const availability = await this.supplier
+    const availability = (await this.supplier
       .call(
         b.supplierId,
         'AVAIL',
@@ -452,7 +569,7 @@ export class BookingsService {
         throw new ConflictException(
           `Could not confirm availability with the supplier: ${e.message}`,
         );
-      });
+      })) as { available: boolean; availableSeats: number };
     if (!availability.available) {
       throw new ConflictException(
         `The supplier has only ${availability.availableSeats} seat(s) left. Reject this request or contact the supplier.`,
@@ -526,6 +643,7 @@ export class BookingsService {
     if (!b) throw new NotFoundException('Booking not found');
     if (!['APPROVED', 'SUPPLIER_FAILED'].includes(b.status))
       throw new ConflictException('Only approved bookings can be sent to the supplier');
+    this.assertLegacyBooking(b);
 
     const funds = await this.ledger.balance(b.accountId);
     if (funds.availableFunds < num(b.totalPrice)) {
@@ -551,7 +669,7 @@ export class BookingsService {
     });
 
     try {
-      const result = await this.supplier.call(
+      const result = (await this.supplier.call(
         b.supplierId,
         'CREATE',
         // Redacted: passport numbers never go into the call log.
@@ -581,7 +699,12 @@ export class BookingsService {
             })),
           }),
         { bookingId: b.id, idempotencyKey: b.reference },
-      );
+      )) as {
+        status: string;
+        supplierBookingRef: string;
+        pnr: string | null;
+        rawStatus?: string;
+      };
 
       if (result.status === 'CONFIRMED')
         await this.confirm(b.id, result.supplierBookingRef, result.pnr, actor.userId);
@@ -623,13 +746,15 @@ export class BookingsService {
     const b = await this.prisma.booking.findUnique({ where: { id } });
     if (!b?.supplierBookingRef)
       throw new NotFoundException('This booking has no supplier reference yet');
-    const status = await this.supplier.call(
+    if (!b.supplierId)
+      throw new ConflictException('This action only applies to legacy quote-based bookings');
+    const status = (await this.supplier.call(
       b.supplierId,
       'STATUS',
       { ref: b.supplierBookingRef },
       (a) => a.getBookingStatus(b.supplierBookingRef!),
       { bookingId: b.id },
-    );
+    )) as { status: string; supplierBookingRef: string; pnr: string | null };
     if (status.status === 'CONFIRMED' && b.status === 'SUPPLIER_PENDING')
       await this.confirm(b.id, status.supplierBookingRef, status.pnr, actor.userId);
     else if (status.pnr && status.pnr !== b.supplierPnr)
@@ -644,6 +769,8 @@ export class BookingsService {
       throw new ConflictException('This booking cannot be cancelled');
 
     if (b.supplierBookingRef && ['CONFIRMED', 'SUPPLIER_PENDING'].includes(b.status)) {
+      if (!b.supplierId)
+        throw new ConflictException('This action only applies to legacy quote-based bookings');
       await this.supplier
         .call(
           b.supplierId,
@@ -678,7 +805,7 @@ export class BookingsService {
           data: { voidedAt: new Date() },
         });
         await tx.departure.update({
-          where: { id: b.departureId },
+          where: { id: b.departureId! },
           data: { supplierAvailable: { increment: b.seats } },
         });
       }
@@ -808,11 +935,11 @@ export class BookingsService {
         ntn: inv.account.ntn,
       },
       booking: {
-        title: b.product.title,
-        sector: b.product.sector,
-        airline: b.product.airline,
-        departureDate: isoDate(b.departure.departureDate)!,
-        returnDate: isoDate(b.departure.returnDate),
+        title: b.product?.title ?? b.reference,
+        sector: b.product?.sector ?? null,
+        airline: b.product?.airline ?? null,
+        departureDate: isoDate(b.departure?.departureDate) ?? '',
+        returnDate: isoDate(b.departure?.returnDate),
         pnr: b.supplierPnr,
         seats: b.seats,
         unitPrice: num(b.unitPrice),
@@ -846,10 +973,24 @@ export class BookingsService {
         tx,
       );
       await tx.departure.update({
-        where: { id: b.departureId },
+        where: { id: b.departureId! },
         data: { supplierAvailable: { decrement: b.seats } },
       });
-      const { cost } = await this.ledger.postBookingCharge(tx, b, actorId);
+      if (!b.supplierId) throw new ConflictException('Legacy booking is missing a supplier');
+      const { cost } = await this.ledger.postBookingCharge(
+        tx,
+        {
+          id: b.id,
+          reference: b.reference,
+          accountId: b.accountId,
+          supplierId: b.supplierId,
+          seats: b.seats,
+          supplierNetUnit: b.supplierNetUnit,
+          markupUnit: b.markupUnit,
+          totalPrice: b.totalPrice,
+        },
+        actorId,
+      );
       if (cost)
         await tx.booking.update({
           where: { id },
@@ -876,7 +1017,7 @@ export class BookingsService {
     await this.notifications.notifyAccount(b.accountId, {
       type: 'BOOKING_CONFIRMED',
       title: `Booking ${b.reference} confirmed`,
-      body: `${b.product.sector ?? b.product.title} is confirmed${pnr ? ` (PNR ${pnr})` : ''}. PKR ${num(b.totalPrice).toLocaleString('en-PK')} was charged to your account.`,
+      body: `${b.product?.sector ?? b.product?.title ?? 'Your booking'} is confirmed${pnr ? ` (PNR ${pnr})` : ''}. PKR ${num(b.totalPrice).toLocaleString('en-PK')} was charged to your account.`,
       link: `/bookings/${b.id}`,
       email: true,
     });

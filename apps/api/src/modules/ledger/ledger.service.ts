@@ -283,6 +283,62 @@ export class LedgerService {
   }
 
   /**
+   * Inventory group bookings without a supplier payable split: DR partner AR, CR revenue
+   * for the full fare (AirDesk accrual-only confirm).
+   */
+  async postInventoryBookingAccrual(
+    tx: Tx,
+    b: {
+      id: string;
+      reference: string;
+      accountId: string;
+      seats: number;
+      totalPrice: Prisma.Decimal;
+      supplierId?: string | null;
+      supplierNetUnit?: Prisma.Decimal | null;
+      markupUnit?: Prisma.Decimal | null;
+    },
+    actorId?: string,
+  ) {
+    const existing = await tx.ledgerTransaction.findFirst({
+      where: { bookingId: b.id, type: 'SALE', status: 'POSTED', reversedBy: { is: null } },
+    });
+    if (existing) return { voucher: existing, cost: null };
+
+    if (b.supplierId && b.supplierNetUnit != null) {
+      return this.postBookingCharge(
+        tx,
+        {
+          id: b.id,
+          reference: b.reference,
+          accountId: b.accountId,
+          supplierId: b.supplierId,
+          seats: b.seats,
+          supplierNetUnit: b.supplierNetUnit,
+          markupUnit: b.markupUnit ?? new Prisma.Decimal(0),
+          totalPrice: b.totalPrice,
+        },
+        actorId,
+      );
+    }
+
+    const partner = await this.partnerAccount(tx, b.accountId);
+    const revenue = await this.systemAccount(tx, 'REVENUE');
+    const voucher = await this.post(tx, {
+      type: 'SALE',
+      description: `Inventory booking ${b.reference} (${b.seats} seat${b.seats > 1 ? 's' : ''})`,
+      bookingId: b.id,
+      partnerAccountId: b.accountId,
+      createdById: actorId,
+      lines: [
+        { ledgerAccountId: partner.id, debit: b.totalPrice },
+        { ledgerAccountId: revenue.id, credit: b.totalPrice },
+      ],
+    });
+    return { voucher, cost: null };
+  }
+
+  /**
    * Confirmed booking (sale voucher): Dr partner (total), Cr supplier payable (net), Cr revenue
    * (margin). When the supplier's payable account is in a foreign currency, the net is posted
    * there as fcAmount × rate using the latest rate; any rounding lands in the margin.
@@ -331,6 +387,64 @@ export class LedgerService {
       ],
     });
     return { voucher, cost };
+  }
+
+  /**
+   * Posts the revenue impact of a concession granted/revised after a booking's sale voucher is
+   * already posted (booking is CONFIRMED). Skipped for sub-cent deltas, no-op if no sale is
+   * posted yet (the pending accrual/charge will simply include the updated fare), and idempotent
+   * per concession via a marker embedded in the voucher description.
+   */
+  async postInventoryConcessionDelta(
+    tx: Tx,
+    params: {
+      bookingId: string;
+      concessionId: string;
+      reference: string;
+      accountId: string;
+      deltaAmount: number;
+      kind: string;
+    },
+  ) {
+    const delta = new Decimal(params.deltaAmount);
+    if (delta.abs().lt(0.01)) return null;
+
+    const sale = await tx.ledgerTransaction.findFirst({
+      where: {
+        bookingId: params.bookingId,
+        type: 'SALE',
+        status: 'POSTED',
+        reversedBy: { is: null },
+      },
+    });
+    if (!sale) return null;
+
+    const marker = `concession:${params.concessionId}`;
+    const existing = await tx.ledgerTransaction.findFirst({
+      where: { bookingId: params.bookingId, description: { contains: marker } },
+    });
+    if (existing) return existing;
+
+    const partner = await this.partnerAccount(tx, params.accountId);
+    const revenue = await this.systemAccount(tx, 'REVENUE');
+    const amount = round2(delta.abs());
+    const description = `Concession ${params.kind.toLowerCase()} adjustment for ${params.reference} (${marker})`;
+
+    return this.post(tx, {
+      type: 'ADJUSTMENT',
+      description,
+      bookingId: params.bookingId,
+      partnerAccountId: params.accountId,
+      lines: delta.gt(0)
+        ? [
+            { ledgerAccountId: partner.id, debit: amount },
+            { ledgerAccountId: revenue.id, credit: amount },
+          ]
+        : [
+            { ledgerAccountId: revenue.id, debit: amount },
+            { ledgerAccountId: partner.id, credit: amount },
+          ],
+    });
   }
 
   /**
