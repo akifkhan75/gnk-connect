@@ -71,6 +71,9 @@ const STATUS: Record<string, [string, Tone]> = {
   TICKETED: ['Ticketed', 'success'],
   EXPIRED_HOLD: ['Expired', 'danger'],
   QUOTED: ['Quoted', 'neutral'],
+  REFUND_REQUESTED: ['Refund requested', 'warning'],
+  REFUNDED_PARTIAL: ['Partially refunded', 'info'],
+  REFUND_REJECTED: ['Refund declined', 'danger'],
   // partner accounts
   SUBMITTED: ['Submitted', 'warning'],
   UNDER_REVIEW: ['Under review', 'warning'],

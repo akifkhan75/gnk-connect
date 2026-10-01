@@ -22,12 +22,23 @@ export class InventoryCatalogService {
     q?: string;
     page?: number;
     pageSize?: number;
+    sector?: string;
+    airline?: string;
+    /** Departure date lower/upper bound (inclusive), matched against any leg's segment. */
+    from?: string;
+    to?: string;
+    /** Seats available on any single OPEN lot. */
+    minSeats?: number;
+    sort?: 'departure' | 'price' | 'seats' | 'recent';
   }) {
     const page = q.page ?? 1;
     const pageSize = q.pageSize ?? 25;
+    const sort = q.sort ?? 'recent';
     const where = {
       deletedAt: null,
       status: q.status ?? ('ACTIVE' as const),
+      ...(q.sector ? { sector: q.sector } : {}),
+      ...(q.airline ? { airline: q.airline } : {}),
       ...(q.q
         ? {
             OR: [
@@ -38,31 +49,73 @@ export class InventoryCatalogService {
             ],
           }
         : {}),
+      ...(q.from || q.to
+        ? {
+            memberships: {
+              some: {
+                segment: {
+                  departureTimeUtc: {
+                    ...(q.from ? { gte: new Date(`${q.from}T00:00:00Z`) } : {}),
+                    ...(q.to ? { lte: new Date(`${q.to}T23:59:59Z`) } : {}),
+                  },
+                },
+              },
+            },
+          }
+        : {}),
     };
-    const [rows, total] = await Promise.all([
-      this.prisma.sellingGroup.findMany({
-        where,
-        include: {
-          memberships: {
-            include: { segment: true },
-            orderBy: { seq: 'asc' },
-          },
-          inventoryLots: {
-            where: { deletedAt: null, status: 'OPEN' },
-            orderBy: { createdAt: 'asc' },
-          },
+    // Sorting by price/seats/departure needs the mapped, computed values below, so this loads
+    // every matching group unpaginated and paginates after sorting in memory.
+    let rows = await this.prisma.sellingGroup.findMany({
+      where,
+      include: {
+        memberships: {
+          include: { segment: true },
+          orderBy: { seq: 'asc' },
         },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.prisma.sellingGroup.count({ where }),
-    ]);
+        inventoryLots: {
+          where: { deletedAt: null, status: 'OPEN' },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (q.minSeats)
+      rows = rows.filter((g) =>
+        g.inventoryLots.some((lot) => this.engine.adultAvailable(lot) >= q.minSeats!),
+      );
+
+    let items = rows.map((g) => this.toGroupListItem(g, true));
+    if (sort === 'departure')
+      items = items.sort((a, b) =>
+        (a.departureDate ?? '9999-99-99').localeCompare(b.departureDate ?? '9999-99-99'),
+      );
+    else if (sort === 'price')
+      items = items.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    else if (sort === 'seats')
+      items = items.sort((a, b) => (b.seatsAvailable ?? 0) - (a.seatsAvailable ?? 0));
+    // 'recent' keeps the createdAt-desc order the query already returned.
+
+    const total = items.length;
+    const start = (page - 1) * pageSize;
     return {
-      items: rows.map((g) => this.toGroupListItem(g, true)),
+      items: items.slice(start, start + pageSize),
       total,
       page,
       pageSize,
+    };
+  }
+
+  /** Distinct sector/airline values across active groups, for the partner filter bar. */
+  async filters() {
+    const groups = await this.prisma.sellingGroup.findMany({
+      where: { status: 'ACTIVE', deletedAt: null },
+      select: { sector: true, airline: true },
+    });
+    const uniq = (v: (string | null)[]) => [...new Set(v.filter(Boolean) as string[])].sort();
+    return {
+      sectors: uniq(groups.map((g) => g.sector)),
+      airlines: uniq(groups.map((g) => g.airline)),
     };
   }
 

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
+import { isoDateSchema } from '@gnk/validation';
 import { ZodPipe } from '../../core/http/zod.pipe';
 import { UUID } from '../../core/http/parse-uuid';
 import {
@@ -17,6 +18,12 @@ const listSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   q: z.string().trim().max(100).optional(),
   status: z.enum(['DRAFT', 'ACTIVE', 'SUSPENDED', 'CLOSED']).optional(),
+  sector: z.string().trim().max(40).optional(),
+  airline: z.string().trim().max(80).optional(),
+  from: isoDateSchema.optional(),
+  to: isoDateSchema.optional(),
+  minSeats: z.coerce.number().int().min(1).max(500).optional(),
+  sort: z.enum(['departure', 'price', 'seats', 'recent']).default('recent'),
 });
 
 const createGroupSchema = z.object({
@@ -78,6 +85,12 @@ export class PartnerInventoryGroupsController {
   @RequireApproved()
   list(@Query(new ZodPipe(listSchema)) q: z.output<typeof listSchema>) {
     return this.catalog.listGroups({ ...q, status: 'ACTIVE' });
+  }
+
+  @Get('filters')
+  @RequireApproved()
+  filters() {
+    return this.catalog.filters();
   }
 
   @Get(':id')

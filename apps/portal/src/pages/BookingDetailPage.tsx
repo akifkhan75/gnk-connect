@@ -644,6 +644,7 @@ function InventoryBookingDetail({
   const [extensionOpen, setExtensionOpen] = useState(false);
   const [concessionOpen, setConcessionOpen] = useState(false);
   const [emailTicketOpen, setEmailTicketOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
 
   const confirmed = b.status === 'CONFIRMED' || b.status === 'TICKETED';
   const deadline = b.status === 'HELD' ? b.heldUntil : b.paymentDeadlineAt;
@@ -674,6 +675,16 @@ function InventoryBookingDetail({
     onSuccess: (res) => {
       toast.success(res.message ?? 'E-ticket emailed');
       setEmailTicketOpen(false);
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const requestRefund = useMutation({
+    mutationFn: (reason: string) => api.bookings.requestRefund(b.id, { reason }),
+    onSuccess: (res) => {
+      onSaved(res);
+      toast.success('Refund requested — our team will review it shortly');
+      setRefundOpen(false);
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -765,6 +776,11 @@ function InventoryBookingDetail({
                 <Link to={`/invoices/${b.invoice.id}`}>
                   <FileText /> Invoice {b.invoice.number}
                 </Link>
+              </Button>
+            )}
+            {b.status === 'TICKETED' && (
+              <Button variant="danger-outline" onClick={() => setRefundOpen(true)}>
+                <XCircle /> Request refund
               </Button>
             )}
             {b.canCancel && (
@@ -949,6 +965,23 @@ function InventoryBookingDetail({
         onConfirm={async (reason) => {
           try {
             await cancel.mutateAsync(reason);
+          } catch (e) {
+            throw new Error(errorMessage(e), { cause: e });
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={refundOpen}
+        onOpenChange={setRefundOpen}
+        title={`Request a refund for ${b.reference}?`}
+        description="Our team will review this and get back to you. Seats stay ticketed until the refund is approved."
+        confirmLabel="Request refund"
+        tone="danger"
+        reasonLabel="Reason"
+        onConfirm={async (reason) => {
+          try {
+            await requestRefund.mutateAsync(reason);
           } catch (e) {
             throw new Error(errorMessage(e), { cause: e });
           }

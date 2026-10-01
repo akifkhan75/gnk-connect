@@ -500,6 +500,196 @@ export class BookingEngineService {
     return stale.length;
   }
 
+  /** Post-ticketing refund: partner asks, or staff opens one on the partner's behalf. */
+  async requestRefund(
+    actor: { realm: 'PARTNER' | 'STAFF'; id: string },
+    bookingId: string,
+    reason: string,
+    meta: RequestMeta,
+  ) {
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (!['TICKETED', 'CONFIRMED'].includes(b.status))
+      throw new ConflictException({ code: 'booking.refund_requires_ticketed_or_confirmed' });
+
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.updateMany({
+        where: { id: bookingId, status: b.status, version: b.version },
+        data: { status: 'REFUND_REQUESTED', version: { increment: 1 } },
+      });
+      if (!updated.count)
+        throw new ConflictException(
+          'This booking was changed by someone else. Refresh and try again.',
+        );
+      await tx.bookingStatusEvent.create({
+        data: {
+          bookingId,
+          from: b.status,
+          to: 'REFUND_REQUESTED',
+          actorRealm: actor.realm,
+          actorId: actor.id,
+          reason,
+        },
+      });
+    });
+
+    await this.audit.log({
+      actor: { realm: actor.realm, userId: actor.id },
+      action: 'booking.refund_request',
+      entityType: 'Booking',
+      entityId: bookingId,
+      before: { status: b.status },
+      after: { status: 'REFUND_REQUESTED', reason },
+      meta,
+    });
+    await this.notifications.notifyStaff('bookings:approve', {
+      type: 'BOOKING_REFUND_REQUESTED',
+      title: `Refund requested — ${b.reference}`,
+      body: reason,
+      link: `/bookings/${bookingId}`,
+    });
+    await this.changed(bookingId, b.accountId);
+  }
+
+  /** Staff approves a pending refund: releases confirmed seats, reverses the sale, credits the partner. */
+  async approveRefund(actor: StaffActor, bookingId: string, meta: RequestMeta) {
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (b.status !== 'REFUND_REQUESTED')
+      throw new ConflictException({ code: 'booking.refund_requires_requested_status' });
+
+    await this.prisma.$transaction(async (tx) => {
+      // Release confirmed seats back to the lot/PNR pool, mirroring the cancel-after-confirm path.
+      const holdsConsumed = await tx.inventoryMovement.findMany({
+        where: { bookingId, movementType: 'CONFIRM' },
+      });
+      for (const m of holdsConsumed) {
+        await tx.inventoryLot.update({
+          where: { id: m.inventoryLotId },
+          data: {
+            seatsConfirmed: { decrement: Math.max(0, m.seatsDelta) },
+            rowVersion: { increment: 1 },
+          },
+        });
+        await tx.inventoryMovement.create({
+          data: {
+            inventoryLotId: m.inventoryLotId,
+            bookingId,
+            movementType: 'CANCEL_BOOKING_ADJUSTMENT',
+            seatsDelta: -m.seatsDelta,
+          },
+        });
+      }
+      await this.pnrs.releaseAllocations(tx, bookingId);
+
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: {
+          status: 'REFUNDED',
+          paymentState: 'REFUNDED',
+          amountPaid: 0,
+          cancelledAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
+      await tx.bookingStatusEvent.create({
+        data: {
+          bookingId,
+          from: 'REFUND_REQUESTED',
+          to: 'REFUNDED',
+          actorRealm: 'STAFF',
+          actorId: actor.userId,
+        },
+      });
+      await tx.invoice.updateMany({
+        where: { bookingId, voidedAt: null },
+        data: { voidedAt: new Date() },
+      });
+      try {
+        await this.ledger.reverseBookingCharge(tx, b, actor.userId);
+      } catch {
+        // No posted sale — nothing to reverse.
+      }
+    });
+
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'booking.refund_approve',
+      entityType: 'Booking',
+      entityId: bookingId,
+      before: { status: 'REFUND_REQUESTED' },
+      after: { status: 'REFUNDED' },
+      meta,
+    });
+    await this.notifications.notifyAccount(b.accountId, {
+      type: 'BOOKING_REFUNDED',
+      title: `Booking ${b.reference} refunded`,
+      body: `This booking was cancelled and PKR ${num(b.totalPrice).toLocaleString('en-PK')} was credited back to your account.`,
+      link: `/bookings/${bookingId}`,
+      email: true,
+    });
+    await this.changed(bookingId, b.accountId);
+  }
+
+  /** Staff rejects a refund request: restores the booking to whatever status it left. */
+  async rejectRefund(actor: StaffActor, bookingId: string, reason: string, meta: RequestMeta) {
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (b.status !== 'REFUND_REQUESTED')
+      throw new ConflictException({ code: 'booking.refund_requires_requested_status' });
+
+    const priorEvent = await this.prisma.bookingStatusEvent.findFirst({
+      where: { bookingId, to: 'REFUND_REQUESTED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const restoreTo = priorEvent?.from ?? 'TICKETED';
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.bookingStatusEvent.create({
+        data: {
+          bookingId,
+          from: 'REFUND_REQUESTED',
+          to: 'REFUND_REJECTED',
+          actorRealm: 'STAFF',
+          actorId: actor.userId,
+          reason,
+        },
+      });
+      await tx.booking.update({
+        where: { id: bookingId },
+        data: { status: restoreTo, version: { increment: 1 } },
+      });
+      await tx.bookingStatusEvent.create({
+        data: {
+          bookingId,
+          from: 'REFUND_REJECTED',
+          to: restoreTo,
+          actorRealm: 'STAFF',
+          actorId: actor.userId,
+          reason: 'Restored after the refund request was declined',
+        },
+      });
+    });
+
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'booking.refund_reject',
+      entityType: 'Booking',
+      entityId: bookingId,
+      before: { status: 'REFUND_REQUESTED' },
+      after: { status: restoreTo, reason },
+      meta,
+    });
+    await this.notifications.notifyAccount(b.accountId, {
+      type: 'BOOKING_REFUND_REJECTED',
+      title: `Refund request declined — ${b.reference}`,
+      body: reason,
+      link: `/bookings/${bookingId}`,
+      email: true,
+    });
+    await this.changed(bookingId, b.accountId);
+  }
+
   async setPassengersInventory(
     bookingId: string,
     passengers: PassengerInput[],

@@ -40,6 +40,7 @@ import type {
   InvoiceDetailDto,
   InvoiceListItem,
   InventoryGroupDetail,
+  InventoryGroupFilters,
   InventoryGroupListItem,
   MessageResponse,
   NotificationDto,
@@ -94,6 +95,7 @@ import type {
   PricingRuleInput,
   PricingSimulateInput,
   RecordPaymentInput,
+  RefundRequestInput,
   ResetPasswordInput,
   SetBookingPassengersInput,
   SettingsInput,
@@ -223,6 +225,8 @@ export const partnerApi = (http: HttpClient) => ({
       http.get<BookingConcessionRequestDto[]>('partner/bookings/concession-requests'),
     cancel: (id: string, reason: string) =>
       http.post<BookingDetailDto>(`partner/bookings/${id}/cancel`, { reason }),
+    requestRefund: (id: string, dto: RefundRequestInput) =>
+      http.post<BookingDetailDto>(`partner/bookings/${id}/refund-request`, dto),
   },
   inventory: {
     groups: {
@@ -231,6 +235,7 @@ export const partnerApi = (http: HttpClient) => ({
           'partner/inventory/groups',
           q as never,
         ),
+      filters: () => http.get<InventoryGroupFilters>('partner/inventory/groups/filters'),
       get: (id: string) => http.get<InventoryGroupDetail>('partner/inventory/groups/' + id),
     },
   },
@@ -330,6 +335,10 @@ export const adminApi = (http: HttpClient) => ({
     cancel: (id: string, reason: string) =>
       http.post<AdminBookingDetailDto>(`admin/bookings/${id}/cancel`, { reason }),
     complete: (id: string) => http.post<AdminBookingDetailDto>(`admin/bookings/${id}/complete`),
+    approveRefund: (id: string) =>
+      http.post<AdminBookingDetailDto>(`admin/bookings/${id}/refund-approve`),
+    rejectRefund: (id: string, reason: string) =>
+      http.post<AdminBookingDetailDto>(`admin/bookings/${id}/refund-reject`, { reason }),
     setNotes: (id: string, internalNotes: string) =>
       http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/notes`, { internalNotes }),
     assign: (id: string, staffId: string | null) =>

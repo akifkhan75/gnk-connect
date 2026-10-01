@@ -84,6 +84,13 @@ export const adminBookingListSchema = z.object({
   tab: z
     .enum([
       'all',
+      // Inventory (AirDesk group-PNR) ops queue — leads the admin inbox.
+      'PAYMENT_PENDING',
+      'TICKETED',
+      'EXPIRED_HOLD',
+      'REFUND_REQUESTED',
+      'REFUNDED',
+      // Legacy supplier-push queue.
       'PENDING_APPROVAL',
       'APPROVED',
       'SUPPLIER',

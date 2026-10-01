@@ -130,7 +130,9 @@ export class BookingMapper {
       seats: b.seats,
       totalPrice: num(b.totalPrice),
       amountPaid: num(b.amountPaid),
-      holdExpiresAt: iso(b.heldUntil ?? b.holdExpiresAt),
+      // Generic "next deadline" for list countdowns: seat hold first, then the payment
+      // deadline (inventory PAYMENT_PENDING), falling back to the legacy supplier-push field.
+      holdExpiresAt: iso(b.heldUntil ?? b.paymentDeadlineAt ?? b.holdExpiresAt),
       passengerCount: b.passengers.length,
       infantCount: b.passengers.filter((p) => p.type === 'INFANT').length,
       bookedAdults: b.bookedAdults,

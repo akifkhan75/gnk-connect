@@ -35,6 +35,7 @@ import {
   manifestExportFormatSchema,
   passportOcrExtractSchema,
   passportScanAttachSchema,
+  refundRequestSchema,
   reviseDiscountSchema,
   setBookingPassengersSchema,
   ticketBookingSchema,
@@ -271,6 +272,20 @@ export class PartnerBookingsController {
       return this.bookings.partnerGet(actor, id);
     }
     return this.bookings.partnerCancel(actor, id, dto.reason, meta);
+  }
+
+  @Post(':id/refund-request')
+  @HttpCode(200)
+  @RequirePartnerCapability('bookings:create')
+  async requestRefund(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(refundRequestSchema)) dto: z.output<typeof refundRequestSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    await this.bookings.partnerGet(actor, id); // ownership check
+    await this.engine.requestRefund({ realm: 'PARTNER', id: actor.userId }, id, dto.reason, meta);
+    return this.bookings.partnerGet(actor, id);
   }
 }
 
@@ -603,6 +618,31 @@ export class AdminBookingsController {
   @RequirePermission('bookings:cancel')
   complete(@CurrentActor() actor: StaffActor, @Param('id', UUID) id: string) {
     return this.bookings.complete(actor, id);
+  }
+
+  @Post(':id/refund-approve')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  async approveRefund(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Meta() meta: RequestMeta,
+  ) {
+    await this.engine.approveRefund(actor, id, meta);
+    return this.bookings.adminGet(actor, id);
+  }
+
+  @Post(':id/refund-reject')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  async rejectRefund(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(bookingRejectSchema)) dto: z.output<typeof bookingRejectSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    await this.engine.rejectRefund(actor, id, dto.reason, meta);
+    return this.bookings.adminGet(actor, id);
   }
 
   @Patch(':id/assign')

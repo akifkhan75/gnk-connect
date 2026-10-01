@@ -85,6 +85,8 @@ function NewBooking() {
     queryKey: ['inventory-group', groupId],
     queryFn: () => api.inventory.groups.get(groupId),
     enabled: !!groupId && !!lotId,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   if (lotId && groupId) {

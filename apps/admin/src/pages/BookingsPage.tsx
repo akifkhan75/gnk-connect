@@ -33,6 +33,7 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Checkbox,
   ConfirmDialog,
   DataTable,
   Dialog,
@@ -115,15 +116,48 @@ function Waiting({ since }: { since: string }) {
 }
 
 const TABS = [
+  // Inventory (AirDesk group-PNR) ops queue leads the admin inbox.
+  { value: 'PAYMENT_PENDING', label: 'Pending payment' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+  { value: 'TICKETED', label: 'Ticketed' },
+  { value: 'EXPIRED_HOLD', label: 'Expired hold' },
+  { value: 'REFUND_REQUESTED', label: 'Refunds requested' },
+  // Legacy supplier-push queue.
   { value: 'PENDING_APPROVAL', label: 'Pending approval' },
   { value: 'APPROVED', label: 'Approved' },
   { value: 'SUPPLIER', label: 'With supplier' },
   { value: 'SUPPLIER_FAILED', label: 'Failed' },
-  { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled / rejected' },
   { value: 'all', label: 'All' },
 ] as const;
+
+/** Statuses with a live seat/payment countdown, shown inline next to the status badge. */
+const COUNTDOWN_STATUSES = ['HELD', 'PAYMENT_PENDING'];
+
+/** Ticking countdown to a deadline. Turns danger-toned inside the last 15 minutes. */
+function Countdown({ until }: { until: string }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const ms = new Date(until).getTime() - now;
+  if (ms <= 0) return <span className="text-[11px] font-semibold text-danger">Expired</span>;
+  const totalMin = Math.floor(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  const s = Math.floor((ms % 60_000) / 1000);
+  const label = h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+  const danger = ms < 15 * 60_000;
+  return (
+    <span
+      className={`text-[11px] font-semibold tabular ${danger ? 'text-danger' : 'text-warning'}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export function BookingsPage() {
   return (
@@ -139,9 +173,10 @@ function Bookings() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [text, setText] = useState(params.get('q') ?? '');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const q = {
     tab: (params.get('tab') ??
-      (params.get('q') ? 'all' : 'PENDING_APPROVAL')) as (typeof TABS)[number]['value'],
+      (params.get('q') ? 'all' : 'PAYMENT_PENDING')) as (typeof TABS)[number]['value'],
     q: params.get('q') || undefined,
     accountId: params.get('accountId') || undefined,
     from: params.get('from') || undefined,
@@ -173,6 +208,33 @@ function Bookings() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
+  useEffect(() => setSelected(new Set()), [q.tab, q.page, q.q, q.accountId, q.owner]);
+
+  const toggleSelected = (id: string) =>
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const selectedIds = [...selected];
+  const toast = useToast();
+  const bulkExportPassengers = async (format: 'pdf' | 'xlsx') => {
+    try {
+      const blob = await api.bookings.exportPassengersBulk(selectedIds, format);
+      saveBlob(blob, `passengers-${new Date().toISOString().slice(0, 10)}.${format}`);
+    } catch (e) {
+      toast.error('Export failed', errorMessage(e));
+    }
+  };
+  const bulkExportAirline = async (airline: 'airblue' | 'airsial' | 'saudi') => {
+    try {
+      const blob = await api.bookings.exportAirline(airline, selectedIds);
+      saveBlob(blob, `${airline}-manifest-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e) {
+      toast.error('Export failed', errorMessage(e));
+    }
+  };
 
   const exportCsv = async () => {
     const all = await api.bookings.list({ ...q, page: 1, pageSize: 100 });
@@ -209,6 +271,19 @@ function Bookings() {
   };
 
   const columns: Column<AdminBookingListItem>[] = [
+    {
+      key: 'sel',
+      header: '',
+      cell: (b) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selected.has(b.id)}
+            onChange={() => toggleSelected(b.id)}
+            aria-label={`Select ${b.reference}`}
+          />
+        </div>
+      ),
+    },
     {
       key: 'ref',
       header: 'Booking',
@@ -283,6 +358,9 @@ function Bookings() {
         <div className="flex flex-col items-end gap-0.5">
           <StatusBadge status={b.status} />
           {WAITING.includes(b.status) && <Waiting since={b.statusSince} />}
+          {COUNTDOWN_STATUSES.includes(b.status) && b.holdExpiresAt && (
+            <Countdown until={b.holdExpiresAt} />
+          )}
         </div>
       ),
     },
@@ -350,6 +428,40 @@ function Bookings() {
             </button>
           </div>
         )}
+        {selectedIds.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-b bg-accent-soft/50 px-4 py-2.5 text-[13px]">
+            <span className="font-medium">{selectedIds.length} selected</span>
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <Button size="sm" variant="secondary">
+                  <Download /> Export passengers <ChevronDown className="opacity-70" />
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent>
+                <DropdownItem onSelect={() => bulkExportPassengers('pdf')}>PDF</DropdownItem>
+                <DropdownItem onSelect={() => bulkExportPassengers('xlsx')}>Excel</DropdownItem>
+              </DropdownContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <Button size="sm" variant="secondary">
+                  <Download /> Airline manifest <ChevronDown className="opacity-70" />
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent>
+                <DropdownItem onSelect={() => bulkExportAirline('airblue')}>Airblue</DropdownItem>
+                <DropdownItem onSelect={() => bulkExportAirline('airsial')}>Airsial</DropdownItem>
+                <DropdownItem onSelect={() => bulkExportAirline('saudi')}>Saudia</DropdownItem>
+              </DropdownContent>
+            </DropdownMenu>
+            <button
+              className="ml-auto text-muted-foreground hover:underline"
+              onClick={() => setSelected(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        )}
         {list.error ? (
           <ErrorState error={list.error} onRetry={() => list.refetch()} />
         ) : (
@@ -408,7 +520,9 @@ function BookingDetail({ id }: { id: string }) {
   const can = useCan();
   const qc = useQueryClient();
   const toast = useToast();
-  const [dialog, setDialog] = useState<null | 'reject' | 'cancel' | 'approve' | 'push'>(null);
+  const [dialog, setDialog] = useState<
+    null | 'reject' | 'cancel' | 'approve' | 'push' | 'reject-refund'
+  >(null);
   const [ticketOpen, setTicketOpen] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
   const [rejectExtOpen, setRejectExtOpen] = useState(false);
@@ -576,6 +690,19 @@ function BookingDetail({ id }: { id: string }) {
     onSuccess: (b) => onDone(b as AdminBookingDetailDto, 'Passenger details requested'),
     onError: (e) => toast.error('Could not request passengers', errorMessage(e)),
   });
+  const approveRefund = useMutation({
+    mutationFn: () => api.bookings.approveRefund(id),
+    onSuccess: (b) => onDone(b, `${b.reference}: refund approved and seats released`),
+    onError: (e) => toast.error('Could not approve refund', errorMessage(e)),
+  });
+  const rejectRefund = useMutation({
+    mutationFn: (reason: string) => api.bookings.rejectRefund(id, reason),
+    onSuccess: (b) => {
+      onDone(b, 'Refund request declined');
+      setDialog(null);
+    },
+    onError: (e) => toast.error('Could not reject refund', errorMessage(e)),
+  });
 
   const exportPassengers = async (format: 'pdf' | 'xlsx') => {
     try {
@@ -650,7 +777,25 @@ function BookingDetail({ id }: { id: string }) {
               <Ticket /> Mark ticketed
             </Button>
           )}
-          {!['CANCELLED', 'EXPIRED_HOLD', 'TICKETED'].includes(b.status) &&
+          {b.status === 'REFUND_REQUESTED' && can('bookings:approve') && (
+            <>
+              <Button
+                variant="accent"
+                onClick={() => approveRefund.mutate()}
+                loading={approveRefund.isPending}
+              >
+                <Check /> Approve refund
+              </Button>
+              <Button
+                variant="danger-outline"
+                onClick={() => setDialog('reject-refund')}
+                className="ml-auto"
+              >
+                <X /> Reject refund
+              </Button>
+            </>
+          )}
+          {!['CANCELLED', 'EXPIRED_HOLD', 'TICKETED', 'REFUND_REQUESTED'].includes(b.status) &&
             can('bookings:cancel') && (
               <Button
                 variant="danger-outline"
@@ -1254,6 +1399,16 @@ function BookingDetail({ id }: { id: string }) {
         tone="danger"
         reasonLabel="Reason (sent to partner)"
         onConfirm={(r) => run('reject', r)}
+      />
+      <ConfirmDialog
+        open={dialog === 'reject-refund'}
+        onOpenChange={(o) => !o && setDialog(null)}
+        title={`Decline refund for ${b.reference}?`}
+        description="The booking is restored to its prior status and the partner is told the reason."
+        confirmLabel="Decline refund"
+        tone="danger"
+        reasonLabel="Reason (sent to partner)"
+        onConfirm={(r) => rejectRefund.mutate(r)}
       />
       <ConfirmDialog
         open={dialog === 'cancel'}

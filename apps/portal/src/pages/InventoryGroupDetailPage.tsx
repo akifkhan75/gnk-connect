@@ -28,6 +28,8 @@ export function InventoryGroupDetailPage() {
     queryKey: ['inventory-group', groupId],
     queryFn: () => api.inventory.groups.get(groupId),
     enabled: !!groupId,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;

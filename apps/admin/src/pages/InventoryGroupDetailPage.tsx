@@ -49,6 +49,8 @@ function GroupDetail() {
     queryKey: ['admin-inventory-group', groupId],
     queryFn: () => api.inventory.groups.get(groupId),
     enabled: !!groupId,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   const invalidate = () => {

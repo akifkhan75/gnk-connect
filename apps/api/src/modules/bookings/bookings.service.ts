@@ -61,6 +61,13 @@ const PARTNER_TABS: Record<Exclude<BookingListInput['tab'], 'all'>, BookingStatu
 };
 
 const ADMIN_TABS: Record<Exclude<AdminBookingListInput['tab'], 'all'>, BookingStatus[]> = {
+  // Inventory (AirDesk group-PNR) ops queue.
+  PAYMENT_PENDING: ['PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED'],
+  TICKETED: ['TICKETED'],
+  EXPIRED_HOLD: ['EXPIRED_HOLD'],
+  REFUND_REQUESTED: ['REFUND_REQUESTED'],
+  REFUNDED: ['REFUNDED', 'REFUNDED_PARTIAL'],
+  // Legacy supplier-push queue.
   PENDING_APPROVAL: ['PENDING_APPROVAL'],
   APPROVED: ['APPROVED'],
   SUPPLIER: ['SUBMITTED_TO_SUPPLIER', 'SUPPLIER_PENDING'],

@@ -233,6 +233,11 @@ export const cancelBookingSchema = z.object({
   reason: z.string().trim().min(3, 'Give a reason').max(500),
 });
 
+export const refundRequestSchema = z.object({
+  reason: z.string().trim().min(3, 'Give a reason').max(500),
+});
+export type RefundRequestInput = z.input<typeof refundRequestSchema>;
+
 export const emailTicketSchema = z.object({
   to: emailSchema.optional(),
 });

@@ -300,6 +300,12 @@ export interface GroupFilters {
   types: ProductType[];
 }
 
+/** Distinct sector/airline values across active inventory (AirDesk) groups. */
+export interface InventoryGroupFilters {
+  sectors: string[];
+  airlines: string[];
+}
+
 export interface QuoteDto {
   id: string;
   departureId: string;

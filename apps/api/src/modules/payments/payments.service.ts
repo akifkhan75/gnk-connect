@@ -281,6 +281,14 @@ export class PaymentsService {
     depositAccountId: string | undefined,
     meta: RequestMeta,
   ) {
+    // Block the whole verify (both stages) if any allocated booking's hold has already expired —
+    // extending the deadline or rebooking must happen before the payment can be posted.
+    const allocated = await this.prisma.paymentAllocation.findMany({
+      where: { paymentId: id },
+      select: { bookingId: true },
+    });
+    await this.assertHoldsNotExpired(allocated.map((a) => a.bookingId));
+
     const { accounting } = await this.settings.get();
     const result = await this.prisma.$transaction(async (tx) => {
       const p = await tx.payment.findUnique({ where: { id } });
@@ -532,11 +540,14 @@ export class PaymentsService {
             status: true,
             amountPaid: true,
             totalPrice: true,
+            heldUntil: true,
+            reference: true,
           },
         },
       },
     });
     const confirmable = new Set(['PAYMENT_PENDING', 'HELD', 'AWAITING_RECEIPT', 'RECEIPT_ADDED']);
+    const now = new Date();
     for (const a of allocations) {
       const b = a.booking;
       if (!b.inventoryLotId) continue;
@@ -549,6 +560,15 @@ export class PaymentsService {
         },
       });
       if (!confirmable.has(b.status)) continue;
+      // Defensive: the hold expired between verify() and here (e.g. the sweep job just ran).
+      // The payment stays verified/credited; leave the booking for manual review instead of
+      // auto-confirming a lapsed hold.
+      if (b.heldUntil && b.heldUntil < now) {
+        this.log.warn(
+          `Booking ${b.reference}'s hold expired before auto-confirm after payment ${paymentId}; leaving for manual review.`,
+        );
+        continue;
+      }
       try {
         await this.bookingEngine.confirm(actor, b.id, meta);
         await this.prisma.payment.updateMany({
@@ -587,6 +607,37 @@ export class PaymentsService {
         message: 'A booking in the allocation was not found on this account',
         code: 'VALIDATION_FAILED',
         errors: [{ path: 'allocations', message: 'Booking not found' }],
+      });
+    await this.assertHoldsNotExpired(ids);
+  }
+
+  /**
+   * Blocks submitting or verifying a payment allocated to a booking whose seat hold has already
+   * expired (or is sitting in EXPIRED_HOLD): staff must extend the deadline or the partner must
+   * rebook before proof can be accepted for it.
+   */
+  private async assertHoldsNotExpired(bookingIds: string[]) {
+    if (!bookingIds.length) return;
+    const now = new Date();
+    const confirmableHeld = new Set([
+      'PAYMENT_PENDING',
+      'HELD',
+      'AWAITING_RECEIPT',
+      'RECEIPT_ADDED',
+    ]);
+    const rows = await this.prisma.booking.findMany({
+      where: { id: { in: bookingIds } },
+      select: { reference: true, status: true, heldUntil: true },
+    });
+    const expired = rows.find(
+      (b) =>
+        b.status === 'EXPIRED_HOLD' ||
+        (confirmableHeld.has(b.status) && b.heldUntil != null && b.heldUntil < now),
+    );
+    if (expired)
+      throw new ConflictException({
+        message: `${expired.reference}'s seat hold has expired. Extend the deadline or ask the partner to rebook before this payment can be accepted.`,
+        code: 'booking.hold_expired_cannot_verify',
       });
   }
 
