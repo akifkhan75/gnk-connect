@@ -35,7 +35,7 @@ jobs:
       SEED_DEMO_PASSWORD: ci-demo-password-1
       SUPPLIER_SYNC_INTERVAL_MINUTES: '0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
