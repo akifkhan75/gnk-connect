@@ -14,7 +14,9 @@ import {
   emailSchema,
   isoDateSchema,
   moneySchema,
+  optionalPnrSchema,
   optionalText,
+  zeroMoneySchema,
   passportSchema,
   passwordSchema,
   phonePkSchema,
@@ -202,6 +204,54 @@ export const addPassengersSchema = z.object({
 });
 export type AddPassengersInput = z.input<typeof addPassengersSchema>;
 
+/** Correct names on an open hold. Empty passport keeps the number already stored. */
+export const updatePassengerSchema = z
+  .object({
+    id: uuidSchema,
+    title: z.enum(TITLES),
+    firstName: passportName('Enter the given name'),
+    lastName: passportName('Enter the surname'),
+    gender: z.enum(GENDERS),
+    dateOfBirth: isoDateSchema,
+    nationality: z.string().trim().toUpperCase().length(2, 'Use the 2-letter country code'),
+    passportNumber: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .optional()
+      .transform((v) => v ?? ''),
+    passportExpiry: isoDateSchema,
+  })
+  .superRefine((p, ctx) => {
+    if (p.dateOfBirth >= today())
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dateOfBirth'],
+        message: 'Date of birth must be in the past',
+      });
+    if (p.passportExpiry <= today())
+      ctx.addIssue({ code: 'custom', path: ['passportExpiry'], message: 'Passport has expired' });
+    if (genderFromTitle(p.title) !== p.gender)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['title'],
+        message: `Title ${p.title} does not match gender`,
+      });
+    if (p.passportNumber && !/^[A-Z0-9]{6,9}$/.test(p.passportNumber.replace(/\s/g, ''))) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['passportNumber'],
+        message: 'Passport number must be 6–9 letters or digits',
+      });
+    }
+  });
+export type UpdatePassengerInput = z.input<typeof updatePassengerSchema>;
+
+export const updatePassengersSchema = z.object({
+  passengers: z.array(updatePassengerSchema).min(1).max(MAX_SEATS_PER_BOOKING),
+});
+export type UpdatePassengersInput = z.input<typeof updatePassengersSchema>;
+
 export const passportScanSchema = z.object({
   image: z.string().min(40).max(6_000_000),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
@@ -229,17 +279,25 @@ export const requestConcessionSchema = z.discriminatedUnion('type', [
     type: z.literal('CHILD_SEATS'),
     seats: z.coerce.number().int().min(1).max(MAX_SEATS_PER_BOOKING),
     note: optionalText(500),
+    pnr: optionalPnrSchema,
   }),
   z.object({
     type: z.literal('INFANT_SEATS'),
     seats: z.coerce.number().int().min(1).max(MAX_SEATS_PER_BOOKING),
     note: optionalText(500),
+    pnr: optionalPnrSchema,
   }),
-  z.object({
-    type: z.literal('DISCOUNT'),
-    amount: moneySchema,
-    note: optionalText(500),
-  }),
+  z
+    .object({
+      type: z.literal('DISCOUNT'),
+      adultAmount: zeroMoneySchema.default(0),
+      childAmount: zeroMoneySchema.default(0),
+      infantAmount: zeroMoneySchema.default(0),
+      note: optionalText(500),
+    })
+    .refine((d) => d.adultAmount > 0 || d.childAmount > 0 || d.infantAmount > 0, {
+      message: 'Enter a discount for at least one passenger type',
+    }),
 ]);
 export type RequestConcessionInput = z.input<typeof requestConcessionSchema>;
 export type RequestConcession = z.output<typeof requestConcessionSchema>;
@@ -248,6 +306,10 @@ export const reviewConcessionSchema = z.object({
   decision: z.enum(['GRANT', 'REJECT']),
   seats: z.coerce.number().int().min(0).max(MAX_SEATS_PER_BOOKING).optional(),
   amount: z.coerce.number().min(0).max(999_999_999_999).optional(),
+  adultAmount: zeroMoneySchema.optional(),
+  childAmount: zeroMoneySchema.optional(),
+  infantAmount: zeroMoneySchema.optional(),
+  pnr: optionalPnrSchema,
   staffNote: optionalText(500),
 });
 export type ReviewConcessionInput = z.input<typeof reviewConcessionSchema>;

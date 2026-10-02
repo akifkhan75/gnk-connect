@@ -51,6 +51,13 @@ export const moneySchema = z.coerce
   .max(999_999_999_999, 'Amount is too large')
   .refine((v) => Math.round(v * 100) === v * 100, 'Use at most 2 decimals');
 
+/** Money that may be zero (blank AirDesk per-seat discount). */
+export const zeroMoneySchema = z.coerce
+  .number({ error: 'Enter an amount' })
+  .min(0)
+  .max(999_999_999_999, 'Amount is too large')
+  .refine((v) => Math.round(v * 100) === v * 100, 'Use at most 2 decimals');
+
 export const optionalText = (max = 500) =>
   z
     .string()
@@ -58,6 +65,28 @@ export const optionalText = (max = 500) =>
     .max(max)
     .optional()
     .transform((v) => (v ? v : undefined));
+
+/** Airline PNR for an extra child/infant seat. Blank is allowed at approve time. */
+export const optionalPnrSchema = z.preprocess(
+  (v) => {
+    if (typeof v !== 'string') return v;
+    const t = v.trim().toUpperCase();
+    return t.length ? t : undefined;
+  },
+  z
+    .string()
+    .regex(/^[A-Z0-9]{3,20}$/, 'Enter a PNR of 3–20 letters or digits')
+    .optional(),
+);
+
+export const concessionPnrSchema = z.object({
+  pnr: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{3,20}$/, 'Enter a PNR of 3–20 letters or digits'),
+});
+export type ConcessionPnr = z.output<typeof concessionPnrSchema>;
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

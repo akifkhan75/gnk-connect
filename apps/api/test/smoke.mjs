@@ -147,6 +147,80 @@ await step('booking is created and idempotent on retry', async () => {
   assert.equal(r2.body.id, booking.id, 'retry created a second booking');
 });
 
+await step('per-seat discount and infant seats follow AirDesk rules', async () => {
+  const extraChild = await partner.call('POST', `/partner/bookings/${booking.id}/concessions`, {
+    type: 'CHILD_SEATS',
+    seats: 1,
+  });
+  assert.equal(extraChild.status, 200, JSON.stringify(extraChild.body));
+  const pendingChild = extraChild.body.concessions.requests.find(
+    (r) => r.type === 'CHILD_SEATS' && r.status === 'PENDING',
+  );
+  assert.ok(pendingChild, 'extra child-seat request missing');
+
+  const notes = await admin.call('GET', '/admin/notifications');
+  assert.equal(notes.status, 200, JSON.stringify(notes.body));
+  assert.ok(
+    notes.body.items.some(
+      (n) => n.type === 'BOOKING_CONCESSION' && String(n.title).includes(booking.reference),
+    ),
+    'staff was not notified of the child-seat request',
+  );
+
+  const disc = await partner.call('POST', `/partner/bookings/${booking.id}/concessions`, {
+    type: 'DISCOUNT',
+    adultAmount: 1000,
+    childAmount: 0,
+    infantAmount: 0,
+    note: 'Smoke test discount',
+  });
+  assert.equal(disc.status, 200, JSON.stringify(disc.body));
+  const pendingDiscount = disc.body.concessions.requests.find((r) => r.type === 'DISCOUNT' && r.status === 'PENDING');
+  assert.ok(pendingDiscount, 'discount request missing');
+  assert.equal(pendingDiscount.adultAmount, 1000);
+  assert.equal(pendingDiscount.amount, 2000);
+
+  const infant = await partner.call('POST', `/partner/bookings/${booking.id}/concessions`, {
+    type: 'INFANT_SEATS',
+    seats: 1,
+  });
+  assert.equal(infant.status, 200, JSON.stringify(infant.body));
+  const pendingInfant = infant.body.concessions.requests.find((r) => r.type === 'INFANT_SEATS' && r.status === 'PENDING');
+  assert.ok(pendingInfant);
+
+  const queue = await admin.call('GET', '/admin/bookings/concessions?status=PENDING&pageSize=100');
+  assert.equal(queue.status, 200, JSON.stringify(queue.body));
+  assert.ok(queue.body.items.some((r) => r.id === pendingChild.id && r.requestLabel === '1 child seat(s)'));
+  assert.ok(queue.body.items.some((r) => r.id === pendingDiscount.id && r.requestLabel === '—'));
+  assert.ok(queue.body.items.some((r) => r.id === pendingInfant.id && r.requestLabel === '1 infant seat(s)'));
+  const queues = await admin.call('GET', '/admin/queues');
+  assert.equal(queues.status, 200, JSON.stringify(queues.body));
+  assert.ok(queues.body.concessions >= 3);
+
+  const grantedDiscount = await admin.call(
+    'POST',
+    `/admin/bookings/${booking.id}/concessions/${pendingDiscount.id}/review`,
+    { decision: 'GRANT' },
+  );
+  assert.equal(grantedDiscount.status, 200, JSON.stringify(grantedDiscount.body));
+  assert.equal(grantedDiscount.body.concessions.discountAmount, 2000);
+  booking = { ...booking, totalPrice: grantedDiscount.body.totalPrice };
+
+  const grantedInfant = await admin.call(
+    'POST',
+    `/admin/bookings/${booking.id}/concessions/${pendingInfant.id}/review`,
+    { decision: 'GRANT' },
+  );
+  assert.equal(grantedInfant.status, 200, JSON.stringify(grantedInfant.body));
+  assert.equal(grantedInfant.body.infantSeats, 1);
+
+  const withdraw = await partner.call(
+    'POST',
+    `/partner/bookings/${booking.id}/concessions/${pendingDiscount.id}/cancel`,
+  );
+  assert.equal(withdraw.status, 409);
+});
+
 await step('a used quote cannot book again', async () => {
   const r = await partner.call('POST', '/partner/bookings', { quoteId: quote.id, passengers: [pax('A'), pax('B')], acceptTerms: true }, { 'idempotency-key': randomUUID() });
   assert.equal(r.status, 409);

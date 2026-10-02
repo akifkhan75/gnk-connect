@@ -9,8 +9,10 @@ import {
   CircleDot,
   FileText,
   Minus,
+  Pencil,
   Percent,
   Plus,
+  Send,
   Ticket,
   Timer,
   Users,
@@ -18,6 +20,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import {
+  MAX_SEATS_PER_BOOKING,
+  partyFromSeats,
+  seatDiscountTotal,
   validatePassengerList,
   type PassengerInput,
   type RequestConcessionInput,
@@ -102,6 +107,7 @@ export function BookingDetailPage() {
   const { session } = useAuth();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<null | 'all' | string>(null);
   const [concession, setConcession] = useState<ConcessionType | null>(null);
   const q = useQuery({ queryKey: keys.booking(id), queryFn: () => api.bookings.get(id) });
   const balance = useQuery({
@@ -147,7 +153,9 @@ export function BookingDetailPage() {
   const seatedRemaining = b.seats - adultsFilled - childrenFilled;
   const infantRemaining = infantSeats - infantsFilled;
   const remaining = seatedRemaining + infantRemaining;
-  const canAddPax = book && ['PENDING_APPROVAL', 'APPROVED'].includes(b.status) && remaining > 0;
+  const holdOpen = ['PENDING_APPROVAL', 'APPROVED'].includes(b.status);
+  const canAddPax = book && holdOpen && remaining > 0;
+  const canEditPax = book && holdOpen && b.passengers.length > 0;
 
   return (
     <>
@@ -247,34 +255,54 @@ export function BookingDetailPage() {
           title="Manage Passengers"
           icon={<Users className="size-4" />}
           actions={
-            canAddPax && (
-              <Button
-                size="sm"
-                variant="secondary"
-                className="border-white/30 bg-white/15 text-accent-foreground hover:bg-white/25"
-                onClick={() => setAdding((v) => !v)}
-              >
-                <Plus /> Add Passengers
-              </Button>
+            (canAddPax || canEditPax) && (
+              <div className="flex flex-wrap gap-2">
+                {canEditPax && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="border-white/30 bg-white/15 text-accent-foreground hover:bg-white/25"
+                    onClick={() => {
+                      setAdding(false);
+                      setEditing((v) => (v ? null : 'all'));
+                    }}
+                  >
+                    <Pencil /> Edit passengers
+                  </Button>
+                )}
+                {canAddPax && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="border-white/30 bg-white/15 text-accent-foreground hover:bg-white/25"
+                    onClick={() => {
+                      setEditing(null);
+                      setAdding((v) => !v);
+                    }}
+                  >
+                    <Plus /> Add Passengers
+                  </Button>
+                )}
+              </div>
             )
           }
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3 text-sm text-muted-foreground">
-            <p>
-              {adultsFilled} of {adultSlots} adult{adultSlots === 1 ? '' : 's'} filled
-              {childSeats > 0 && (
-                <>
-                  , {childrenFilled} of {childSeats} child
-                </>
-              )}
-              {infantSeats > 0 && (
-                <>
-                  , {infantsFilled} of {infantSeats} infant
-                </>
-              )}
-              {remaining > 0
-                ? `, ${remaining} slot${remaining === 1 ? '' : 's'} remaining`
-                : ', all slots filled'}
+            <p className="leading-relaxed">
+              {[
+                `${adultsFilled} of ${adultSlots} adult${adultSlots === 1 ? '' : 's'} filled`,
+                childSeats > 0
+                  ? `${childrenFilled} of ${childSeats} child${childSeats === 1 ? '' : 'ren'} filled`
+                  : null,
+                infantSeats > 0
+                  ? `${infantsFilled} of ${infantSeats} infant${infantSeats === 1 ? '' : 's'} filled`
+                  : null,
+                remaining > 0
+                  ? `${remaining} slot${remaining === 1 ? '' : 's'} remaining`
+                  : 'all slots filled',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           </div>
           {adding && canAddPax && (
@@ -285,6 +313,17 @@ export function BookingDetailPage() {
                 setAdding(false);
               }}
               onCancel={() => setAdding(false)}
+            />
+          )}
+          {editing && canEditPax && (
+            <EditPassengersForm
+              booking={b}
+              passengerIds={editing === 'all' ? b.passengers.map((p) => p.id) : [editing]}
+              onSaved={(next) => {
+                onBooking(next);
+                setEditing(null);
+              }}
+              onCancel={() => setEditing(null)}
             />
           )}
           {b.passengers.length === 0 && !adding ? (
@@ -298,6 +337,7 @@ export function BookingDetailPage() {
           ) : b.passengers.length > 0 ? (
             <DataTable
               rowKey={(p) => p.id}
+              selectedKey={editing && editing !== 'all' ? editing : undefined}
               rows={b.passengers}
               columns={[
                 {
@@ -325,6 +365,27 @@ export function BookingDetailPage() {
                   hideBelow: 'md',
                   cell: (p) => formatDate(p.passportExpiry),
                 },
+                ...(canEditPax
+                  ? [
+                      {
+                        key: 'edit',
+                        header: <span className="sr-only">Edit</span>,
+                        align: 'right' as const,
+                        cell: (p: (typeof b.passengers)[number]) => (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setAdding(false);
+                              setEditing(p.id);
+                            }}
+                          >
+                            <Pencil /> Edit
+                          </Button>
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
             />
           ) : null}
@@ -441,22 +502,34 @@ export function BookingDetailPage() {
 function Lifecycle({ current }: { current: number }) {
   return (
     <Card className="mb-5 px-4 py-5 sm:px-8">
-      <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <p className="mb-5 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         Booking lifecycle
       </p>
-      <ol className="flex items-center">
+      <ol className="flex w-full">
         {LIFECYCLE.map((label, i) => {
           const done = i < current;
           const active = i === current;
+          const last = i === LIFECYCLE.length - 1;
           return (
-            <li key={label} className="flex min-w-0 flex-1 items-center">
-              <div className="flex min-w-0 flex-col items-center gap-2">
+            <li
+              key={label}
+              aria-current={active ? 'step' : undefined}
+              className="flex min-w-0 flex-1 flex-col items-center gap-2"
+            >
+              <div className="flex w-full items-center">
                 <span
                   className={cn(
-                    'flex size-8 items-center justify-center rounded-full border text-xs',
+                    'h-0.5 min-w-0 flex-1',
+                    i === 0 ? 'bg-transparent' : i <= current ? 'bg-accent' : 'bg-border',
+                  )}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    'flex size-8 shrink-0 items-center justify-center rounded-full border text-xs',
                     done && 'border-accent bg-accent text-accent-foreground',
                     active && 'border-primary bg-primary text-primary-foreground shadow-sm',
-                    !done && !active && 'border-border-strong text-muted-foreground',
+                    !done && !active && 'border-border-strong bg-surface text-muted-foreground',
                   )}
                 >
                   {done ? (
@@ -469,19 +542,20 @@ function Lifecycle({ current }: { current: number }) {
                 </span>
                 <span
                   className={cn(
-                    'text-center text-[11px] font-medium leading-tight sm:text-xs',
-                    active ? 'text-foreground' : 'text-muted-foreground',
+                    'h-0.5 min-w-0 flex-1',
+                    last ? 'bg-transparent' : i < current ? 'bg-accent' : 'bg-border',
                   )}
-                >
-                  {label}
-                </span>
-              </div>
-              {i < LIFECYCLE.length - 1 && (
-                <span
-                  className={cn('mb-6 h-px flex-1', done ? 'bg-accent' : 'bg-border')}
                   aria-hidden
                 />
-              )}
+              </div>
+              <span
+                className={cn(
+                  'max-w-full px-1 text-center text-[11px] font-medium leading-snug sm:text-xs',
+                  active ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {label}
+              </span>
             </li>
           );
         })}
@@ -579,7 +653,7 @@ function ConcessionsCard({
               disabled={!c.canRequestChild}
               title={
                 c.canRequestChild
-                  ? '1 child seat per 10 adults, charged at the adult fare'
+                  ? 'Request extra child seats after booking. Charged at the adult fare.'
                   : 'A child-seat request is already pending, or the hold is closed'
               }
               onClick={() => onRequest('CHILD_SEATS')}
@@ -605,7 +679,7 @@ function ConcessionsCard({
               disabled={!c.canRequestDiscount}
               title={
                 c.canRequestDiscount
-                  ? 'Request a discount on this booking total'
+                  ? 'Request a fixed per-seat discount by adult, child, or infant'
                   : 'A discount is already applied or pending'
               }
               onClick={() => onRequest('DISCOUNT')}
@@ -632,18 +706,31 @@ function ConcessionsCard({
             {c.requests.map((r) => (
               <li
                 key={r.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-surface px-4 py-3"
               >
-                <div>
-                  <p className="font-medium">
-                    {concessionLabel(r)}{' '}
-                    <StatusBadge status={r.status} className="ml-1 align-middle" />
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(r.createdAt)}
-                    {r.note ? ` · ${r.note}` : ''}
-                    {r.staffNote ? ` · ${r.staffNote}` : ''}
-                  </p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge
+                      status={r.status}
+                      label={r.status === 'PENDING' ? 'Requested' : undefined}
+                    />
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {concessionTypeLabel(r.type)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatConcessionStamp(r.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-foreground">{concessionDetail(r)}</p>
+                  {(r.note || r.staffNote || r.pnr) && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {r.pnr ? `PNR ${r.pnr}` : ''}
+                      {r.pnr && (r.note || r.staffNote) ? ' · ' : ''}
+                      {r.note}
+                      {r.note && r.staffNote ? ' · ' : ''}
+                      {r.staffNote}
+                    </p>
+                  )}
                 </div>
                 {r.status === 'PENDING' && canRequest && (
                   <Button
@@ -676,15 +763,40 @@ function Stat({ label, value, icon }: { label: string; value: string; icon: Reac
   );
 }
 
-function concessionLabel(r: ConcessionDto) {
+function concessionTypeLabel(type: ConcessionType) {
+  return type === 'CHILD_SEATS'
+    ? 'Child seats'
+    : type === 'INFANT_SEATS'
+      ? 'Infant seats'
+      : 'Discount';
+}
+
+function concessionDetail(r: ConcessionDto) {
   if (r.type === 'DISCOUNT') {
-    const amt = r.status === 'GRANTED' ? r.grantedAmount : r.amount;
-    return `Discount ${formatMoney(amt, { decimals: true })}`;
+    const parts = [
+      r.adultAmount > 0 ? `Adult ${Math.round(r.adultAmount)}` : null,
+      r.childAmount > 0 ? `Child ${Math.round(r.childAmount)}` : null,
+      r.infantAmount > 0 ? `Infant ${Math.round(r.infantAmount)}` : null,
+    ].filter(Boolean);
+    return parts.join(' · ') || 'Discount';
   }
   const n = r.status === 'GRANTED' ? r.grantedSeats : r.seats;
-  return r.type === 'CHILD_SEATS'
-    ? `${n} child seat${n === 1 ? '' : 's'}`
-    : `${n} infant seat${n === 1 ? '' : 's'}`;
+  return r.type === 'CHILD_SEATS' ? `${n} extra child seat(s)` : `${n} infant seat(s)`;
+}
+
+function formatConcessionStamp(value: string) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Karachi',
+  }).formatToParts(new Date(value));
+  const g = (t: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${g('day')}/${g('month')}/${g('year')}, ${g('hour')}:${g('minute')}:${g('second')}`;
 }
 
 function ConcessionDialog({
@@ -700,12 +812,20 @@ function ConcessionDialog({
 }) {
   const toast = useToast();
   const adults = booking.seats - booking.childSeats;
-  const maxChild = Math.max(0, Math.floor(adults / 10) - booking.childSeats);
   const maxInfant = Math.max(0, adults - booking.infantSeats);
   const [seats, setSeats] = useState(1);
-  const [amount, setAmount] = useState('');
+  const [adultAmount, setAdultAmount] = useState('');
+  const [childAmount, setChildAmount] = useState('');
+  const [infantAmount, setInfantAmount] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState<string>();
+  const party = partyFromSeats(booking.seats, booking.childSeats, booking.infantSeats);
+  const rates = {
+    adultAmount: Number(adultAmount) || 0,
+    childAmount: Number(childAmount) || 0,
+    infantAmount: Number(infantAmount) || 0,
+  };
+  const estimate = seatDiscountTotal(rates, party);
 
   const submit = useMutation({
     mutationFn: (dto: RequestConcessionInput) => api.bookings.requestConcession(booking.id, dto),
@@ -721,29 +841,34 @@ function ConcessionDialog({
       ? 'Request child seats'
       : type === 'INFANT_SEATS'
         ? 'Request infant seats'
-        : 'Request a discount';
+        : 'Request discount';
   const description =
     type === 'CHILD_SEATS'
-      ? '1 child seat is allowed per 10 adults. Granted child seats are charged at the adult fare and occupy a seat.'
+      ? 'Request extra child seats on this hold. Granted seats are charged at the adult fare. The 1 child per 10 adults limit applies only when first creating a booking.'
       : type === 'INFANT_SEATS'
         ? 'Infants do not take a seat. 1 lap infant is allowed per adult. There is no infant fare on this group — GNK must grant the slot first.'
-        : 'Ask GNK Connect to reduce the booking total. The hold amount updates if the discount is granted.';
+        : `Request a per-seat discount by adult, child, or infant for booking ${booking.reference}.`;
 
   const send = () => {
     setError(undefined);
     if (type === 'DISCOUNT') {
-      const n = Number(amount);
-      if (!n || n <= 0) {
-        setError('Enter a discount amount');
+      if (rates.adultAmount <= 0 && rates.childAmount <= 0 && rates.infantAmount <= 0) {
+        setError('Enter a discount for at least one passenger type');
         return;
       }
-      submit.mutate({ type, amount: n, note: note || undefined });
+      submit.mutate({
+        type,
+        adultAmount: rates.adultAmount,
+        childAmount: rates.childAmount,
+        infantAmount: rates.infantAmount,
+        note: note || undefined,
+      });
       return;
     }
     submit.mutate({ type, seats, note: note || undefined });
   };
 
-  const max = type === 'CHILD_SEATS' ? Math.max(1, maxChild) : Math.max(1, maxInfant);
+  const max = type === 'CHILD_SEATS' ? MAX_SEATS_PER_BOOKING : Math.max(1, maxInfant);
 
   return (
     <Dialog
@@ -757,30 +882,69 @@ function ConcessionDialog({
             Cancel
           </Button>
           <Button onClick={send} loading={submit.isPending}>
-            Submit request
+            <Send /> Submit request
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         {type === 'DISCOUNT' ? (
-          <Field label="Discount amount (PKR)" required>
-            <Input
-              type="number"
-              min={1}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </Field>
+          <div className="space-y-3">
+            <Field label="Adult discount / seat">
+              <Input
+                type="number"
+                min={0}
+                step="1"
+                inputMode="decimal"
+                value={adultAmount}
+                onChange={(e) => setAdultAmount(e.target.value)}
+              />
+            </Field>
+            <Field label="Child discount / seat">
+              <Input
+                type="number"
+                min={0}
+                step="1"
+                inputMode="decimal"
+                value={childAmount}
+                onChange={(e) => setChildAmount(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Infant discount / seat"
+              hint="Fixed amount per seat of that type. Leave a kind blank for no discount. Infants have no fare unless GNK priced one."
+            >
+              <Input
+                type="number"
+                min={0}
+                step="1"
+                inputMode="decimal"
+                value={infantAmount}
+                onChange={(e) => setInfantAmount(e.target.value)}
+              />
+            </Field>
+            {estimate > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Estimated on this hold:{' '}
+                <span className="font-medium text-foreground">
+                  <Money value={estimate} decimals />
+                </span>
+                {` · ${party.adults} adult${party.adults === 1 ? '' : 's'}`}
+                {party.children > 0
+                  ? `, ${party.children} child${party.children === 1 ? '' : 'ren'}`
+                  : ''}
+                {party.infants > 0
+                  ? `, ${party.infants} infant${party.infants === 1 ? '' : 's'}`
+                  : ''}
+              </p>
+            )}
+          </div>
         ) : (
           <Field
             label={type === 'CHILD_SEATS' ? 'Child seats' : 'Infant seats'}
             hint={
               type === 'CHILD_SEATS'
-                ? maxChild < 1
-                  ? 'Need 10 adults for 1 child seat'
-                  : `Up to ${maxChild} on this hold`
+                ? `Up to ${MAX_SEATS_PER_BOOKING} extra child seats on this request`
                 : maxInfant < 1
                   ? 'Need an adult seat first'
                   : `Up to ${maxInfant} on this hold`
@@ -809,8 +973,13 @@ function ConcessionDialog({
             </div>
           </Field>
         )}
-        <Field label="Note for GNK (optional)">
-          <Textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Field label={type === 'DISCOUNT' ? 'Reason' : 'Note for GNK (optional)'}>
+          <Textarea
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={type === 'DISCOUNT' ? 'Optional note for platform review' : undefined}
+          />
         </Field>
         {error && <p className="text-xs font-medium text-danger">{error}</p>}
       </div>
@@ -837,11 +1006,11 @@ function AddPassengersForm({
   const adultsFilled = booking.passengers.filter((p) => p.type === 'ADULT').length;
   const childrenFilled = booking.passengers.filter((p) => p.type === 'CHILD').length;
   const infantsFilled = booking.passengers.filter((p) => p.type === 'INFANT').length;
-  const remainingAdults = booking.seats - booking.childSeats - adultsFilled;
-  const remainingChildren = booking.childSeats - childrenFilled;
-  const remainingInfants = booking.infantSeats - infantsFilled;
+  const remainingAdults = Math.max(0, booking.seats - booking.childSeats - adultsFilled);
+  const remainingChildren = Math.max(0, booking.childSeats - childrenFilled);
+  const remainingInfants = Math.max(0, booking.infantSeats - infantsFilled);
   const rules = {
-    exactSeats: true,
+    exactSeats: false,
     grantedInfantSeats: booking.infantSeats,
     childSeatQuota: booking.childSeats,
   };
@@ -909,10 +1078,19 @@ function AddPassengersForm({
 
   return (
     <div className="border-b">
-      <p className="px-5 py-3 text-sm text-muted-foreground">
-        Scan a passport or type names as printed. Date of birth must match adult (12+), child (2–11)
-        or infant (under 2) on departure.
-        {booking.infantSeats < 1 && ' Infant seats must be granted before adding an infant.'}
+      <p className="px-5 py-3 text-sm leading-relaxed text-muted-foreground">
+        {remainingAdults > 0
+          ? `Add ${remainingAdults} adult${remainingAdults === 1 ? '' : 's'}. `
+          : adultsFilled > 0
+            ? 'Adult names are already on this booking. '
+            : ''}
+        {remainingChildren > 0
+          ? `Add ${remainingChildren} granted child seat${remainingChildren === 1 ? '' : 's'} (age 2–11 on departure). `
+          : ''}
+        {remainingInfants > 0
+          ? `Add ${remainingInfants} granted infant${remainingInfants === 1 ? '' : 's'} (under 2 on departure). `
+          : ''}
+        Scan a passport or type names as printed.
       </p>
       <PassengerRows
         fields={fields}
@@ -936,6 +1114,167 @@ function AddPassengersForm({
         <div className="flex gap-2">
           <Button onClick={save} loading={submit.isPending}>
             Save passengers
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function keepPassportToken(id: string) {
+  return `X${id.replace(/-/g, '').slice(0, 8)}`;
+}
+
+function EditPassengersForm({
+  booking,
+  passengerIds,
+  onSaved,
+  onCancel,
+}: {
+  booking: BookingDetailDto;
+  passengerIds: string[];
+  onSaved: (b: BookingDetailDto) => void;
+  onCancel: () => void;
+}) {
+  const toast = useToast();
+  const [accepted, setAccepted] = useState(false);
+  const [formError, setFormError] = useState<string>();
+  const trip = {
+    departureDate: booking.departureDate,
+    returnDate: booking.returnDate ?? booking.departureDate,
+  };
+  const rules = {
+    exactSeats: false,
+    grantedInfantSeats: booking.infantSeats,
+    childSeatQuota: booking.childSeats,
+  };
+  const targets = booking.passengers.filter((p) => passengerIds.includes(p.id));
+  const form = useForm<{ passengers: PassengerInput[] }>({
+    defaultValues: {
+      passengers: targets.map((p) => ({
+        type: p.type,
+        title: p.title,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        gender: p.gender,
+        dateOfBirth: p.dateOfBirth,
+        nationality: p.nationality,
+        passportNumber: '',
+        passportExpiry: p.passportExpiry,
+      })),
+    },
+    mode: 'onTouched',
+  });
+  const { control, register, setValue, getValues, setError, clearErrors, formState } = form;
+  const { fields } = useFieldArray({ control, name: 'passengers' });
+
+  const submit = useMutation({
+    mutationFn: () =>
+      api.bookings.updatePassengers(booking.id, {
+        passengers: getValues('passengers').map((p, i) => ({
+          id: targets[i]!.id,
+          title: p.title,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          gender: p.gender,
+          dateOfBirth: p.dateOfBirth,
+          nationality: p.nationality,
+          passportNumber: p.passportNumber.trim(),
+          passportExpiry: p.passportExpiry,
+        })),
+      }),
+    onSuccess: (next) => {
+      toast.success(targets.length === 1 ? 'Passenger updated' : 'Passengers updated');
+      onSaved(next);
+    },
+    onError: (e) => setFormError(applyServerErrors(e, setError)),
+  });
+
+  const save = () => {
+    setFormError(undefined);
+    if (!accepted) {
+      setFormError('Confirm the information is accurate to continue.');
+      return;
+    }
+    const incoming = getValues('passengers');
+    const others = booking.passengers
+      .filter((p) => !passengerIds.includes(p.id))
+      .map((p) => ({
+        type: p.type,
+        title: p.title,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        gender: p.gender,
+        dateOfBirth: p.dateOfBirth,
+        nationality: p.nationality,
+        passportNumber: keepPassportToken(p.id),
+        passportExpiry: p.passportExpiry,
+      }));
+    const edited = incoming.map((p, i) => ({
+      ...p,
+      type: targets[i]!.type,
+      passportNumber: p.passportNumber.trim() || keepPassportToken(targets[i]!.id),
+    }));
+    const parsed = validatePassengerList([...others, ...edited], booking.seats, trip, rules);
+    if (!parsed.ok) {
+      const shifted = parsed.issues.map((issue) => {
+        const m = /^passengers\.(\d+)\.(.+)$/.exec(issue.path);
+        if (!m) return issue;
+        const idx = Number(m[1]) - others.length;
+        return idx >= 0 ? { ...issue, path: `passengers.${idx}.${m[2]}` } : issue;
+      });
+      applyFieldIssues(
+        shifted.filter((i) => i.path.startsWith('passengers.') && !i.path.includes('passengers.-')),
+        setError,
+      );
+      setFormError(passengerFormError(parsed.issues));
+      focusFirstIssue(shifted);
+      return;
+    }
+    submit.mutate();
+  };
+
+  if (targets.length === 0) {
+    return <p className="px-5 py-4 text-sm text-muted-foreground">Passenger not found.</p>;
+  }
+
+  return (
+    <div className="border-b">
+      <p className="px-5 py-3 text-sm leading-relaxed text-muted-foreground">
+        {targets.length === 1
+          ? `Edit ${titleCase(targets[0]!.type)} ${titleCase(targets[0]!.title)} ${targets[0]!.firstName} ${targets[0]!.lastName}. `
+          : `Edit ${targets.length} passengers on this hold. `}
+        Type stays as granted. Leave passport blank to keep the current number.
+      </p>
+      <PassengerRows
+        fields={fields}
+        register={register}
+        setValue={setValue}
+        getValues={getValues}
+        setError={setError}
+        clearErrors={clearErrors}
+        errors={formState.errors.passengers}
+        trip={trip}
+        lockType
+        rules={rules}
+        passportOptional
+        passportPlaceholders={Object.fromEntries(
+          targets.map((p, i) => [i, p.passportMasked || 'PASSPORT #']),
+        )}
+      />
+      <div className="space-y-3 border-t px-5 py-4">
+        <Checkbox
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          label="I confirm these names match the passports."
+        />
+        {formError && <p className="text-xs font-medium text-danger">{formError}</p>}
+        <div className="flex gap-2">
+          <Button onClick={save} loading={submit.isPending}>
+            Save changes
           </Button>
           <Button variant="ghost" onClick={onCancel}>
             Cancel

@@ -598,8 +598,14 @@ model BookingConcession {
   status            ConcessionStatus  @default(PENDING)
   seats             Int               @default(0)
   amount            Decimal           @default(0) @db.Decimal(14, 2)
+  /// AirDesk per-seat rates (DISCOUNT). `amount` is the estimated total on the current hold.
+  adultAmount       Decimal           @default(0) @db.Decimal(14, 2)
+  childAmount       Decimal           @default(0) @db.Decimal(14, 2)
+  infantAmount      Decimal           @default(0) @db.Decimal(14, 2)
   grantedSeats      Int               @default(0)
   grantedAmount     Decimal           @default(0) @db.Decimal(14, 2)
+  /// Airline PNR for the granted extra child/infant seat. Optional at approve time.
+  pnr               String?
   note              String?
   staffNote         String?
   requestedByUserId String            @db.Uuid

@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AuthCacheService } from '../auth/auth-cache.service';
 import { StaffService } from './staff.service';
+import { PermissionsSyncService } from './permissions-sync.service';
 import { meta, mockPrisma, staff } from '../../test/helpers';
 
 describe('StaffService coverage', () => {
@@ -153,5 +154,15 @@ describe('StaffService coverage', () => {
       _count: { users: 2 },
     });
     await expect(svc.deleteRole(staff(), 'used', meta)).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe('PermissionsSyncService', () => {
+  it('swallows a failed bootstrap sync', async () => {
+    const prisma = mockPrisma();
+    prisma.permission.upsert.mockRejectedValue(new Error('db down'));
+    const sync = new PermissionsSyncService(prisma as never, { clear: jest.fn() } as never);
+    await sync.onApplicationBootstrap();
+    expect(prisma.permission.upsert).toHaveBeenCalled();
   });
 });

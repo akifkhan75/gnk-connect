@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ALL_PERMISSIONS,
+  CONCESSION_STATUSES,
   KYC_DOC_STATUSES,
   MARKUP_TYPES,
   PARTNER_ACCOUNT_STATUSES,
@@ -102,6 +103,12 @@ export const adminBookingListSchema = z.object({
   owner: z.enum(['me', 'unassigned']).optional(),
 });
 export type AdminBookingListInput = z.input<typeof adminBookingListSchema>;
+
+export const adminConcessionListSchema = z.object({
+  ...page,
+  status: z.enum([...CONCESSION_STATUSES, 'all'] as [string, ...string[]]).default('PENDING'),
+});
+export type AdminConcessionListInput = z.input<typeof adminConcessionListSchema>;
 
 export const bookingDecisionSchema = z.object({ note: optionalText(1000) });
 export const bookingRejectSchema = z.object({
@@ -343,6 +350,15 @@ export const adminPartnerUserUpdateSchema = z.object({
 // ---------- Booking desk ----------
 
 export const bookingAssignSchema = z.object({ staffId: uuidSchema.nullable() });
+
+/** Staff-adjusted hold / payment deadline (AirDesk “Adjust payment deadline”). */
+export const extendHoldSchema = z.object({
+  holdExpiresAt: z
+    .string()
+    .trim()
+    .refine((v) => !Number.isNaN(Date.parse(v)), 'Enter a valid date and time'),
+});
+export type ExtendHoldInput = z.input<typeof extendHoldSchema>;
 
 // ---------- Audit ----------
 

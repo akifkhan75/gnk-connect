@@ -73,19 +73,39 @@ describe('controllers delegate to services', () => {
       setNotes: fn(),
       revealPassport: fn(),
       addPassengers: fn(),
+      updatePassengers: fn(),
+      adminAddPassengers: fn(),
+      adminUpdatePassengers: fn(),
+      requestConcession: fn(),
+      cancelConcession: fn(),
+      reviewConcession: fn(),
+      setConcessionPnr: fn(),
+      grantConcession: fn(),
+      extendHold: fn(),
+      adminConcessionList: fn(),
     };
     const p = new PartnerBookingsController(bookings as never, { get: fn() } as never);
     await p.list(partner(), { page: 1, pageSize: 25, tab: 'all' } as never);
     await p.counts(partner());
     await p.get(partner(), 'id');
     await p.create(partner(), { quoteId: 'q', passengers: [] } as never, 'key', meta);
+    await p.addPassengers(partner(), 'id', { passengers: [] } as never, meta);
+    await p.updatePassengers(partner(), 'id', { passengers: [] } as never, meta);
+    await p.requestConcession(
+      partner(),
+      'id',
+      { type: 'DISCOUNT', adultAmount: 1000 } as never,
+      meta,
+    );
+    await p.cancelConcession(partner(), 'id', 'c1', meta);
     await p.cancel(partner(), 'id', { reason: 'x' } as never, meta);
     const inv = new PartnerInvoicesController(bookings as never);
     await inv.list(partner());
     await inv.get(partner(), 'id');
-    const a = new AdminBookingsController(bookings as never);
+    const a = new AdminBookingsController(bookings as never, { get: fn() } as never);
     await a.list(staff(), { page: 1, pageSize: 25, tab: 'all' } as never);
     await a.counts();
+    await a.listConcessions({ page: 1, pageSize: 25, status: 'PENDING' } as never);
     await a.get(staff(), 'id');
     await a.approve(staff(), 'id', { note: 'ok' } as never, meta);
     await a.reject(staff(), 'id', { reason: 'no' } as never, meta);
@@ -94,6 +114,12 @@ describe('controllers delegate to services', () => {
     await a.cancel(staff(), 'id', { reason: 'x' } as never, meta);
     await a.complete(staff(), 'id');
     await a.assign(staff(), 'id', { staffId: null } as never, meta);
+    await a.reviewConcession(staff(), 'id', 'c1', { decision: 'GRANT' } as never, meta);
+    await a.setConcessionPnr(staff(), 'id', 'c1', { pnr: 'ABC123' } as never, meta);
+    await a.grantConcession(staff(), 'id', { type: 'CHILD_SEATS', seats: 1 } as never, meta);
+    await a.extendHold(staff(), 'id', { holdExpiresAt: '2026-10-10T12:00:00.000Z' } as never, meta);
+    await a.addPassengers(staff(), 'id', { passengers: [] } as never, meta);
+    await a.updatePassengers(staff(), 'id', { passengers: [] } as never, meta);
     await a.notes(staff(), 'id', { internalNotes: 'n' } as never);
     await a.reveal(staff(), 'px', meta);
     await new AdminInvoicesController(bookings as never).get('id');

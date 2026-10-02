@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CreditCard,
   PlugZap,
+  TicketPercent,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -61,6 +62,13 @@ export function DashboardPage() {
       perm: can('payments:verify'),
       icon: CreditCard,
     },
+    {
+      label: 'Concession requests',
+      value: k?.pendingConcessions,
+      href: '/concessions',
+      perm: can('bookings:approve'),
+      icon: TicketPercent,
+    },
   ].filter((x) => x.perm);
 
   return (
@@ -102,7 +110,7 @@ export function DashboardPage() {
       </div>
 
       {queues.length > 0 && (
-        <div className="mb-6 grid gap-3 md:grid-cols-3">
+        <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {queues.map((w) => (
             <Link
               key={w.label}

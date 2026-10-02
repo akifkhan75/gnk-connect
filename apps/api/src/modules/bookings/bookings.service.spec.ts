@@ -484,6 +484,25 @@ describe('BookingsService', () => {
     const granted = await svc.reviewConcession(staff(), 'b1', 'c1', { decision: 'GRANT' }, meta);
     expect(granted.id).toBe('b1');
     expect(prisma.$executeRaw).toHaveBeenCalled();
+
+    prisma.booking.findFirst.mockResolvedValue({ ...open, concessions: [] });
+    await svc.requestConcession(
+      partner(),
+      'b1',
+      { type: 'DISCOUNT', adultAmount: 10000, childAmount: 3000, infantAmount: 0 },
+      meta,
+    );
+    expect(prisma.bookingConcession.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'DISCOUNT',
+          adultAmount: 10000,
+          childAmount: 3000,
+          infantAmount: 0,
+          amount: 100000,
+        }),
+      }),
+    );
   });
 
   it('maps supplier errors on approve', async () => {
@@ -508,5 +527,23 @@ describe('BookingMaintenanceService', () => {
     maint.onApplicationBootstrap();
     maint.onModuleDestroy();
     expect(bookings.completeFinished).not.toHaveBeenCalled();
+  });
+
+  it('runs hourly housekeeping outside test env', async () => {
+    jest.useFakeTimers();
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    const bookings = { completeFinished: jest.fn().mockResolvedValue(2) };
+    const maint = new BookingMaintenanceService(bookings as never);
+    maint.onApplicationBootstrap();
+    jest.advanceTimersByTime(10_000);
+    await Promise.resolve();
+    expect(bookings.completeFinished).toHaveBeenCalled();
+    bookings.completeFinished.mockRejectedValueOnce(new Error('busy'));
+    jest.advanceTimersByTime(60 * 60_000);
+    await Promise.resolve();
+    maint.onModuleDestroy();
+    process.env.NODE_ENV = prev;
+    jest.useRealTimers();
   });
 });

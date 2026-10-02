@@ -88,6 +88,15 @@ await step('admin queues, catalog, pricing, suppliers, staff, settings', async (
   assert.equal((await admin.call('GET', '/admin/audit?page=1')).status, 200);
 });
 
+await step('concession validation is enforced', async () => {
+  const bookings = await partner.call('GET', '/partner/bookings?pageSize=5');
+  assert.equal(bookings.status, 200);
+  const open = bookings.body.items.find((b) => b.status === 'PENDING_APPROVAL' || b.status === 'APPROVED');
+  if (!open) return;
+  const r = await partner.call('POST', `/partner/bookings/${open.id}/concessions`, { type: 'DISCOUNT' });
+  assert.equal(r.status, 422);
+});
+
 await step('unauthenticated write is rejected', async () => {
   const r = await fetch(`${API}/admin/settings`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.ok(r.status === 401 || r.status === 403);

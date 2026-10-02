@@ -9,10 +9,14 @@ import {
   formatPhonePk,
   maskTail,
   moneySchema,
+  partyFromSeats,
+  requestConcessionSchema,
   partnerRegisterSchema,
   passwordSchema,
   phonePkSchema,
+  seatDiscountTotal,
   toBaseAmount,
+  zeroMoneySchema,
   toE164Pk,
   todayPk,
 } from '@gnk/validation';
@@ -61,6 +65,16 @@ describe('@gnk/validation', () => {
       }),
     ).toBe(true);
     expect(toBaseAmount(1000, 70)).toBe(70000);
+    expect(zeroMoneySchema.parse('')).toBe(0);
+    expect(zeroMoneySchema.parse(0)).toBe(0);
+    const discount = requestConcessionSchema.parse({
+      type: 'DISCOUNT',
+      adultAmount: 10000,
+      childAmount: '3000',
+    });
+    expect(discount).toMatchObject({ adultAmount: 10000, childAmount: 3000, infantAmount: 0 });
+    expect(requestConcessionSchema.safeParse({ type: 'DISCOUNT' }).success).toBe(false);
+    expect(seatDiscountTotal(discount, partyFromSeats(11, 1, 0))).toBe(103000);
   });
 
   it('validates partner registration', () => {

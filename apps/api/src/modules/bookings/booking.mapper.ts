@@ -54,6 +54,12 @@ export type BookingDetailRow = Prisma.BookingGetPayload<{ include: typeof detail
 const staffRef = (id: string | null, names: Map<string, string>) =>
   id ? { id, name: (names.get(id) ?? 'GNK staff').replace(/ \(GNK\)$/, '') } : null;
 
+/** AirDesk Concession Requests column: seats as "1 child seat(s)", discounts as "—". */
+export function concessionRequestLabel(c: { type: string; seats: number }): string {
+  if (c.type === 'DISCOUNT') return '—';
+  return c.type === 'CHILD_SEATS' ? `${c.seats} child seat(s)` : `${c.seats} infant seat(s)`;
+}
+
 /** Payments linked to a booking: legacy single-booking payments and allocations. */
 export function bookingPayments(b: BookingDetailRow): PaymentDto[] {
   const byId = new Map<string, PaymentDto>();
@@ -217,8 +223,12 @@ export class BookingMapper {
       status: c.status,
       seats: c.seats,
       amount: num(c.amount),
+      adultAmount: num(c.adultAmount ?? 0),
+      childAmount: num(c.childAmount ?? 0),
+      infantAmount: num(c.infantAmount ?? 0),
       grantedSeats: c.grantedSeats,
       grantedAmount: num(c.grantedAmount),
+      pnr: c.pnr ?? null,
       note: c.note,
       staffNote: c.staffNote,
       createdAt: iso(c.createdAt)!,

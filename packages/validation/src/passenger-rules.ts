@@ -21,6 +21,32 @@ export function maxInfantSeatsForAdults(adults: number) {
   return Math.max(0, adults);
 }
 
+export function partyFromSeats(seats: number, childSeats: number, infantSeats: number) {
+  return {
+    adults: Math.max(0, seats - childSeats),
+    children: Math.max(0, childSeats),
+    infants: Math.max(0, infantSeats),
+  };
+}
+
+export type SeatDiscountRates = {
+  adultAmount: number;
+  childAmount: number;
+  infantAmount: number;
+};
+
+/** AirDesk: fixed PKR off each seat of that type. Infants have no fare unless a rate is set. */
+export function seatDiscountTotal(
+  rates: SeatDiscountRates,
+  party: { adults: number; children: number; infants: number },
+) {
+  return (
+    Math.max(0, rates.adultAmount) * party.adults +
+    Math.max(0, rates.childAmount) * party.children +
+    Math.max(0, rates.infantAmount) * party.infants
+  );
+}
+
 /** Pakistani passport MRZ pattern — warning only when nationality is PK. */
 export const PK_PASSPORT = /^[A-Z]{2}\d{7}$/;
 
@@ -69,6 +95,11 @@ export function paxTypeFromDob(dob: string, departureDate: string): PaxType {
 
 export function genderFromTitle(title: Title): Gender {
   return title === 'MR' || title === 'MSTR' ? 'MALE' : 'FEMALE';
+}
+
+/** Adults: Mr/Mrs/Ms/Miss. Children and infants: Master/Miss. */
+export function titlesForType(type: PaxType): Title[] {
+  return type === 'ADULT' ? ['MR', 'MRS', 'MS', 'MISS'] : ['MSTR', 'MISS'];
 }
 
 export function pkPassportHint(nationality: string, passportNumber: string): string | undefined {
@@ -169,8 +200,9 @@ export function checkPassengerParty(
     });
   }
 
-  const maxChildren = maxChildSeatsForAdults(adults);
-  if (children > maxChildren) {
+  // Create-time only: 1 child per 10 adults. After a hold, granted childSeatQuota is the cap
+  // (agents request extra child seats; staff approve them with an optional seat PNR).
+  if (rules.childSeatQuota == null && children > maxChildSeatsForAdults(adults)) {
     issues.push({
       path: 'passengers',
       message: '1 child is allowed per 10 adults',
