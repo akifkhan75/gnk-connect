@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { BedDouble, Check, Luggage, Minus, Plane, Plus, X } from 'lucide-react';
 import type { GroupDepartureDto } from '@gnk/types';
 import { MAX_SEATS_PER_BOOKING } from '@gnk/validation';
@@ -24,7 +24,6 @@ import {
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { errorMessage } from '@/lib/forms';
 import { TYPE_LABEL } from '@/lib/labels';
 import { FlightLeg } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
@@ -48,11 +47,6 @@ export function GroupDetailPage() {
       setDepartureId(q.data.departures.find((d) => d.seatsAvailable > 0)?.id ?? null);
     }
   }, [q.data, departureId]);
-
-  const quote = useMutation({
-    mutationFn: () => api.quotes.create(departureId!, seats),
-    onSuccess: (quote) => navigate(`/bookings/new?quote=${quote.id}`),
-  });
 
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data) return <Spinner className="py-20" />;
@@ -258,16 +252,18 @@ export function GroupDetailPage() {
                   ) : (
                     <Alert tone="info">Fares appear once your account is approved.</Alert>
                   )}
-                  {quote.error && <Alert tone="danger">{errorMessage(quote.error)}</Alert>}
                   {bookable ? (
                     <Button
                       size="lg"
                       className="w-full"
-                      onClick={() => quote.mutate()}
-                      loading={quote.isPending}
+                      onClick={() =>
+                        navigate(
+                          `/bookings/new?departure=${selected.id}${seats > 1 ? `&seats=${seats}` : ''}`,
+                        )
+                      }
                       disabled={!selected.seatsAvailable}
                     >
-                      Continue to passengers
+                      Book now
                     </Button>
                   ) : approved ? (
                     <p className="text-xs text-muted-foreground">

@@ -39,7 +39,7 @@ export interface PostInput {
   lines: PostLine[];
 }
 
-/** System accounts seeded with the chart of accounts (migration 20260927000000). */
+/** System accounts seeded with the chart of accounts. */
 export type SystemKey =
   | 'CASH'
   | 'BANK'
@@ -48,7 +48,8 @@ export type SystemKey =
   | 'REVENUE'
   | 'FX'
   | 'BANK_CHARGES'
-  | 'ADJUSTMENTS';
+  | 'ADJUSTMENTS'
+  | 'OPENING_BALANCE';
 
 export const BASE = 'PKR';
 export const toDate = (d: string) => new Date(`${d}T00:00:00Z`);
@@ -216,6 +217,7 @@ export class LedgerService {
           `${account.code} is a group; pick an account under it`,
         );
       if (!account.isActive) throw this.lineError(i, 'accountId', `${account.code} is inactive`);
+      if (account.isLocked) throw this.lineError(i, 'accountId', `${account.code} is locked`);
       const d = new Decimal(l.debit ?? 0);
       const c = new Decimal(l.credit ?? 0);
       if (d.lt(0) || c.lt(0) || (d.gt(0) && c.gt(0)) || (d.isZero() && c.isZero()))
@@ -436,24 +438,34 @@ export class LedgerService {
     const partner = await this.prisma.partnerAccount.findUnique({ where: { id: accountId } });
     if (!partner) throw new NotFoundException('Partner not found');
     const end = to ?? todayPk();
-    const start =
-      from ??
-      new Date(new Date(`${end}T00:00:00Z`).getTime() - 90 * 86_400_000).toISOString().slice(0, 10);
-    if (start > end) throw new BadRequestException('The start date must be before the end date');
+    const start = from;
+    if (start && start > end)
+      throw new BadRequestException('The start date must be before the end date');
 
     const ledger = await this.prisma.ledgerAccount.findUnique({ where: { accountId } });
     let opening = new Decimal(0);
     let lines: StatementDto['lines'] = [];
+    let lastTransaction: string | null = null;
     if (ledger) {
-      const before = await this.prisma.ledgerEntry.aggregate({
-        where: { ledgerAccountId: ledger.id, transaction: { date: { lt: toDate(start) } } },
-        _sum: { debit: true, credit: true },
-      });
+      const [before, last] = await Promise.all([
+        start
+          ? this.prisma.ledgerEntry.aggregate({
+              where: { ledgerAccountId: ledger.id, transaction: { date: { lt: toDate(start) } } },
+              _sum: { debit: true, credit: true },
+            })
+          : Promise.resolve({ _sum: { debit: 0, credit: 0 } }),
+        this.prisma.ledgerEntry.findFirst({
+          where: { ledgerAccountId: ledger.id },
+          orderBy: [{ transaction: { date: 'desc' } }, { id: 'desc' }],
+          select: { transaction: { select: { date: true } } },
+        }),
+      ]);
       opening = new Decimal(before._sum.credit ?? 0).minus(before._sum.debit ?? 0);
+      lastTransaction = last ? isoDate(last.transaction.date) : null;
       const entries = await this.prisma.ledgerEntry.findMany({
         where: {
           ledgerAccountId: ledger.id,
-          transaction: { date: { gte: toDate(start), lte: toDate(end) } },
+          transaction: { date: { ...(start ? { gte: toDate(start) } : {}), lte: toDate(end) } },
         },
         include: { transaction: true },
         orderBy: [
@@ -467,10 +479,11 @@ export class LedgerService {
         running = running.plus(e.credit).minus(e.debit);
         return {
           date: isoDate(e.transaction.date)!,
+          voucherId: e.transaction.id,
           reference: e.transaction.reference,
-          description: e.narration
-            ? `${e.transaction.description} — ${e.narration}`
-            : e.transaction.description,
+          type: e.transaction.type,
+          description: e.transaction.description,
+          narration: e.narration,
           debit: num(e.debit),
           credit: num(e.credit),
           balance: num(running),
@@ -486,7 +499,8 @@ export class LedgerService {
       accountId,
       accountCode: partner.code,
       accountName: partner.tradeName || partner.legalName,
-      from: start,
+      status: partner.status,
+      from: start ?? lines[0]?.date ?? end,
       to: end,
       openingBalance: num(opening),
       closingBalance: closing,
@@ -494,18 +508,22 @@ export class LedgerService {
       totalCredits,
       creditLimit: num(partner.creditLimit),
       availableFunds: current.availableFunds,
+      lastTransaction,
       lines,
     };
   }
 
   // ---------- internals ----------
 
-  /** A postable bank or cash account (under 1100), for deposits and payouts. */
+  /** A postable bank or cash account (under the Cash and bank group), for deposits and payouts. */
   async cashOrBankAccount(tx: Tx, id: string) {
     const account = await tx.ledgerAccount.findUnique({ where: { id }, include: { parent: true } });
-    const cashGroup = await tx.ledgerAccount.findUnique({ where: { code: '1100' } });
+    const cash = await this.systemAccount(tx, 'CASH');
+    const cashGroupId = cash.parentId;
     const underCash =
-      account && (account.parentId === cashGroup?.id || account.parent?.parentId === cashGroup?.id);
+      account &&
+      !!cashGroupId &&
+      (account.parentId === cashGroupId || account.parent?.parentId === cashGroupId);
     if (!account || account.isGroup || !account.isActive || !underCash || account.currency !== BASE)
       throw new BadRequestException({
         message: 'Choose an active PKR bank or cash account',

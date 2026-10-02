@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useSearchParams } from 'react-router-dom';
 import { Lock, ShieldAlert } from 'lucide-react';
 import {
   PARTNER_ROLE_CAPABILITIES,
@@ -9,6 +9,7 @@ import {
 } from '@gnk/types';
 import { Button, EmptyState, Spinner } from '@gnk/ui';
 import { useAuth } from '@/lib/api';
+import { safeInternalPath } from '@/lib/redirect';
 import { SetPasswordPage } from '@/pages/auth/SetPasswordPage';
 import { Link } from 'react-router-dom';
 
@@ -33,8 +34,10 @@ export function RequireAuth() {
 
 export function GuestOnly() {
   const { status } = useAuth();
+  const [params] = useSearchParams();
   if (status === 'loading') return <FullPageSpinner />;
-  if (status === 'authenticated') return <Navigate to="/" replace />;
+  if (status === 'authenticated')
+    return <Navigate to={safeInternalPath(params.get('next')) ?? '/'} replace />;
   return <Outlet />;
 }
 

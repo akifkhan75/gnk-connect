@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,31 +18,60 @@ import {
   Field,
   Input,
   PageHeader,
+  SegmentedControl,
   Spinner,
   Textarea,
   useToast,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
 import { applyServerErrors } from '@/lib/forms';
+import { useCan } from '@/lib/useCan';
 import { RequirePerm } from '@/components/guards';
+import { CurrenciesAndPeriods } from '@/pages/accounting/SetupPage';
 
 export function SettingsPage() {
-  const q = useQuery({ queryKey: ['settings'], queryFn: api.settings.get });
+  const can = useCan();
+  const [params, setParams] = useSearchParams();
+  const canCompany = can('settings:manage');
+  const canBooks = can('ledger:read');
+  const tab =
+    params.get('tab') === 'currencies' && canBooks
+      ? 'currencies'
+      : canCompany
+        ? 'company'
+        : 'currencies';
+
   return (
-    <RequirePerm perm="settings:manage">
+    <RequirePerm anyOf={['settings:manage', 'ledger:read']}>
       <PageHeader
         title="Settings"
-        description="Company details on invoices, bank accounts shown to partners, and booking rules."
+        description={
+          tab === 'currencies'
+            ? 'PKR is the default currency for the books and the public website. Add a conversion rate for each foreign currency; the latest rate is used on vouchers and on the website.'
+            : 'Company details on invoices, bank accounts shown to partners, and booking rules.'
+        }
       />
-      {q.error ? (
-        <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      ) : !q.data ? (
-        <Spinner className="py-20" />
-      ) : (
-        <SettingsForm initial={q.data} />
+      {canCompany && canBooks && (
+        <SegmentedControl
+          className="mb-5"
+          value={tab}
+          onChange={(v) => setParams(v === 'currencies' ? { tab: 'currencies' } : {})}
+          items={[
+            { value: 'company', label: 'Company' },
+            { value: 'currencies', label: 'Currencies & periods' },
+          ]}
+        />
       )}
+      {tab === 'currencies' ? <CurrenciesAndPeriods /> : <CompanySettings />}
     </RequirePerm>
   );
+}
+
+function CompanySettings() {
+  const q = useQuery({ queryKey: ['settings'], queryFn: api.settings.get });
+  if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (!q.data) return <Spinner className="py-20" />;
+  return <SettingsForm initial={q.data} />;
 }
 
 function SettingsForm({ initial }: { initial: SettingsDto }) {

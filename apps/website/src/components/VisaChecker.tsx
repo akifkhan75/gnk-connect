@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileCheck, ArrowRight, CheckCircle2, Clock, Shield, Sparkles, Search } from 'lucide-react';
+import { pkr } from '../constants';
+import { useCurrency } from '../context/CurrencyContext';
 
 export interface VisaRequirement {
   destination: string;
@@ -20,7 +22,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '3 - 4 Working Days',
     validity: '30 / 60 Days',
     entryType: 'Single Entry',
-    price: '$150',
+    price: pkr(150),
     requirements: [
       'Original Passport scan (Minimum 6 months validity)',
       'Passport size photograph with white background',
@@ -36,7 +38,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '24 - 48 Hours',
     validity: '90 Days / 1 Year Multiple',
     entryType: 'Multiple Entry',
-    price: '$180',
+    price: pkr(180),
     requirements: [
       'Valid Passport scan (Minimum 6 months validity)',
       'Recent high-resolution digital photograph',
@@ -52,7 +54,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '5 - 7 Working Days',
     validity: '60 Days',
     entryType: 'Single Entry',
-    price: '$80',
+    price: pkr(80),
     requirements: [
       'Original Passport with at least 2 blank pages',
       '2 Recent Photographs (3.5 x 4.5 cm, white background)',
@@ -68,7 +70,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '15 - 20 Working Days',
     validity: 'As per itinerary (Up to 90 Days)',
     entryType: 'Single / Multiple Entry',
-    price: '$200',
+    price: pkr(200),
     requirements: [
       'Complete embassy dossier prepared by GNK specialists',
       '6-Month verified bank statement & tax returns (NTN / FBR)',
@@ -86,7 +88,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '2 - 3 Working Days',
     validity: '30 Days',
     entryType: 'Single Entry',
-    price: '$75',
+    price: pkr(75),
     requirements: [
       'Passport bio-page scan',
       'Studio photograph (35x50mm, white background)',
@@ -101,7 +103,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '3 - 5 Working Days',
     validity: '30 Days',
     entryType: 'Single Entry',
-    price: '$90',
+    price: pkr(90),
     requirements: [
       'Passport bio-page scan (6 months validity)',
       'White background digital photograph',
@@ -116,7 +118,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
     processingTime: '4 - 5 Working Days',
     validity: '30 / 90 Days',
     entryType: 'Single / Multiple Entry',
-    price: '$65',
+    price: pkr(65),
     requirements: [
       'Passport scan (JPEG/PDF)',
       'Digital passport-style portrait',
@@ -129,6 +131,7 @@ export const VISA_DATA: Record<string, VisaRequirement> = {
 export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string) => void }> = ({
   onApply,
 }) => {
+  const { formatPrice } = useCurrency();
   const [selectedCountry, setSelectedCountry] = useState<string>('uae');
   const visa = VISA_DATA[selectedCountry] || VISA_DATA['uae'];
 
@@ -136,7 +139,7 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
     if (onApply) {
       onApply(
         `${visa.destination} (${visa.type})`,
-        `Inquiring for ${visa.destination} visa. Type: ${visa.type}, Price: ${visa.price}, Processing: ${visa.processingTime}.`,
+        `Inquiring for ${visa.destination} visa. Type: ${visa.type}, Price: ${formatPrice(visa.price)}, Processing: ${visa.processingTime}.`,
       );
     }
   };
@@ -196,7 +199,9 @@ export const VisaChecker: React.FC<{ onApply?: (visaTitle: string, notes: string
                   <h4 className="text-xl sm:text-2xl font-bold text-white">{visa.destination}</h4>
                 </div>
                 <div className="text-right">
-                  <span className="text-2xl font-bold text-cyan-400">{visa.price}</span>
+                  <span className="text-2xl font-bold text-cyan-400">
+                    {formatPrice(visa.price)}
+                  </span>
                   <span className="text-[10px] text-gray-400 block">Service & Fee</span>
                 </div>
               </div>

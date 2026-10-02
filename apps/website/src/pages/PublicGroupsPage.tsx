@@ -31,7 +31,7 @@ export const PublicGroupsPage: React.FC = () => {
       <PageHero
         eyebrow="Fixed group departures"
         title="Group tickets and Umrah, with guaranteed seats"
-        subtitle="Fixed dates from Lahore, Islamabad, Karachi and Peshawar to Jeddah, Madinah, Dubai and Riyadh. Message our team for today's fares."
+        subtitle="Fixed dates from Lahore, Islamabad, Karachi and Peshawar to Jeddah, Madinah, Dubai and Riyadh. Sign in as a partner to see fares and book seats."
       >
         <HeroSearch
           value={query}

@@ -10,7 +10,11 @@ import { mockPrisma, staff } from './test/helpers';
 describe('HTTP integration', () => {
   it('health returns ok when the database answers', async () => {
     const prisma = mockPrisma();
-    const ctrl = new PublicController(prisma as never, { get: () => undefined } as never);
+    const ctrl = new PublicController(
+      prisma as never,
+      { get: () => undefined } as never,
+      { publicRates: async () => ({ base: 'PKR', currencies: [] }) } as never,
+    );
     await expect(ctrl.health()).resolves.toEqual({ status: 'ok' });
   });
 

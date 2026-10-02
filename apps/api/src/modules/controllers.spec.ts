@@ -72,8 +72,9 @@ describe('controllers delegate to services', () => {
       assign: fn(),
       setNotes: fn(),
       revealPassport: fn(),
+      addPassengers: fn(),
     };
-    const p = new PartnerBookingsController(bookings as never);
+    const p = new PartnerBookingsController(bookings as never, { get: fn() } as never);
     await p.list(partner(), { page: 1, pageSize: 25, tab: 'all' } as never);
     await p.counts(partner());
     await p.get(partner(), 'id');
@@ -243,6 +244,8 @@ describe('controllers delegate to services', () => {
       create: fn().mockResolvedValue({ id: 'a1' }),
       get: fn(),
       update: fn(),
+      remove: fn(),
+      setOpening: fn(),
     };
     const vouchers = {
       list: fn(),
@@ -257,7 +260,18 @@ describe('controllers delegate to services', () => {
       reverse: fn(),
       remove: fn(),
     };
-    const reports = { accountLedger: fn(), trialBalance: fn(), incomeStatement: fn() };
+    const reports = {
+      accountLedger: fn(),
+      trialBalance: fn(),
+      incomeStatement: fn(),
+      balanceSheet: fn(),
+      sales: fn(),
+      commission: fn(),
+      salesByPartner: fn(),
+      salesBySupplier: fn(),
+      expenses: fn(),
+      cashBank: fn(),
+    };
     const currencies = {
       currencies: fn(),
       saveCurrency: fn().mockResolvedValue({ code: 'USD' }),
@@ -280,6 +294,8 @@ describe('controllers delegate to services', () => {
     await accounting.accountLedger('id', {} as never);
     await accounting.createAccount(staff(), {} as never, meta);
     await accounting.updateAccount(staff(), 'id', {} as never, meta);
+    await accounting.setOpeningBalance(staff(), 'id', { amount: 100 } as never, meta);
+    await accounting.deleteAccount(staff(), 'id', meta);
     await accounting.list({} as never);
     await accounting.counts();
     await accounting.get(staff(), 'id');
@@ -293,6 +309,13 @@ describe('controllers delegate to services', () => {
     await accounting.remove(staff(), 'id', meta);
     await accounting.trialBalance({} as never);
     await accounting.incomeStatement({} as never);
+    await accounting.balanceSheet({} as never);
+    await accounting.sales(staff(), {} as never);
+    await accounting.commission(staff(), {} as never);
+    await accounting.salesByPartner(staff(), {} as never);
+    await accounting.salesBySupplier(staff(), {} as never);
+    await accounting.expenses({} as never);
+    await accounting.cashBank({} as never);
     await accounting.currencyList();
     await accounting.saveCurrency(staff(), { code: 'USD' } as never, meta);
     await accounting.rates();

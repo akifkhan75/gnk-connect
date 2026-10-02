@@ -202,7 +202,8 @@ await step('chart of accounts is seeded with system accounts', async () => {
 });
 
 await step('a SAR supplier payable account and a manual rate', async () => {
-  const group = accounts.find((a) => a.code === '2100');
+  const payable = accounts.find((a) => a.systemKey === 'SUPPLIER_PAYABLE');
+  const group = accounts.find((a) => a.id === payable.parentId);
   sarAccount = await finance.ok('POST', '/admin/accounting/accounts', {
     code: `21${RUN}`.slice(0, 8),
     name: `Al Haram Hotels (SAR) ${RUN}`,
@@ -272,6 +273,12 @@ await step('trial balance balances', async () => {
   assert.equal(tb.totalDebit, tb.totalCredit);
   const pl = await finance.ok('GET', '/admin/accounting/reports/income-statement');
   assert.equal(typeof pl.netProfit, 'number');
+  const bs = await finance.ok('GET', '/admin/accounting/reports/balance-sheet');
+  assert.equal(typeof bs.totalAssets, 'number');
+  const sales = await finance.ok('GET', '/admin/accounting/reports/sales');
+  assert.ok(Array.isArray(sales.rows));
+  const cash = await finance.ok('GET', '/admin/accounting/reports/cash-bank');
+  assert.ok(Array.isArray(cash.accounts));
 });
 
 await step('unbalanced and group-account vouchers are refused', async () => {
@@ -291,7 +298,8 @@ await step('unbalanced and group-account vouchers are refused', async () => {
   assert.equal(sub.status, 400);
   assert.equal(sub.body.code, 'VOUCHER_UNBALANCED');
   await finance.ok('DELETE', `/admin/accounting/vouchers/${draft.id}`);
-  const group = accounts.find((a) => a.code === '1100');
+  const cashAcct = accounts.find((a) => a.systemKey === 'CASH');
+  const group = accounts.find((a) => a.id === cashAcct.parentId);
   const grp = await finance.call('POST', '/admin/accounting/vouchers', {
     type: 'PAYMENT',
     date: today(),
@@ -385,7 +393,7 @@ await step('admin approves into a chosen account and a receipt is issued (live)'
   const cash = accounts.find((a) => a.systemKey === 'CASH');
   const v = await admin.ok('POST', `/admin/payments/${payment.id}/verify`, { depositAccountId: cash.id });
   assert.equal(v.status, 'VERIFIED');
-  assert.equal(v.depositAccount.code, '1110');
+  assert.equal(v.depositAccount.code, cash.code);
   assert.match(v.receipt.number, /^RV-/);
   await stream.waitFor((e) => e.topic === 'payment' && e.id === payment.id);
   await stream.waitFor((e) => e.topic === 'notification');

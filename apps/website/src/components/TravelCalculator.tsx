@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Calculator, Moon, Map, Globe, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
-import { BRAND_NAME } from '../constants';
+import { BRAND_NAME, pkr } from '../constants';
+import { useCurrency } from '../context/CurrencyContext';
 
 interface TravelCalculatorProps {
   onBookEstimate: (summary: string, estimatedPrice: number) => void;
@@ -11,6 +12,7 @@ type HotelTier = 'standard' | 'premium' | 'luxury';
 type TransportMode = 'shared' | 'sedan' | 'vip';
 
 const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) => {
+  const { formatPrice } = useCurrency();
   const [category, setCategory] = useState<TripCategory>('umrah');
   const [hotelTier, setHotelTier] = useState<HotelTier>('luxury');
   const [duration, setDuration] = useState<number>(10);
@@ -51,11 +53,14 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
     const accommodationTotal = basePerDayPerPerson * duration * adults;
     const totalUSD = accommodationTotal + transportTotal + addOns;
     const perPersonUSD = Math.round(totalUSD / adults);
+    const totalPkr = Number(pkr(totalUSD));
+    const perPersonPkr = Number(pkr(perPersonUSD));
 
     return {
       totalUSD,
       perPersonUSD,
-      pkrEstimate: totalUSD * 280, // Approx conversion
+      totalPkr,
+      perPersonPkr,
     };
   }, [
     category,
@@ -88,8 +93,8 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
           ? 'Private Sedan'
           : 'Shared AC Coach';
 
-    const summary = `${categoryName} (${duration} Days, ${adults} Adults) with ${hotelName} accommodations and ${transportName}. Estimated Total: $${estimate.totalUSD.toLocaleString()}`;
-    onBookEstimate(summary, estimate.totalUSD);
+    const summary = `${categoryName} (${duration} Days, ${adults} Adults) with ${hotelName} accommodations and ${transportName}. Estimated Total: ${formatPrice(estimate.totalPkr)}`;
+    onBookEstimate(summary, estimate.totalPkr);
   };
 
   return (
@@ -345,12 +350,10 @@ const TravelCalculator: React.FC<TravelCalculatorProps> = ({ onBookEstimate }) =
                   Estimated Total Package Price
                 </span>
                 <div className="text-white text-[30px] leading-[1.1] sm:text-[40px] font-semibold tracking-[-0.03em]">
-                  ${estimate.totalUSD.toLocaleString()}{' '}
-                  <span className="text-xs font-normal text-gray-400">USD</span>
+                  {formatPrice(estimate.totalPkr)}
                 </div>
                 <div className="text-xs text-cyan-400 font-medium mt-1">
-                  (~${estimate.perPersonUSD.toLocaleString()} per person / Rs.{' '}
-                  {estimate.pkrEstimate.toLocaleString()})
+                  ({formatPrice(estimate.perPersonPkr)} per person)
                 </div>
               </div>
             </div>

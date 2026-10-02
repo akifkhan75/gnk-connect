@@ -52,15 +52,24 @@ const model = () => ({
   aggregate: jest.fn().mockResolvedValue({ _sum: {} }),
 });
 
-export type PrismaMock = ReturnType<typeof mockPrisma>;
+type PrismaModelMock = ReturnType<typeof model>;
 
-export function mockPrisma() {
-  const prisma: Record<string, unknown> = {
+export type PrismaMock = Record<string, PrismaModelMock> & {
+  $connect: jest.Mock;
+  $disconnect: jest.Mock;
+  $queryRaw: jest.Mock;
+  $executeRaw: jest.Mock;
+  $transaction: jest.Mock;
+};
+
+export function mockPrisma(): PrismaMock {
+  const prisma = {
     $connect: jest.fn(),
     $disconnect: jest.fn(),
     $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
     $executeRaw: jest.fn().mockResolvedValue(1),
-  };
+    $transaction: jest.fn(),
+  } as unknown as PrismaMock;
   const names = [
     'partnerAccount',
     'partnerUser',
@@ -103,12 +112,11 @@ export function mockPrisma() {
     'setting',
   ];
   for (const name of names) prisma[name] = model();
-  const self = prisma as PrismaMock;
-  self.$transaction = jest.fn(async (arg: unknown) => {
-    if (typeof arg === 'function') return (arg as (tx: PrismaMock) => unknown)(self);
+  prisma.$transaction = jest.fn(async (arg: unknown) => {
+    if (typeof arg === 'function') return (arg as (tx: PrismaMock) => unknown)(prisma);
     return Promise.all(arg as Promise<unknown>[]);
   });
-  return self;
+  return prisma;
 }
 
 export function resStub() {

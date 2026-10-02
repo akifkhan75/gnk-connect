@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check, X, Sparkles } from 'lucide-react';
+import { pkr } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
 
 interface PackageComparisonProps {
@@ -67,7 +68,7 @@ export const PackageComparison: React.FC<PackageComparisonProps> = ({ onSelectPa
               <th className="py-4 px-4 text-xs font-bold text-ink-3 w-1/3">Package Feature</th>
               <th className="py-4 px-4 text-center">
                 <span className="block font-bold text-ink text-base">Economy Package</span>
-                <span className="text-xs font-bold text-cyan-600">{formatPrice(950)}</span>
+                <span className="text-xs font-bold text-cyan-600">{formatPrice(pkr(950))}</span>
                 <span className="text-[10px] text-gray-400 block">15 Days</span>
               </th>
               <th className="py-4 px-4 text-center bg-brand-soft/70 rounded-t-2xl border-t-2 border-x-2 border-cyan-400">
@@ -75,12 +76,12 @@ export const PackageComparison: React.FC<PackageComparisonProps> = ({ onSelectPa
                   Most Popular
                 </span>
                 <span className="block font-bold text-ink text-base">Executive VIP</span>
-                <span className="text-xs font-bold text-brand-ink">{formatPrice(1800)}</span>
+                <span className="text-xs font-bold text-brand-ink">{formatPrice(pkr(1800))}</span>
                 <span className="text-[10px] text-ink-3 block">10 Days</span>
               </th>
               <th className="py-4 px-4 text-center">
                 <span className="block font-bold text-ink text-base">Premium Group</span>
-                <span className="text-xs font-bold text-cyan-600">{formatPrice(1200)}</span>
+                <span className="text-xs font-bold text-cyan-600">{formatPrice(pkr(1200))}</span>
                 <span className="text-[10px] text-gray-400 block">21 Days</span>
               </th>
             </tr>
@@ -137,7 +138,7 @@ export const PackageComparison: React.FC<PackageComparisonProps> = ({ onSelectPa
               <td className="py-4 px-4 text-center">
                 <button
                   type="button"
-                  onClick={() => onSelectPackage('Economy Package ($950)')}
+                  onClick={() => onSelectPackage(`Economy Package (${formatPrice(pkr(950))})`)}
                   className="w-full py-2 px-3 rounded-full border border-navy-900 text-ink text-sm font-bold hover:bg-navy-900 hover:text-white transition-all"
                 >
                   Choose Economy
@@ -146,7 +147,9 @@ export const PackageComparison: React.FC<PackageComparisonProps> = ({ onSelectPa
               <td className="py-4 px-4 text-center bg-brand-soft/70 rounded-b-2xl border-b-2 border-x-2 border-cyan-400">
                 <button
                   type="button"
-                  onClick={() => onSelectPackage('Executive VIP Package ($1,800)')}
+                  onClick={() =>
+                    onSelectPackage(`Executive VIP Package (${formatPrice(pkr(1800))})`)
+                  }
                   className="w-full py-2.5 px-3 rounded-full bg-brand hover:bg-brand text-white text-sm font-bold transition-all shadow-md shadow-cyan-500/20"
                 >
                   Book Executive VIP
@@ -155,7 +158,9 @@ export const PackageComparison: React.FC<PackageComparisonProps> = ({ onSelectPa
               <td className="py-4 px-4 text-center">
                 <button
                   type="button"
-                  onClick={() => onSelectPackage('Premium Group Package ($1,200)')}
+                  onClick={() =>
+                    onSelectPackage(`Premium Group Package (${formatPrice(pkr(1200))})`)
+                  }
                   className="w-full py-2 px-3 rounded-full border border-navy-900 text-ink text-sm font-bold hover:bg-navy-900 hover:text-white transition-all"
                 >
                   Choose Premium Group

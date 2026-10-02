@@ -95,7 +95,7 @@ const CorporatePage: React.FC = () => {
   const [eventType, setEventType] = useState('Annual Company Retreat (Northern Pakistan)');
   const [headcount, setHeadcount] = useState('25 - 50 Pax');
   const [targetDate, setTargetDate] = useState('');
-  const [budgetPerPerson, setBudgetPerPerson] = useState('$500 - $1,000');
+  const [budgetPerPerson, setBudgetPerPerson] = useState('Rs. 168,000 – 336,000 (Executive)');
   const [additionalRequirements, setAdditionalRequirements] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -443,10 +443,16 @@ const CorporatePage: React.FC = () => {
                   onChange={(e) => setBudgetPerPerson(e.target.value)}
                   className="w-full bg-canvas border border-line rounded-xl px-3 py-2.5 text-xs font-bold text-ink outline-none focus:ring-2 focus:ring-cyan-500"
                 >
-                  <option value="$300 - $600 (Economy)">$300 - $600 / person</option>
-                  <option value="$600 - $1,200 (Executive)">$600 - $1,200 / person</option>
-                  <option value="$1,200 - $2,500 (VIP Luxury)">$1,200 - $2,500 / person</option>
-                  <option value="$2,500+ (Custom Deluxe)">$2,500+ / person</option>
+                  <option value="Rs. 84,000 – 168,000 (Economy)">
+                    Rs. 84,000 – 168,000 / person
+                  </option>
+                  <option value="Rs. 168,000 – 336,000 (Executive)">
+                    Rs. 168,000 – 336,000 / person
+                  </option>
+                  <option value="Rs. 336,000 – 700,000 (VIP Luxury)">
+                    Rs. 336,000 – 700,000 / person
+                  </option>
+                  <option value="Rs. 700,000+ (Custom Deluxe)">Rs. 700,000+ / person</option>
                 </select>
               </div>
             </div>

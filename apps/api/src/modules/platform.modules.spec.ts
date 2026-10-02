@@ -108,12 +108,13 @@ describe('CatalogService', () => {
     expect(page.items[0].price).toBe(195000);
 
     prisma.product.findMany.mockResolvedValue([
-      { sector: 'LHE-JED', airline: 'SV', type: 'GROUP' },
+      { sector: 'LHE-JED', airline: 'SV', type: 'GROUP', durationDays: 14 },
     ]);
     expect(await catalog.filters()).toEqual({
       sectors: ['LHE-JED'],
       airlines: ['SV'],
       types: ['GROUP'],
+      durations: [14],
     });
 
     prisma.product.findFirst.mockResolvedValue({
@@ -532,8 +533,13 @@ describe('dashboards + public', () => {
   it('serves health and chat', async () => {
     const prisma = mockPrisma();
     const config = { get: jest.fn().mockReturnValue(undefined) };
-    const pub = new PublicController(prisma as never, config as never);
+    const pub = new PublicController(
+      prisma as never,
+      config as never,
+      { publicRates: jest.fn().mockResolvedValue({ base: 'PKR', currencies: [] }) } as never,
+    );
     await expect(pub.health()).resolves.toEqual({ status: 'ok' });
+    await expect(pub.currenciesList()).resolves.toEqual({ base: 'PKR', currencies: [] });
     await expect(pub.chat({ messages: [{ role: 'user', text: 'hi' }] })).rejects.toThrow(
       /not available/,
     );

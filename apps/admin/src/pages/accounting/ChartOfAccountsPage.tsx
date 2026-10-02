@@ -1,32 +1,42 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Download, Lock, Network, Plus } from 'lucide-react';
-import { ApiError } from '@gnk/api-client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  BookOpen,
+  ChevronRight,
+  Download,
+  Lock,
+  LockKeyhole,
+  MoreHorizontal,
+  Network,
+  Pencil,
+  Plus,
+  Trash2,
+  Unlock,
+} from 'lucide-react';
 import type { AccountClass, ChartAccountDto } from '@gnk/types';
 import { todayPk } from '@gnk/validation';
 import {
-  Alert,
   Badge,
   Button,
   Card,
   Checkbox,
+  ConfirmDialog,
   DataTable,
-  Dialog,
-  Drawer,
+  DropdownContent,
+  DropdownItem,
+  DropdownMenu,
+  DropdownSeparator,
+  DropdownTrigger,
   EmptyState,
   ErrorState,
-  Field,
-  Input,
   PageHeader,
+  Pagination,
   SearchInput,
   SegmentedControl,
   Select,
-  Spinner,
-  StatCard,
-  Textarea,
   cn,
-  formatDate,
+  filterPage,
   useToast,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
@@ -34,15 +44,20 @@ import { downloadCsv } from '@/lib/csv';
 import { useCan } from '@/lib/useCan';
 import { DrCr } from '@/components/AccountPicker';
 import { RequirePerm } from '@/components/guards';
+import { AccountFormDialog } from './AccountFormDialog';
 
-const CLASSES: { value: AccountClass | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: 'All' },
+const CATEGORIES: { value: AccountClass | 'ALL'; label: string }[] = [
+  { value: 'ALL', label: 'All categories' },
   { value: 'ASSET', label: 'Assets' },
   { value: 'LIABILITY', label: 'Liabilities' },
   { value: 'EQUITY', label: 'Equity' },
   { value: 'INCOME', label: 'Income' },
   { value: 'EXPENSE', label: 'Expenses' },
 ];
+
+type CoaView = 'tree' | 'flat';
+type StatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE';
+type KindFilter = 'ALL' | 'POSTABLE' | 'GROUP';
 
 export function ChartOfAccountsPage() {
   return (
@@ -59,59 +74,137 @@ interface Row extends ChartAccountDto {
 
 function Chart() {
   const can = useCan();
+  const navigate = useNavigate();
   const q = useQuery({
     queryKey: ['accounting', 'accounts'],
     queryFn: () => api.accounting.accounts(),
   });
-  const [cls, setCls] = useState<AccountClass | 'ALL'>('ALL');
+  const [view, setView] = useState<CoaView>('tree');
   const [search, setSearch] = useState('');
+  const [cls, setCls] = useState<AccountClass | 'ALL'>('ALL');
+  const [status, setStatus] = useState<StatusFilter>('ALL');
+  const [kind, setKind] = useState<KindFilter>('ALL');
+  const [currency, setCurrency] = useState('ALL');
+  const [showSystem, setShowSystem] = useState(true);
+  const [page, setPage] = useState(1);
   // Partner receivables can be many: keep 1200 collapsed until asked.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(['AR']));
-  const [ledgerOf, setLedgerOf] = useState<ChartAccountDto | null>(null);
   const [editing, setEditing] = useState<ChartAccountDto | 'new' | null>(null);
+  const [confirm, setConfirm] = useState<{
+    account: ChartAccountDto;
+    action: 'deactivate' | 'lock' | 'delete';
+  } | null>(null);
+  const qc = useQueryClient();
+  const toast = useToast();
+
+  const byId = useMemo(() => new Map((q.data ?? []).map((a) => [a.id, a])), [q.data]);
+  const currencies = useMemo(
+    () => [...new Set((q.data ?? []).map((a) => a.currency))].sort(),
+    [q.data],
+  );
+
+  const matches = useMemo(() => {
+    const all = q.data ?? [];
+    const s = search.trim().toLowerCase();
+    return all.filter((a) => {
+      if (cls !== 'ALL' && a.class !== cls) return false;
+      if (status === 'ACTIVE' && !a.isActive) return false;
+      if (status === 'INACTIVE' && a.isActive) return false;
+      if (kind === 'POSTABLE' && a.isGroup) return false;
+      if (kind === 'GROUP' && !a.isGroup) return false;
+      if (currency !== 'ALL' && a.currency !== currency) return false;
+      if (!showSystem && a.systemKey) return false;
+      if (s) {
+        const parent = a.parentId ? byId.get(a.parentId) : undefined;
+        const hay = [a.code, a.name, a.class, parent?.code, parent?.name]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(s)) return false;
+      }
+      return true;
+    });
+  }, [q.data, byId, cls, status, kind, currency, showSystem, search]);
 
   const rows = useMemo<Row[]>(() => {
-    const all = q.data ?? [];
+    if (view === 'flat') {
+      return [...matches]
+        .sort((a, b) => a.code.localeCompare(b.code) || a.name.localeCompare(b.name))
+        .map((a) => ({ ...a, depth: 0, hasChildren: false }));
+    }
+
+    const visible = new Map(matches.map((a) => [a.id, a]));
+    for (const a of matches) {
+      let p = a.parentId ? byId.get(a.parentId) : undefined;
+      while (p && !visible.has(p.id)) {
+        visible.set(p.id, p);
+        p = p.parentId ? byId.get(p.parentId) : undefined;
+      }
+    }
     const children = new Map<string | null, ChartAccountDto[]>();
-    for (const a of all) children.set(a.parentId, [...(children.get(a.parentId) ?? []), a]);
+    for (const a of visible.values()) {
+      const parentKey = a.parentId && visible.has(a.parentId) ? a.parentId : null;
+      children.set(parentKey, [...(children.get(parentKey) ?? []), a]);
+    }
+    for (const list of children.values()) list.sort((a, b) => a.code.localeCompare(b.code));
     const out: Row[] = [];
-    const s = search.trim().toLowerCase();
     const walk = (parent: string | null, depth: number) => {
       for (const a of children.get(parent) ?? []) {
-        if (cls !== 'ALL' && a.class !== cls) continue;
         const kids = children.get(a.id) ?? [];
-        const match = !s || a.code.toLowerCase().includes(s) || a.name.toLowerCase().includes(s);
-        if (match) out.push({ ...a, depth: s ? 0 : depth, hasChildren: kids.length > 0 });
+        out.push({ ...a, depth, hasChildren: kids.length > 0 });
         const isCollapsed =
           collapsed.has(a.id) || (a.systemKey === 'AR_CONTROL' && collapsed.has('AR'));
-        if (s || !isCollapsed) walk(a.id, depth + 1);
+        if (!isCollapsed) walk(a.id, depth + 1);
       }
     };
     walk(null, 0);
     return out;
-  }, [q.data, cls, search, collapsed]);
+  }, [matches, byId, collapsed, view]);
 
+  const hasFilters =
+    !!search.trim() ||
+    cls !== 'ALL' ||
+    status !== 'ALL' ||
+    kind !== 'ALL' ||
+    currency !== 'ALL' ||
+    !showSystem;
+  const clearFilters = () => {
+    setSearch('');
+    setCls('ALL');
+    setStatus('ALL');
+    setKind('ALL');
+    setCurrency('ALL');
+    setShowSystem(true);
+    setPage(1);
+  };
+  const paged =
+    view === 'flat'
+      ? filterPage(rows, { page, pageSize: 25 })
+      : { items: rows, page: 1, pageSize: rows.length || 25, total: rows.length };
+
+  const collapseKey = (a: ChartAccountDto) => (a.systemKey === 'AR_CONTROL' ? 'AR' : a.id);
   const toggle = (a: Row) =>
     setCollapsed((c) => {
       const n = new Set(c);
-      const key = a.systemKey === 'AR_CONTROL' ? 'AR' : a.id;
+      const key = collapseKey(a);
       if (n.has(key)) n.delete(key);
       else n.add(key);
       return n;
     });
-  const isOpen = (a: Row) => !collapsed.has(a.systemKey === 'AR_CONTROL' ? 'AR' : a.id);
-
-  const totals = useMemo(() => {
-    const roots = (q.data ?? []).filter((a) => !a.parentId);
-    const by = (c: AccountClass) =>
-      roots.filter((a) => a.class === c).reduce((s, a) => s + a.balance, 0);
-    return {
-      assets: by('ASSET'),
-      liabilities: -by('LIABILITY'),
-      income: -by('INCOME'),
-      expenses: by('EXPENSE'),
-    };
-  }, [q.data]);
+  const isOpen = (a: Row) => !collapsed.has(collapseKey(a));
+  const expandAll = () => setCollapsed(new Set());
+  const collapseAll = () => {
+    const ids = new Set<string>();
+    for (const a of q.data ?? []) {
+      if (a.systemKey === 'AR_CONTROL') ids.add('AR');
+      else if ((q.data ?? []).some((x) => x.parentId === a.id)) ids.add(a.id);
+    }
+    setCollapsed(ids);
+  };
+  const parentLabel = (a: ChartAccountDto) => {
+    const p = a.parentId ? byId.get(a.parentId) : undefined;
+    return p ? `${p.code} ${p.name}` : '—';
+  };
 
   return (
     <>
@@ -120,6 +213,18 @@ function Chart() {
         description="Every account the books use. Groups organise the tree; you post to the accounts inside them."
         actions={
           <>
+            <SegmentedControl
+              size="sm"
+              value={view}
+              onChange={(v) => {
+                setView(v);
+                setPage(1);
+              }}
+              items={[
+                { value: 'tree', label: 'Hierarchy' },
+                { value: 'flat', label: 'Flat' },
+              ]}
+            />
             <Button
               variant="secondary"
               onClick={() =>
@@ -133,6 +238,7 @@ function Chart() {
                     'Balance (Dr+/Cr-)',
                     'Foreign balance',
                     'Active',
+                    'Locked',
                   ],
                   ...(q.data ?? []).map((a) => [
                     a.code,
@@ -143,6 +249,7 @@ function Chart() {
                     a.balance,
                     a.fcBalance ?? '',
                     a.isActive ? 'yes' : 'no',
+                    a.isLocked ? 'yes' : 'no',
                   ]),
                 ])
               }
@@ -157,456 +264,371 @@ function Chart() {
           </>
         }
       />
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Assets" value={<DrCr value={totals.assets} />} />
-        <StatCard label="Liabilities" value={<DrCr value={-totals.liabilities} />} />
-        <StatCard label="Income to date" value={<DrCr value={-totals.income} />} />
-        <StatCard label="Expenses to date" value={<DrCr value={totals.expenses} />} />
-      </div>
       <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-border/70 p-4">
-          <SegmentedControl value={cls} onChange={setCls} items={CLASSES} />
-          <SearchInput
-            className="ml-auto w-full max-w-xs"
-            placeholder="Code or name"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="space-y-3 border-b border-border/70 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput
+              className="min-w-[16rem] flex-1"
+              placeholder="Search code, name, parent, category..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+            <Select
+              className="w-40 shrink-0"
+              value={cls}
+              onChange={(e) => {
+                setCls(e.target.value as AccountClass | 'ALL');
+                setPage(1);
+              }}
+              aria-label="Category"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+            <Select
+              className="w-36 shrink-0"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value as StatusFilter);
+                setPage(1);
+              }}
+              aria-label="Status"
+            >
+              <option value="ALL">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </Select>
+            <Select
+              className="w-44 shrink-0"
+              value={kind}
+              onChange={(e) => {
+                setKind(e.target.value as KindFilter);
+                setPage(1);
+              }}
+              aria-label="Account type"
+            >
+              <option value="ALL">All account types</option>
+              <option value="POSTABLE">Postable only</option>
+              <option value="GROUP">Headers only</option>
+            </Select>
+            <Select
+              className="w-36 shrink-0"
+              value={currency}
+              onChange={(e) => {
+                setCurrency(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Currency"
+            >
+              <option value="ALL">All currencies</option>
+              {currencies.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <Checkbox
+              label="Show system accounts"
+              checked={showSystem}
+              onChange={(e) => {
+                setShowSystem(e.target.checked);
+                setPage(1);
+              }}
+            />
+            <div className="ml-auto flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              <span>
+                {matches.length === 0
+                  ? 'No accounts'
+                  : `Showing ${matches.length} of ${q.data?.length ?? 0}`}
+              </span>
+              {hasFilters && (
+                <Button variant="link" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
+        {view === 'tree' && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 px-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Hierarchy view — expand groups to see posting accounts
+            </p>
+            <div className="flex items-center gap-3">
+              <Button variant="link" size="sm" onClick={expandAll}>
+                Expand all
+              </Button>
+              <Button variant="link" size="sm" onClick={collapseAll}>
+                Collapse all
+              </Button>
+            </div>
+          </div>
+        )}
         {q.error ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         ) : (
-          <DataTable
-            rows={rows}
-            loading={q.isLoading}
-            rowKey={(a) => a.id}
-            onRowClick={(a) => (a.isGroup ? toggle(a) : setLedgerOf(a))}
-            rowClassName={(a) => (a.isActive ? undefined : 'opacity-50')}
-            empty={<EmptyState icon={<Network />} title="No accounts match" />}
-            columns={[
-              {
-                key: 'n',
-                header: 'Account',
-                cell: (a) => (
-                  <div className="flex items-center gap-2" style={{ paddingLeft: a.depth * 20 }}>
-                    {a.hasChildren ? (
-                      <ChevronRight
-                        className={cn(
-                          'size-3.5 shrink-0 text-muted-foreground transition-transform',
-                          isOpen(a) && 'rotate-90',
-                        )}
-                      />
-                    ) : (
-                      <span className="w-3.5 shrink-0" />
-                    )}
-                    <span className="tabular w-24 shrink-0 text-[12.5px] text-muted-foreground">
-                      {a.code}
-                    </span>
-                    <span className={cn('truncate', a.isGroup && 'font-semibold')}>{a.name}</span>
-                    {a.currency !== 'PKR' && (
-                      <Badge tone="gold" className="shrink-0">
-                        {a.currency}
-                      </Badge>
-                    )}
-                    {a.systemKey && (
-                      <Lock
-                        className="size-3 shrink-0 text-muted-foreground"
-                        aria-label="System account"
-                      />
-                    )}
-                    {a.systemKey === 'AR_CONTROL' && (
-                      <span className="text-xs text-muted-foreground">
-                        {(q.data ?? []).filter((x) => x.parentId === a.id).length} partners
-                      </span>
-                    )}
-                  </div>
-                ),
-              },
-              {
-                key: 'c',
-                header: 'Class',
-                hideBelow: 'md',
-                cell: (a) => <span className="text-muted-foreground">{a.class.toLowerCase()}</span>,
-              },
-              {
-                key: 'f',
-                header: 'Foreign balance',
-                align: 'right',
-                hideBelow: 'lg',
-                cell: (a) =>
-                  a.fcBalance != null ? <DrCr value={a.fcBalance} currency={a.currency} /> : '',
-              },
-              {
-                key: 'b',
-                header: 'Balance',
-                align: 'right',
-                cell: (a) => (
-                  <DrCr value={a.balance} className={a.isGroup ? 'font-semibold' : undefined} />
-                ),
-              },
-            ]}
-          />
-        )}
-      </Card>
-      <LedgerDrawer
-        account={ledgerOf}
-        onClose={() => setLedgerOf(null)}
-        onEdit={can('ledger:coa') ? (a) => setEditing(a) : undefined}
-      />
-      <AccountDialog account={editing} accounts={q.data ?? []} onClose={() => setEditing(null)} />
-    </>
-  );
-}
-
-const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
-
-function LedgerDrawer({
-  account,
-  onClose,
-  onEdit,
-}: {
-  account: ChartAccountDto | null;
-  onClose: () => void;
-  onEdit?: (a: ChartAccountDto) => void;
-}) {
-  const navigate = useNavigate();
-  const [range, setRange] = useState({ from: daysAgo(90), to: todayPk() });
-  const q = useQuery({
-    queryKey: ['accounting', 'account-ledger', account?.id, range],
-    queryFn: () => api.accounting.accountLedger(account!.id, range),
-    enabled: !!account,
-    placeholderData: keepPreviousData,
-  });
-  const fc = account && account.currency !== 'PKR';
-  const g = q.data;
-  return (
-    <Drawer
-      open={!!account}
-      onOpenChange={(o) => !o && onClose()}
-      width="max-w-4xl"
-      title={account ? `${account.code} · ${account.name}` : ''}
-      description={
-        account ? `${account.class.toLowerCase()} · kept in ${account.currency}` : undefined
-      }
-      footer={
-        account &&
-        onEdit && (
-          <Button variant="secondary" onClick={() => onEdit(account)}>
-            Edit account
-          </Button>
-        )
-      }
-    >
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Input
-          type="date"
-          className="w-auto"
-          value={range.from}
-          onChange={(e) => e.target.value && setRange((r) => ({ ...r, from: e.target.value }))}
-          aria-label="From"
-        />
-        <Input
-          type="date"
-          className="w-auto"
-          value={range.to}
-          onChange={(e) => e.target.value && setRange((r) => ({ ...r, to: e.target.value }))}
-          aria-label="To"
-        />
-      </div>
-      {!g ? (
-        <Spinner className="py-16" />
-      ) : (
-        <>
-          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard
-              label="Opening"
-              value={<DrCr value={g.opening} />}
-              hint={
-                fc && g.fcOpening != null ? (
-                  <DrCr value={g.fcOpening} currency={account!.currency} />
-                ) : undefined
-              }
-            />
-            <StatCard label="Debits" value={g.totalDebit.toLocaleString('en-PK')} />
-            <StatCard label="Credits" value={g.totalCredit.toLocaleString('en-PK')} />
-            <StatCard
-              label="Closing"
-              value={<DrCr value={g.closing} />}
-              hint={
-                fc && g.fcClosing != null ? (
-                  <DrCr value={g.fcClosing} currency={account!.currency} />
-                ) : undefined
-              }
-            />
-          </div>
-          <Card>
+          <>
             <DataTable
-              dense
-              rows={g.lines}
-              rowKey={(l) => `${l.voucherId}${l.debit}${l.credit}${l.narration}`}
-              onRowClick={(l) => navigate(`/accounting/vouchers/${l.voucherId}`)}
-              empty={<EmptyState title="No postings in this period" />}
+              rows={paged.items}
+              loading={q.isLoading}
+              rowKey={(a) => a.id}
+              onRowClick={(a) =>
+                view === 'tree' && a.isGroup
+                  ? toggle(a)
+                  : !a.isGroup
+                    ? navigate(`/accounting/accounts/${a.id}`)
+                    : undefined
+              }
+              rowClassName={(a) => (a.isActive && !a.isLocked ? undefined : 'opacity-50')}
+              empty={<EmptyState icon={<Network />} title="No accounts match" />}
               columns={[
-                { key: 'd', header: 'Date', cell: (l) => formatDate(l.date) },
                 {
-                  key: 'r',
-                  header: 'Voucher',
-                  cell: (l) => <span className="tabular">{l.reference}</span>,
-                },
-                {
-                  key: 'x',
-                  header: 'Narration',
-                  cell: (l) => (
-                    <div className="max-w-xs">
-                      <p className="truncate">{l.description}</p>
-                      {l.narration && (
-                        <p className="truncate text-xs text-muted-foreground">{l.narration}</p>
+                  key: 'n',
+                  header: 'Account',
+                  cell: (a) => (
+                    <div
+                      className="flex items-center gap-2"
+                      style={{ paddingLeft: view === 'tree' ? a.depth * 20 : 0 }}
+                    >
+                      {view === 'tree' ? (
+                        a.hasChildren ? (
+                          <ChevronRight
+                            className={cn(
+                              'size-3.5 shrink-0 text-muted-foreground transition-transform',
+                              isOpen(a) && 'rotate-90',
+                            )}
+                          />
+                        ) : (
+                          <span className="w-3.5 shrink-0" />
+                        )
+                      ) : null}
+                      <span className="tabular w-28 shrink-0 text-[12.5px] text-muted-foreground">
+                        {a.code}
+                      </span>
+                      <span className={cn('truncate', a.isGroup && 'font-semibold')}>{a.name}</span>
+                      {a.currency !== 'PKR' && (
+                        <Badge tone="gold" className="shrink-0">
+                          {a.currency}
+                        </Badge>
+                      )}
+                      {a.systemKey && (
+                        <Lock
+                          className="size-3 shrink-0 text-muted-foreground"
+                          aria-label="System account"
+                        />
+                      )}
+                      {a.systemKey === 'AR_CONTROL' && (
+                        <span className="text-xs text-muted-foreground">
+                          {(q.data ?? []).filter((x) => x.parentId === a.id).length} partners
+                        </span>
+                      )}
+                      {!a.isActive && (
+                        <Badge tone="neutral" className="shrink-0">
+                          Inactive
+                        </Badge>
+                      )}
+                      {a.isLocked && (
+                        <Badge tone="gold" className="shrink-0">
+                          Locked
+                        </Badge>
                       )}
                     </div>
                   ),
                 },
-                ...(fc
+                ...(view === 'flat'
                   ? [
                       {
-                        key: 'f',
-                        header: account!.currency,
-                        align: 'right' as const,
-                        cell: (l: (typeof g.lines)[number]) =>
-                          l.fcAmount != null
-                            ? `${l.debit ? '' : '−'}${l.fcAmount.toLocaleString('en-PK')} @ ${l.rate}`
-                            : '',
+                        key: 'p',
+                        header: 'Parent',
+                        cell: (a: Row) => (
+                          <span className="text-muted-foreground">{parentLabel(a)}</span>
+                        ),
                       },
                     ]
                   : []),
                 {
-                  key: 'dr',
-                  header: 'Debit',
-                  align: 'right',
-                  cell: (l) => (l.debit ? l.debit.toLocaleString('en-PK') : ''),
+                  key: 'c',
+                  header: 'Class',
+                  hideBelow: 'md',
+                  cell: (a) => (
+                    <span className="text-muted-foreground">{a.class.toLowerCase()}</span>
+                  ),
                 },
                 {
-                  key: 'cr',
-                  header: 'Credit',
+                  key: 'f',
+                  header: 'Foreign balance',
                   align: 'right',
-                  cell: (l) => (l.credit ? l.credit.toLocaleString('en-PK') : ''),
+                  hideBelow: 'lg',
+                  cell: (a) =>
+                    a.fcBalance != null ? <DrCr value={a.fcBalance} currency={a.currency} /> : '',
                 },
                 {
                   key: 'b',
                   header: 'Balance',
                   align: 'right',
-                  cell: (l) => <DrCr value={l.balance} currency="" />,
+                  cell: (a) => (
+                    <DrCr value={a.balance} className={a.isGroup ? 'font-semibold' : undefined} />
+                  ),
+                },
+                {
+                  key: 'a',
+                  header: '',
+                  align: 'right',
+                  cell: (a) => (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <AccountActions
+                        account={a}
+                        canManage={can('ledger:coa')}
+                        onView={() => navigate(`/accounting/accounts/${a.id}`)}
+                        onEdit={() => setEditing(a)}
+                        onConfirm={(action) => setConfirm({ account: a, action })}
+                        onActivate={async () => {
+                          await api.accounting.updateAccount(a.id, { isActive: true });
+                          void qc.invalidateQueries({ queryKey: ['accounting'] });
+                          toast.success('Account activated');
+                        }}
+                        onUnlock={async () => {
+                          await api.accounting.updateAccount(a.id, { isLocked: false });
+                          void qc.invalidateQueries({ queryKey: ['accounting'] });
+                          toast.success('Account unlocked');
+                        }}
+                      />
+                    </div>
+                  ),
                 },
               ]}
             />
-          </Card>
-        </>
-      )}
-    </Drawer>
+            {view === 'flat' && (
+              <Pagination
+                page={paged.page}
+                pageSize={paged.pageSize}
+                total={paged.total}
+                onChange={setPage}
+              />
+            )}
+          </>
+        )}
+      </Card>
+      <AccountFormDialog
+        account={editing}
+        accounts={q.data ?? []}
+        onClose={() => setEditing(null)}
+      />
+      <ConfirmDialog
+        open={confirm?.action === 'deactivate'}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Deactivate ${confirm?.account.code}?`}
+        description="It drops out of voucher pickers. Only accounts with a zero balance can be deactivated."
+        confirmLabel="Deactivate"
+        tone="danger"
+        onConfirm={async () => {
+          await api.accounting.updateAccount(confirm!.account.id, { isActive: false });
+          void qc.invalidateQueries({ queryKey: ['accounting'] });
+          toast.success('Account deactivated');
+        }}
+      />
+      <ConfirmDialog
+        open={confirm?.action === 'lock'}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Lock ${confirm?.account.code}?`}
+        description="No new postings can hit this account until it is unlocked. Existing balances stay as they are."
+        confirmLabel="Lock"
+        onConfirm={async () => {
+          await api.accounting.updateAccount(confirm!.account.id, { isLocked: true });
+          void qc.invalidateQueries({ queryKey: ['accounting'] });
+          toast.success('Account locked');
+        }}
+      />
+      <ConfirmDialog
+        open={confirm?.action === 'delete'}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Delete ${confirm?.account.code}?`}
+        description="Only accounts with no transactions and no children can be deleted. This cannot be undone."
+        confirmLabel="Delete account"
+        tone="danger"
+        onConfirm={async () => {
+          await api.accounting.deleteAccount(confirm!.account.id);
+          void qc.invalidateQueries({ queryKey: ['accounting'] });
+          toast.success('Account deleted');
+        }}
+      />
+    </>
   );
 }
 
-function AccountDialog({
+function AccountActions({
   account,
-  accounts,
-  onClose,
+  canManage,
+  onView,
+  onEdit,
+  onConfirm,
+  onActivate,
+  onUnlock,
 }: {
-  account: ChartAccountDto | 'new' | null;
-  accounts: ChartAccountDto[];
-  onClose: () => void;
+  account: ChartAccountDto;
+  canManage: boolean;
+  onView: () => void;
+  onEdit: () => void;
+  onConfirm: (action: 'deactivate' | 'lock' | 'delete') => void;
+  onActivate: () => Promise<void>;
+  onUnlock: () => Promise<void>;
 }) {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const editing = account && account !== 'new' ? account : null;
-  const currencies = useQuery({
-    queryKey: ['accounting', 'currencies'],
-    queryFn: api.accounting.currencies,
-  });
-  const groups = accounts.filter((a) => a.isGroup && a.isActive && a.systemKey !== 'AR_CONTROL');
-  const [form, setForm] = useState({
-    code: '',
-    name: '',
-    parentId: '',
-    isGroup: false,
-    currency: 'PKR',
-    description: '',
-    isActive: true,
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
-  const [openedFor, setOpenedFor] = useState<unknown>(null);
-  if (account !== openedFor) {
-    setOpenedFor(account);
-    setErrors({});
-    setError(undefined);
-    setForm(
-      editing
-        ? {
-            code: editing.code,
-            name: editing.name,
-            parentId: editing.parentId ?? '',
-            isGroup: editing.isGroup,
-            currency: editing.currency,
-            description: editing.description ?? '',
-            isActive: editing.isActive,
-          }
-        : {
-            code: '',
-            name: '',
-            parentId: '',
-            isGroup: false,
-            currency: 'PKR',
-            description: '',
-            isActive: true,
-          },
-    );
-  }
-  const parent = accounts.find((a) => a.id === form.parentId);
-  const managed = !!editing && (!!editing.systemKey || !!editing.partnerAccountId);
-
-  const save = async () => {
-    setBusy(true);
-    setErrors({});
-    setError(undefined);
-    try {
-      if (editing)
-        await api.accounting.updateAccount(editing.id, {
-          name: form.name,
-          ...(managed ? {} : { code: form.code, parentId: form.parentId || null }),
-          description: form.description,
-          isActive: form.isActive,
-        });
-      else
-        await api.accounting.createAccount({
-          code: form.code,
-          name: form.name,
-          class: parent?.class ?? 'ASSET',
-          parentId: form.parentId || null,
-          isGroup: form.isGroup,
-          currency: form.isGroup ? 'PKR' : form.currency,
-          description: form.description,
-        });
-      void qc.invalidateQueries({ queryKey: ['accounting'] });
-      toast.success(editing ? 'Account updated' : 'Account created');
-      onClose();
-    } catch (e) {
-      if (e instanceof ApiError) setErrors(e.fieldErrors);
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const managed = !!account.systemKey || !!account.partnerAccountId;
   return (
-    <Dialog
-      open={!!account}
-      onOpenChange={(o) => !o && onClose()}
-      title={editing ? `Edit ${editing.code}` : 'New account'}
-      description={
-        managed
-          ? 'System and partner accounts keep their code and place in the chart.'
-          : 'The class follows the group you put it under.'
-      }
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={save} loading={busy}>
-            {editing ? 'Save' : 'Create account'}
-          </Button>
-        </>
-      }
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        {error && !Object.keys(errors).length && (
-          <Alert tone="danger" className="sm:col-span-2">
-            {error}
-          </Alert>
-        )}
-        <Field
-          label="Under group"
-          required
-          className="sm:col-span-2"
-          error={errors.parentId || errors.class}
-        >
-          <Select
-            value={form.parentId}
-            disabled={managed}
-            onChange={(e) => setForm({ ...form, parentId: e.target.value })}
-          >
-            <option value="">Choose a group…</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id} disabled={g.id === editing?.id}>
-                {g.code} · {g.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field
-          label="Code"
-          required
-          error={errors.code}
-          hint={parent ? `Suggested: starts with ${parent.code.slice(0, 2)}` : undefined}
-        >
-          <Input
-            value={form.code}
-            disabled={managed}
-            onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-          />
-        </Field>
-        <Field label="Name" required error={errors.name}>
-          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        </Field>
-        {!editing && (
+    <DropdownMenu>
+      <DropdownTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${account.code}`}>
+          <MoreHorizontal />
+        </Button>
+      </DropdownTrigger>
+      <DropdownContent>
+        <DropdownItem onSelect={onView}>
+          <BookOpen /> View ledger
+        </DropdownItem>
+        {canManage && (
           <>
-            <Field
-              label="Currency"
-              error={errors.currency}
-              hint="Foreign accounts take amounts with a manual rate"
-            >
-              <Select
-                value={form.currency}
-                disabled={form.isGroup}
-                onChange={(e) => setForm({ ...form, currency: e.target.value })}
-              >
-                {(currencies.data ?? [{ code: 'PKR', name: 'Pakistani rupee', isActive: true }])
-                  .filter((c) => c.isActive)
-                  .map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.code} · {c.name}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-            <Field label="Type">
-              <div className="flex h-9 items-center">
-                <Checkbox
-                  label="Group (holds other accounts)"
-                  checked={form.isGroup}
-                  onChange={(e) => setForm({ ...form, isGroup: e.target.checked })}
-                />
-              </div>
-            </Field>
+            <DropdownItem onSelect={onEdit}>
+              <Pencil /> Edit
+            </DropdownItem>
+            <DropdownSeparator />
+            {account.systemKey ? null : account.isActive ? (
+              <DropdownItem danger onSelect={() => onConfirm('deactivate')}>
+                Deactivate
+              </DropdownItem>
+            ) : (
+              <DropdownItem onSelect={() => void onActivate()}>Activate</DropdownItem>
+            )}
+            {account.isLocked ? (
+              <DropdownItem onSelect={() => void onUnlock()}>
+                <Unlock /> Unlock
+              </DropdownItem>
+            ) : (
+              <DropdownItem onSelect={() => onConfirm('lock')}>
+                <LockKeyhole /> Lock
+              </DropdownItem>
+            )}
+            {!managed && (
+              <>
+                <DropdownSeparator />
+                <DropdownItem danger onSelect={() => onConfirm('delete')}>
+                  <Trash2 /> Delete
+                </DropdownItem>
+              </>
+            )}
           </>
         )}
-        <Field label="Description" className="sm:col-span-2">
-          <Textarea
-            rows={2}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </Field>
-        {editing && !editing.systemKey && (
-          <Field className="sm:col-span-2" error={errors.isActive}>
-            <Checkbox
-              label="Active (only accounts with a zero balance can be deactivated)"
-              checked={form.isActive}
-              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-            />
-          </Field>
-        )}
-      </div>
-    </Dialog>
+      </DropdownContent>
+    </DropdownMenu>
   );
 }

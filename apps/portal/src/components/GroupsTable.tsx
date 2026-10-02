@@ -122,7 +122,13 @@ export function GroupsTable({
           <StatusBadge status="SOLD_OUT" />
         ) : (
           <Button asChild size="sm" variant={canBook ? 'primary' : 'secondary'}>
-            <Link to={`/groups/${g.productId}?departure=${g.departureId}`}>
+            <Link
+              to={
+                canBook
+                  ? `/bookings/new?departure=${g.departureId}`
+                  : `/groups/${g.productId}?departure=${g.departureId}`
+              }
+            >
               {canBook ? 'Book' : 'View'} <ArrowRight />
             </Link>
           </Button>

@@ -1,17 +1,17 @@
 import React from 'react';
-import { Calendar, Luggage, MessageCircle, Plane } from 'lucide-react';
-import { CONTACT_INFO } from '../constants';
+import { Calendar, Lock, Luggage, Plane } from 'lucide-react';
+import { portalLink, portalLoginForGroup } from '../lib/links';
 import type { PublicGroup } from '../hooks/usePublicGroups';
 
 const fmt = (d: string) =>
   new Date(`${d}T00:00:00+05:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-/** Public group departure card: route-led, no prices (fares are quoted by our team or shown to agents). */
+/** Public group card: no fares. Agents sign in to see partner prices and book seats. */
 export const GroupCard: React.FC<{ group: PublicGroup }> = ({ group }) => {
   const [from, to] = (group.sector ?? '').split('-');
   const next = group.departures[0];
   const isUmrah = group.type === 'UMRAH';
-  const message = `Assalam-o-Alaikum GNK Connect, I'd like details and fares for "${group.title}"${next ? ` departing ${fmt(next.date)}` : ''}.`;
+  const loginHref = portalLoginForGroup(group.productId, next?.id);
 
   return (
     <article className="flex flex-col overflow-hidden rounded-3xl border border-line bg-surface transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-20px_rgb(11_26_51/0.35)]">
@@ -70,14 +70,23 @@ export const GroupCard: React.FC<{ group: PublicGroup }> = ({ group }) => {
             ))}
           </div>
         </div>
-        <a
-          href={`https://wa.me/${CONTACT_INFO.whatsapp}?text=${encodeURIComponent(message)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-full bg-ink px-4 text-[14px] font-semibold text-canvas transition-opacity hover:opacity-90"
-        >
-          <MessageCircle size={16} /> Ask for fares on WhatsApp
-        </a>
+        <div className="mt-auto space-y-2">
+          <a
+            href={loginHref}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-ink px-4 text-[14px] font-semibold text-canvas transition-opacity hover:opacity-90"
+          >
+            <Lock size={15} /> Login for price
+          </a>
+          <p className="text-center text-[12px] text-ink-3">
+            New agency?{' '}
+            <a
+              href={portalLink('/register')}
+              className="font-medium text-brand-ink hover:underline"
+            >
+              Sign up
+            </a>
+          </p>
+        </div>
       </div>
     </article>
   );

@@ -127,7 +127,7 @@ export class AdminDashboardController {
         : 0,
       has('payments:verify') ? this.prisma.payment.count({ where: { status: 'SUBMITTED' } }) : 0,
       has('ledger:jv_approve')
-        ? this.prisma.ledgerTransaction.count({ where: { status: 'SUBMITTED' } })
+        ? this.prisma.ledgerTransaction.count({ where: { status: 'SUBMITTED', type: 'JOURNAL' } })
         : 0,
     ]);
     return { partners, bookings, payments, vouchers };

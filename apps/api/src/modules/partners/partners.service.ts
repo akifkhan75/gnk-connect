@@ -336,6 +336,7 @@ export class PartnersService {
     pageSize: number;
     q?: string;
     status: string;
+    type?: 'AGENCY' | 'INDIVIDUAL' | 'ALL';
   }): Promise<Paginated<AdminPartnerListItem>> {
     const where: Prisma.PartnerAccountWhereInput = {
       deletedAt: null,
@@ -344,6 +345,7 @@ export class PartnersService {
         : q.status !== 'all'
           ? { status: q.status as PartnerAccountStatus }
           : {}),
+      ...(q.type && q.type !== 'ALL' ? { type: q.type } : {}),
       ...(q.q
         ? {
             OR: [

@@ -42,7 +42,9 @@ export function formatDate(
   const opts: Intl.DateTimeFormatOptions =
     style === 'weekday'
       ? { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ }
-      : { day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ };
+      : style === 'long'
+        ? { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ }
+        : { day: 'numeric', month: 'short', year: 'numeric', timeZone: TZ };
   return new Intl.DateTimeFormat('en-GB', opts).format(parse(value));
 }
 

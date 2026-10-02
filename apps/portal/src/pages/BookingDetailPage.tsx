@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useFieldArray, useForm } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, Plane, Ticket, Wallet, XCircle } from 'lucide-react';
+import { validatePassengerList, type PassengerInput } from '@gnk/validation';
 import type { TimelineItem } from '@gnk/ui';
 import {
   Alert,
   Breadcrumbs,
   Button,
+  Checkbox,
   Card,
   CardBody,
   CardHeader,
@@ -30,9 +33,17 @@ import {
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
 import { keys } from '@/lib/query';
-import { errorMessage } from '@/lib/forms';
+import {
+  applyFieldIssues,
+  applyServerErrors,
+  errorMessage,
+  focusFirstIssue,
+  passengerFormError,
+} from '@/lib/forms';
 import { FlightLeg } from '@/components/GroupsTable';
 import { can } from '@/components/guards';
+import { TealCard } from '@/components/TealCard';
+import { PassengerRows, blankPax, buildPassengers } from '@/components/PassengerEditor';
 
 // Where an active booking is in its journey. Closed states (rejected, cancelled) show no stepper.
 const PROGRESS = ['Requested', 'Approved', 'Issuing', 'Confirmed', 'Travelled'];
@@ -213,40 +224,58 @@ export function BookingDetailPage() {
             </CardBody>
           </Card>
 
-          <Card>
-            <CardHeader title={`Passengers (${b.passengers.length})`} />
-            <DataTable
-              rowKey={(p) => p.id}
-              rows={b.passengers}
-              columns={[
-                {
-                  key: 'n',
-                  header: 'Name',
-                  cell: (p) => (
-                    <span className="font-medium">{`${titleCase(p.title)} ${p.firstName} ${p.lastName}`}</span>
-                  ),
-                },
-                { key: 't', header: 'Type', hideBelow: 'sm', cell: (p) => titleCase(p.type) },
-                {
-                  key: 'dob',
-                  header: 'Date of birth',
-                  hideBelow: 'md',
-                  cell: (p) => formatDate(p.dateOfBirth),
-                },
-                {
-                  key: 'pp',
-                  header: 'Passport',
-                  cell: (p) => <span className="tabular">{p.passportMasked}</span>,
-                },
-                {
-                  key: 'exp',
-                  header: 'Expiry',
-                  hideBelow: 'md',
-                  cell: (p) => formatDate(p.passportExpiry),
-                },
-              ]}
+          {b.passengers.length === 0 &&
+          ['PENDING_APPROVAL', 'APPROVED'].includes(b.status) &&
+          can.book(session!.account.role) ? (
+            <AddPassengersForm
+              bookingId={b.id}
+              seats={b.seats}
+              departureDate={b.departureDate}
+              returnDate={b.returnDate ?? b.departureDate}
+              onAdded={(next) => qc.setQueryData(keys.booking(id), next)}
             />
-          </Card>
+          ) : (
+            <Card>
+              <CardHeader title={`Passengers (${b.passengers.length})`} />
+              {b.passengers.length === 0 ? (
+                <CardBody className="text-sm text-muted-foreground">
+                  Passenger names have not been added yet.
+                </CardBody>
+              ) : (
+                <DataTable
+                  rowKey={(p) => p.id}
+                  rows={b.passengers}
+                  columns={[
+                    {
+                      key: 'n',
+                      header: 'Name',
+                      cell: (p) => (
+                        <span className="font-medium">{`${titleCase(p.title)} ${p.firstName} ${p.lastName}`}</span>
+                      ),
+                    },
+                    { key: 't', header: 'Type', hideBelow: 'sm', cell: (p) => titleCase(p.type) },
+                    {
+                      key: 'dob',
+                      header: 'Date of birth',
+                      hideBelow: 'md',
+                      cell: (p) => formatDate(p.dateOfBirth),
+                    },
+                    {
+                      key: 'pp',
+                      header: 'Passport',
+                      cell: (p) => <span className="tabular">{p.passportMasked}</span>,
+                    },
+                    {
+                      key: 'exp',
+                      header: 'Expiry',
+                      hideBelow: 'md',
+                      cell: (p) => formatDate(p.passportExpiry),
+                    },
+                  ]}
+                />
+              )}
+            </Card>
+          )}
 
           {b.agentNotes && (
             <Card>
@@ -301,5 +330,99 @@ export function BookingDetailPage() {
         }}
       />
     </>
+  );
+}
+
+function AddPassengersForm({
+  bookingId,
+  seats,
+  departureDate,
+  returnDate,
+  onAdded,
+}: {
+  bookingId: string;
+  seats: number;
+  departureDate: string;
+  returnDate: string;
+  onAdded: (b: Awaited<ReturnType<typeof api.bookings.addPassengers>>) => void;
+}) {
+  const toast = useToast();
+  const [accepted, setAccepted] = useState(false);
+  const [formError, setFormError] = useState<string>();
+  const trip = { departureDate, returnDate };
+  const form = useForm<{ passengers: PassengerInput[] }>({
+    defaultValues: { passengers: Array.from({ length: seats }, () => blankPax()) },
+    mode: 'onTouched',
+  });
+  const { control, register, setValue, getValues, setError, clearErrors, formState } = form;
+  const { fields, replace } = useFieldArray({ control, name: 'passengers' });
+
+  useEffect(() => {
+    replace(buildPassengers(seats, 0, getValues('passengers')));
+  }, [seats, getValues, replace]);
+
+  const submit = useMutation({
+    mutationFn: (passengers: PassengerInput[]) =>
+      api.bookings.addPassengers(bookingId, { passengers }),
+    onSuccess: (booking) => {
+      toast.success('Passenger details saved');
+      onAdded(booking);
+    },
+    onError: (e) => setFormError(applyServerErrors(e, setError)),
+  });
+
+  const save = () => {
+    setFormError(undefined);
+    if (!accepted) {
+      setFormError('Confirm the information is accurate to continue.');
+      return;
+    }
+    const parsed = validatePassengerList(getValues('passengers'), seats, trip);
+    if (!parsed.ok) {
+      applyFieldIssues(parsed.issues, setError);
+      setFormError(passengerFormError(parsed.issues));
+      focusFirstIssue(parsed.issues);
+      return;
+    }
+    submit.mutate(parsed.data);
+  };
+
+  return (
+    <TealCard
+      title={
+        <span className="flex items-center gap-2">
+          Add passenger details
+          <span className="flex size-5 items-center justify-center rounded-full bg-white/20 text-[11px]">
+            {seats}
+          </span>
+        </span>
+      }
+    >
+      <p className="border-b px-5 py-3 text-sm text-muted-foreground">
+        Seats are already held. Scan a passport or type names as printed before ticketing. Date of
+        birth must match adult (12+) or child (2–11) on departure. Infants cannot be booked.
+      </p>
+      <PassengerRows
+        fields={fields}
+        register={register}
+        setValue={setValue}
+        getValues={getValues}
+        setError={setError}
+        clearErrors={clearErrors}
+        errors={formState.errors.passengers}
+        trip={trip}
+      />
+      <div className="space-y-3 border-t px-5 py-4">
+        <Checkbox
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          label="I confirm these names match the passports."
+        />
+        {formError && <p className="text-xs font-medium text-danger">{formError}</p>}
+        <Button onClick={save} loading={submit.isPending}>
+          Save passengers
+        </Button>
+      </div>
+    </TealCard>
   );
 }

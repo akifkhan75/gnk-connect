@@ -99,8 +99,12 @@ export class VouchersService {
     );
   }
 
-  async counts(): Promise<VoucherCounts> {
-    const groups = await this.prisma.ledgerTransaction.groupBy({ by: ['status'], _count: true });
+  async counts(type: string = 'all'): Promise<VoucherCounts> {
+    const groups = await this.prisma.ledgerTransaction.groupBy({
+      by: ['status'],
+      _count: true,
+      ...(type !== 'all' ? { where: { type: type as VoucherType } } : {}),
+    });
     const counts: VoucherCounts = { all: 0, DRAFT: 0, SUBMITTED: 0, POSTED: 0, REJECTED: 0 };
     for (const g of groups) {
       counts[g.status] = g._count;

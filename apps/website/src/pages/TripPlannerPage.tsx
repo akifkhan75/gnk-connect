@@ -18,6 +18,7 @@ import {
   Compass,
 } from 'lucide-react';
 
+import { pkr } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
 import { useToast } from '../context/ToastContext';
 import InquiryModal from '../components/InquiryModal';
@@ -185,7 +186,6 @@ const TripPlannerPage: React.FC = () => {
   const selectedTransportObj =
     TRANSPORT_MODES.find((t) => t.id === planner.transportMode) || TRANSPORT_MODES[0];
 
-  // Calculate estimated price per person in USD
   const baseRate = selectedCategoryObj.baseCostPerDay * selectedHotelObj.multiplier;
   const transportRate = selectedTransportObj.extraPerDay / Math.max(1, planner.travelersCount);
   const dailyRatePerPerson = baseRate + transportRate;
@@ -196,8 +196,8 @@ const TripPlannerPage: React.FC = () => {
     return acc + (item ? item.cost : 0);
   }, 0);
 
-  const totalPerPersonUSD = Math.round(hotelAndTransportTotal + addonsTotal);
-  const totalGroupUSD = totalPerPersonUSD * planner.travelersCount;
+  const totalPerPersonPkr = Number(pkr(hotelAndTransportTotal + addonsTotal));
+  const totalGroupPkr = totalPerPersonPkr * planner.travelersCount;
 
   const toggleDestination = (dest: string) => {
     setPlanner((prev) => {
@@ -248,7 +248,7 @@ const TripPlannerPage: React.FC = () => {
       .map((a) => ADDONS_LIST.find((item) => item.id === a)?.name)
       .filter(Boolean)
       .join(', ')}
-- Estimated Cost: ${formatPrice(totalPerPersonUSD)} / person (Group Total: ${formatPrice(totalGroupUSD)})`;
+- Estimated Cost: ${formatPrice(totalPerPersonPkr)} / person (Group Total: ${formatPrice(totalGroupPkr)})`;
   };
 
   return (
@@ -701,7 +701,7 @@ const TripPlannerPage: React.FC = () => {
                           <span
                             className={`text-[11px] font-bold ${isChecked ? 'text-cyan-300' : 'text-ink-3'}`}
                           >
-                            +{formatPrice(addon.cost)}
+                            +{formatPrice(pkr(addon.cost))}
                           </span>
                         </div>
                       );
@@ -770,10 +770,10 @@ const TripPlannerPage: React.FC = () => {
                         Projected Total
                       </span>
                       <span className="text-2xl sm:text-3xl font-bold text-cyan-400 block">
-                        {formatPrice(totalPerPersonUSD)}
+                        {formatPrice(totalPerPersonPkr)}
                       </span>
                       <span className="text-[10px] text-gray-300">
-                        per person (Group Total: {formatPrice(totalGroupUSD)})
+                        per person (Group Total: {formatPrice(totalGroupPkr)})
                       </span>
                     </div>
                   </div>

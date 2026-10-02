@@ -24,12 +24,16 @@ import {
   Field,
   Input,
   PageHeader,
+  Pagination,
   PasswordInput,
+  SearchInput,
   SegmentedControl,
   Select,
   StatusBadge,
+  filterPage,
   formatDate,
   formatRelative,
+  includesQ,
   useToast,
 } from '@gnk/ui';
 import { api, useAuth } from '@/lib/api';
@@ -56,7 +60,16 @@ function Team() {
     if (!inviteOpen && params.get('add')) setParams({}, { replace: true });
   }, [inviteOpen, params, setParams]);
   const [removing, setRemoving] = useState<TeamMemberDto | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
   const team = useQuery({ queryKey: keys.team, queryFn: api.team.get });
+  const members = filterPage(team.data?.members, {
+    q: search,
+    page,
+    match: (m, s) => includesQ(m.fullName, m.email, m.role).includes(s),
+    filter: (m) => statusFilter === 'all' || m.status === statusFilter,
+  });
   const myRole = session!.account.role;
   const assignable = (INVITABLE_ROLES as PartnerRole[]).filter(
     (r) => myRole === 'OWNER' || r !== 'MANAGER',
@@ -112,8 +125,32 @@ function Team() {
       <div className="space-y-6">
         <Card>
           <CardHeader title={`Members (${team.data?.members.length ?? 0})`} />
+          <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
+            <SearchInput
+              className="min-w-[14rem] flex-1"
+              placeholder="Search name or email"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+            <Select
+              className="w-36"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Status"
+            >
+              <option value="all">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="DISABLED">Disabled</option>
+            </Select>
+          </div>
           <DataTable
-            rows={team.data?.members}
+            rows={members.items}
             loading={team.isLoading}
             rowKey={(m) => m.userId}
             columns={[
@@ -211,6 +248,12 @@ function Team() {
                   ),
               },
             ]}
+          />
+          <Pagination
+            page={members.page}
+            pageSize={members.pageSize}
+            total={members.total}
+            onChange={setPage}
           />
         </Card>
 

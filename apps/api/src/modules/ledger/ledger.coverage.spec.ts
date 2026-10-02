@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { nextAccountCode } from '@gnk/validation';
 import { ChartService } from './chart.service';
 import { CurrenciesService } from './currencies.service';
 import { ReportsService } from './reports.service';
@@ -16,11 +17,36 @@ const account = {
   parentId: null,
   isGroup: false,
   isActive: true,
+  isLocked: false,
   systemKey: null,
   currency: 'PKR',
   description: null,
   accountId: null,
 };
+
+describe('nextAccountCode', () => {
+  it('pads a 4-digit parent so children start at a 7-digit …0001', () => {
+    expect(
+      nextAccountCode('1100', ['1000', '1100', '1110', '1120', '1121'], ['1110', '1120']),
+    ).toBe('1100001');
+  });
+
+  it('increments beside a 7-digit parent', () => {
+    expect(nextAccountCode('1100000', ['1100000'], [])).toBe('1100001');
+    expect(nextAccountCode('1100000', ['1100000', '1100001'], ['1100001'])).toBe('1100002');
+  });
+
+  it('skips codes already used elsewhere', () => {
+    expect(nextAccountCode('1100000', ['1100000', '1100001', '1100002'], [])).toBe('1100003');
+  });
+
+  it('appends -01 for non-numeric parents', () => {
+    expect(nextAccountCode('1200-AGT', ['1200-AGT'], [])).toBe('1200-AGT-01');
+    expect(nextAccountCode('1200-AGT', ['1200-AGT', '1200-AGT-01'], ['1200-AGT-01'])).toBe(
+      '1200-AGT-02',
+    );
+  });
+});
 
 describe('ChartService coverage', () => {
   const prisma = mockPrisma();
@@ -35,28 +61,88 @@ describe('ChartService coverage', () => {
     await svc.balance('a1');
     await svc.get('a1');
     prisma.currency.findUnique.mockResolvedValue({ isActive: true });
+    prisma.ledgerAccount.findUnique.mockResolvedValue({
+      ...account,
+      id: 'p1',
+      code: '1100',
+      isGroup: true,
+    });
+    prisma.ledgerAccount.findMany.mockResolvedValue([{ code: '1100', parentId: null }]);
     prisma.ledgerAccount.create.mockResolvedValue(account);
     await svc.create({
-      code: '1100',
       name: 'Bank',
       class: 'ASSET',
-      parentId: null,
+      parentId: 'p1',
       isGroup: true,
       currency: 'PKR',
     } as never);
     prisma.ledgerEntry.findFirst.mockResolvedValue(null);
-    await svc.update('a1', { name: 'Cash PKR' } as never);
+    await svc.update('a1', { name: 'Cash PKR', isLocked: true } as never);
+    prisma.ledgerAccount.count.mockResolvedValue(0);
+    prisma.ledgerAccount.delete.mockResolvedValue(account);
+    await svc.remove('a1');
+    prisma.ledgerAccount.findUnique.mockResolvedValue({ ...account, systemKey: 'CASH' });
+    await expect(svc.remove('a1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('posts an opening balance against Opening Balance Equity', async () => {
+    const ledger = { systemAccount: jest.fn(), post: jest.fn() };
+    const chart = new ChartService(prisma as never, ledger as never);
+    const parent = { ...account, id: 'p1', code: '1100', isGroup: true };
+    const created = { ...account, id: 'new', code: '1100001', parentId: 'p1', isGroup: false };
+    prisma.ledgerAccount.findUnique.mockResolvedValue(parent);
+    prisma.currency.findUnique.mockResolvedValue({ isActive: true });
+    prisma.ledgerAccount.findMany.mockResolvedValue([{ code: '1100', parentId: null }]);
+    prisma.ledgerAccount.create.mockResolvedValue(created);
+    ledger.systemAccount.mockResolvedValue({ id: 'eq', code: '3400' });
+    await chart.create(
+      {
+        name: 'Petty cash',
+        class: 'ASSET',
+        parentId: 'p1',
+        isGroup: false,
+        currency: 'PKR',
+        openingBalance: 500,
+      } as never,
+      'staff-1',
+    );
+    expect(ledger.post).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: 'JOURNAL',
+        createdById: 'staff-1',
+        lines: expect.arrayContaining([
+          expect.objectContaining({ ledgerAccountId: 'new', debit: 500 }),
+          expect.objectContaining({ ledgerAccountId: 'eq', credit: 500 }),
+        ]),
+      }),
+    );
+    prisma.ledgerAccount.findUnique.mockResolvedValue(created);
+    prisma.ledgerEntry.findFirst.mockResolvedValue(null);
+    prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
+    prisma.$queryRaw.mockResolvedValue([]);
+    await chart.setOpening('new', 250, 'staff-1');
+    prisma.ledgerEntry.findFirst.mockResolvedValue({ id: 'e1' });
+    await expect(chart.setOpening('new', 250, 'staff-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('rejects missing accounts and inactive currency', async () => {
     prisma.ledgerAccount.findUnique.mockResolvedValue(null);
     await expect(svc.get('x')).rejects.toBeInstanceOf(NotFoundException);
     prisma.currency.findUnique.mockResolvedValue({ isActive: false });
+    prisma.ledgerAccount.findUnique.mockResolvedValue({
+      ...account,
+      id: 'p1',
+      code: '1100',
+      isGroup: true,
+    });
     await expect(
       svc.create({
-        code: '1',
         name: 'X',
         class: 'ASSET',
+        parentId: 'p1',
         isGroup: true,
         currency: 'USD',
       } as never),
@@ -97,6 +183,27 @@ describe('CurrenciesService coverage', () => {
     await svc.reopenPeriod('2020-01');
   });
 
+  it('exposes active rates for the public website and rejects a PKR rate', async () => {
+    prisma.currency.findMany.mockResolvedValue([
+      { code: 'PKR', name: 'Rupee', symbol: 'Rs', isActive: true },
+      { code: 'USD', name: 'Dollar', symbol: '$', isActive: true },
+      { code: 'EUR', name: 'Euro', symbol: '€', isActive: true },
+    ]);
+    prisma.exchangeRate.findMany.mockResolvedValue([
+      { currency: 'USD', rate: D(278), date: new Date('2026-01-01'), createdAt: new Date() },
+    ]);
+    await expect(svc.publicRates()).resolves.toEqual({
+      base: 'PKR',
+      currencies: [
+        { code: 'PKR', name: 'Rupee', symbol: 'Rs', rate: 1 },
+        { code: 'USD', name: 'Dollar', symbol: '$', rate: 278 },
+      ],
+    });
+    await expect(
+      svc.addRate({ currency: 'PKR', rate: 1, date: '2026-01-01', note: null } as never, 'su-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('blocks deactivating PKR and current-month close', async () => {
     await expect(
       svc.saveCurrency({ code: 'PKR', name: 'Rupee', isActive: false } as never),
@@ -123,6 +230,19 @@ describe('ReportsService coverage', () => {
     prisma.$queryRaw.mockResolvedValue([]);
     const pnl = await svc.incomeStatement('2026-01-01', '2026-01-31');
     expect(pnl.netProfit).toBe(0);
+    const bs = await svc.balanceSheet('2026-01-31');
+    expect(bs.totalAssets).toBe(0);
+    prisma.booking.findMany.mockResolvedValue([]);
+    const sales = await svc.sales('2026-01-01', '2026-01-31', true);
+    expect(sales.bookings).toBe(0);
+    expect((await svc.commission('2026-01-01', '2026-01-31')).rows).toEqual([]);
+    expect((await svc.salesByPartner('2026-01-01', '2026-01-31')).rows).toEqual([]);
+    expect((await svc.salesBySupplier('2026-01-01', '2026-01-31')).rows).toEqual([]);
+    const exp = await svc.expenses('2026-01-01', '2026-01-31');
+    expect(exp.total).toBe(0);
+    prisma.ledgerAccount.findMany.mockResolvedValue([]);
+    const cash = await svc.cashBank('2026-01-01', '2026-01-31');
+    expect(cash.accounts).toEqual([]);
     prisma.ledgerAccount.findUnique.mockResolvedValue(null);
     await expect(svc.accountLedger('x')).rejects.toBeInstanceOf(NotFoundException);
   });

@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { SupplierError } from '@gnk/suppliers';
 import { BookingsService } from './bookings.service';
@@ -241,6 +246,55 @@ describe('BookingsService', () => {
       meta,
     );
     expect(created.id).toBe('b2');
+  });
+
+  it('rejects passengers that fail AirDesk booking checks', async () => {
+    const { svc, prisma } = service();
+    prisma.booking.findUnique.mockResolvedValueOnce(null);
+    prisma.priceQuote.findUnique.mockResolvedValue({
+      id: 'q1',
+      accountId: 'acc-1',
+      consumedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      seats: 1,
+      departureId: 'd1',
+      supplierNet: D(90000),
+      markup: D(10000),
+      unitPrice: D(100000),
+      totalPrice: D(100000),
+      breakdown: {},
+    });
+    prisma.departure.findUniqueOrThrow.mockResolvedValue({
+      id: 'd1',
+      productId: 'p1',
+      returnDate: new Date('2026-12-01'),
+      departureDate: new Date('2026-11-01'),
+      product: { supplierId: 's1', sector: 'LHE-JED', title: 'LHE-JED' },
+    });
+    await expect(
+      svc.create(
+        partner(),
+        {
+          quoteId: 'q1',
+          passengers: [
+            {
+              type: 'ADULT',
+              title: 'MR',
+              firstName: 'Ali',
+              lastName: 'Khan',
+              gender: 'MALE',
+              dateOfBirth: '2018-01-01',
+              nationality: 'PK',
+              passportNumber: 'AB1234567',
+              passportExpiry: '2030-01-01',
+            },
+          ],
+        },
+        'good-key-3',
+        meta,
+      ),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('rejects bad create inputs', async () => {

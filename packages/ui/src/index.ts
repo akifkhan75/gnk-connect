@@ -1,4 +1,5 @@
 export { cn } from './lib/cn';
+export { filterPage, includesQ } from './lib/list';
 export * from './lib/format';
 export * from './theme/ThemeProvider';
 export * from './theme/ThemeToggle';

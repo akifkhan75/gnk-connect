@@ -20,11 +20,15 @@ import {
   ErrorState,
   Field,
   Input,
+  Pagination,
   PasswordInput,
+  SearchInput,
   SegmentedControl,
   Select,
   StatusBadge,
+  filterPage,
   formatRelative,
+  includesQ,
   titleCase,
   useToast,
 } from '@gnk/ui';
@@ -51,6 +55,15 @@ export function PartnerUsers({
   });
   const [adding, setAdding] = useState(false);
   const [resetting, setResetting] = useState<AdminPartnerUserDto | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
+  const list = filterPage(q.data?.users, {
+    q: search,
+    page,
+    match: (u, s) => includesQ(u.fullName, u.email, u.role).includes(s),
+    filter: (u) => status === 'all' || u.status === status,
+  });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['partner-users', accountId] });
     void qc.invalidateQueries({ queryKey: ['partner', accountId] });
@@ -87,12 +100,37 @@ export function PartnerUsers({
           )
         }
       />
+      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-4 py-3">
+        <SearchInput
+          className="min-w-[14rem] flex-1"
+          placeholder="Search name or email"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-36"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Status"
+        >
+          <option value="all">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INVITED">Invited</option>
+          <option value="DISABLED">Disabled</option>
+        </Select>
+      </div>
       {q.error ? (
         <ErrorState error={q.error} />
       ) : (
         <DataTable
           dense
-          rows={q.data?.users}
+          rows={list.items}
           loading={q.isLoading}
           rowKey={(u) => u.userId}
           columns={[
@@ -188,6 +226,7 @@ export function PartnerUsers({
           ]}
         />
       )}
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
       {!!q.data?.invites.length && (
         <div className="border-t border-border/70 px-4 py-3">
           <p className="mb-2 text-[12px] font-medium text-muted-foreground">Pending invites</p>

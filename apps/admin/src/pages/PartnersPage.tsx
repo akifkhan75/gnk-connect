@@ -12,6 +12,7 @@ import {
   PageHeader,
   Pagination,
   SearchInput,
+  Select,
   StatusBadge,
   Tabs,
   formatDate,
@@ -43,6 +44,7 @@ function Partners() {
   const q = {
     status: params.get('status') ?? 'PENDING',
     q: params.get('q') || undefined,
+    type: params.get('type') || undefined,
     page: Number(params.get('page') ?? 1),
     pageSize: 25,
   };
@@ -86,13 +88,23 @@ function Partners() {
             }))}
           />
         </div>
-        <div className="border-b p-4">
+        <div className="flex flex-wrap items-center gap-2 border-b p-4">
           <SearchInput
             placeholder="Name, code, email or city"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="max-w-md"
+            className="min-w-[16rem] flex-1"
           />
+          <Select
+            className="w-40 shrink-0"
+            value={q.type ?? 'ALL'}
+            onChange={(e) => set('type', e.target.value === 'ALL' ? undefined : e.target.value)}
+            aria-label="Type"
+          >
+            <option value="ALL">All types</option>
+            <option value="AGENCY">Agency</option>
+            <option value="INDIVIDUAL">Individual</option>
+          </Select>
         </div>
         {list.error ? (
           <ErrorState error={list.error} onRetry={() => list.refetch()} />

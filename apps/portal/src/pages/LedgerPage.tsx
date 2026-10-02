@@ -11,8 +11,12 @@ import {
   Input,
   Money,
   PageHeader,
+  Pagination,
+  SearchInput,
   StatCard,
+  filterPage,
   formatDate,
+  includesQ,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
 import { keys } from '@/lib/query';
@@ -33,12 +37,19 @@ export function LedgerPage() {
 
 function Ledger() {
   const [range, setRange] = useState({ from: daysAgo(90), to: todayPk() });
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const q = useQuery({
     queryKey: keys.statement(range),
     queryFn: () => api.ledger.statement(range),
     placeholderData: keepPreviousData,
   });
   const s = q.data;
+  const list = filterPage(s?.lines, {
+    q: search,
+    page,
+    match: (l, q) => includesQ(l.reference, l.description, l.narration).includes(q),
+  });
 
   const exportCsv = () =>
     s &&
@@ -97,7 +108,11 @@ function Ledger() {
               type="date"
               value={range.from}
               max={range.to}
-              onChange={(e) => e.target.value && setRange((r) => ({ ...r, from: e.target.value }))}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setRange((r) => ({ ...r, from: e.target.value }));
+                setPage(1);
+              }}
             />
           </label>
           <label className="grid gap-1 text-xs text-muted-foreground">
@@ -107,7 +122,11 @@ function Ledger() {
               value={range.to}
               min={range.from}
               max={todayPk()}
-              onChange={(e) => e.target.value && setRange((r) => ({ ...r, to: e.target.value }))}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                setRange((r) => ({ ...r, to: e.target.value }));
+                setPage(1);
+              }}
             />
           </label>
           <div className="flex gap-1">
@@ -116,18 +135,30 @@ function Ledger() {
                 key={d}
                 variant="ghost"
                 size="sm"
-                onClick={() => setRange({ from: daysAgo(d), to: todayPk() })}
+                onClick={() => {
+                  setRange({ from: daysAgo(d), to: todayPk() });
+                  setPage(1);
+                }}
               >
                 {d === 365 ? '1 year' : `${d} days`}
               </Button>
             ))}
           </div>
+          <SearchInput
+            className="min-w-[16rem] flex-1"
+            placeholder="Search reference or description"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
         {q.error ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         ) : (
           <DataTable
-            rows={s?.lines}
+            rows={list.items}
             loading={q.isLoading}
             rowKey={(l) => l.reference + l.date + l.debit + l.credit}
             empty={<EmptyState icon={<ScrollText />} title="No transactions in this period" />}
@@ -143,7 +174,11 @@ function Ledger() {
                 hideBelow: 'md',
                 cell: (l) => <span className="tabular text-muted-foreground">{l.reference}</span>,
               },
-              { key: 'x', header: 'Description', cell: (l) => l.description },
+              {
+                key: 'x',
+                header: 'Description',
+                cell: (l) => [l.description, l.narration].filter(Boolean).join(' — '),
+              },
               {
                 key: 'dr',
                 header: 'Debit',
@@ -165,6 +200,12 @@ function Ledger() {
             ]}
           />
         )}
+        <Pagination
+          page={list.page}
+          pageSize={list.pageSize}
+          total={list.total}
+          onChange={setPage}
+        />
       </Card>
     </>
   );

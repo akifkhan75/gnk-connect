@@ -6,6 +6,7 @@ import { loginSchema, type LoginInput } from '@gnk/validation';
 import { ApiError } from '@gnk/api-client';
 import { Alert, Button, Field, Input, PasswordInput } from '@gnk/ui';
 import { useAuth } from '@/lib/api';
+import { safeInternalPath } from '@/lib/redirect';
 import { PortalAuthLayout } from '@/components/PortalAuthLayout';
 
 export function LoginPage() {
@@ -24,8 +25,10 @@ export function LoginPage() {
     setError(undefined);
     try {
       await login(values.email, values.password);
-      const from = (location.state as { from?: string } | null)?.from;
-      navigate(from && from !== '/login' ? from : '/', { replace: true });
+      const from =
+        safeInternalPath(params.get('next')) ??
+        safeInternalPath((location.state as { from?: string } | null)?.from);
+      navigate(from ?? '/', { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not sign in. Please try again.');
     }
@@ -38,7 +41,14 @@ export function LoginPage() {
       footer={
         <>
           New to GNK Connect?{' '}
-          <Link to="/register" className="font-medium text-link hover:underline">
+          <Link
+            to={
+              safeInternalPath(params.get('next'))
+                ? `/register?next=${encodeURIComponent(params.get('next')!)}`
+                : '/register'
+            }
+            className="font-medium text-link hover:underline"
+          >
             Become a partner
           </Link>
         </>

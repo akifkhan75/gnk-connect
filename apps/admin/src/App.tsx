@@ -33,13 +33,10 @@ const SettingsPage = page(() => import('@/pages/SettingsPage'), 'SettingsPage');
 const ProfilePage = page(() => import('@/pages/ProfilePage'), 'ProfilePage');
 const InvoicePage = page(() => import('@/pages/InvoicePage'), 'InvoicePage');
 const VouchersPage = page(() => import('@/pages/accounting/VouchersPage'), 'VouchersPage');
-const VoucherEditorPage = page(
-  () => import('@/pages/accounting/VoucherEditorPage'),
-  'VoucherEditorPage',
-);
-const VoucherDetailPage = page(
-  () => import('@/pages/accounting/VoucherDetailPage'),
-  'VoucherDetailPage',
+const ReceiptsPage = page(() => import('@/pages/accounting/ReceiptsPage'), 'ReceiptsPage');
+const VoucherDeepLink = page(
+  () => import('@/pages/accounting/voucher-overlays'),
+  'VoucherDeepLink',
 );
 const VoucherPrintPage = page(
   () => import('@/pages/accounting/VoucherDetailPage'),
@@ -48,6 +45,10 @@ const VoucherPrintPage = page(
 const ChartOfAccountsPage = page(
   () => import('@/pages/accounting/ChartOfAccountsPage'),
   'ChartOfAccountsPage',
+);
+const AccountLedgerPage = page(
+  () => import('@/pages/accounting/AccountLedgerPage'),
+  'AccountLedgerPage',
 );
 const ReportsPage = page(() => import('@/pages/accounting/ReportsPage'), 'ReportsPage');
 const SetupPage = page(() => import('@/pages/accounting/SetupPage'), 'SetupPage');
@@ -85,11 +86,16 @@ const router = createBrowserRouter([
           { path: 'ledger', element: <LedgerPage /> },
           { path: 'ledger/:accountId', element: <StatementPage /> },
           { path: 'accounting/vouchers', element: <VouchersPage /> },
-          { path: 'accounting/vouchers/new', element: <VoucherEditorPage /> },
-          { path: 'accounting/vouchers/:id', element: <VoucherDetailPage /> },
-          { path: 'accounting/vouchers/:id/edit', element: <VoucherEditorPage /> },
+          { path: 'accounting/vouchers/new', element: <VoucherDeepLink /> },
+          { path: 'accounting/vouchers/:id', element: <VoucherDeepLink /> },
+          { path: 'accounting/vouchers/:id/edit', element: <VoucherDeepLink /> },
+          { path: 'accounting/receipts', element: <ReceiptsPage /> },
+          { path: 'accounting/receipts/new', element: <VoucherDeepLink /> },
+          { path: 'accounting/receipts/:id', element: <VoucherDeepLink /> },
+          { path: 'accounting/receipts/:id/edit', element: <VoucherDeepLink /> },
           { path: 'accounting/accounts', element: <ChartOfAccountsPage /> },
-          { path: 'accounting/reports', element: <ReportsPage /> },
+          { path: 'accounting/accounts/:id', element: <AccountLedgerPage /> },
+          { path: 'accounting/reports/:kind?', element: <ReportsPage /> },
           { path: 'accounting/setup', element: <SetupPage /> },
           { path: 'staff', element: <StaffPage /> },
           { path: 'audit', element: <AuditPage /> },

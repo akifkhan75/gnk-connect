@@ -38,6 +38,8 @@ export const adminPartnerListSchema = z.object({
   status: z
     .enum([...PARTNER_ACCOUNT_STATUSES, 'PENDING', 'all'] as [string, ...string[]])
     .default('all'),
+  type: z.enum(['AGENCY', 'INDIVIDUAL', 'ALL']).optional(),
+  balance: z.enum(['ALL', 'OWING', 'CREDIT', 'ZERO']).optional(),
 });
 
 export const PARTNER_REVIEW_ACTIONS = [

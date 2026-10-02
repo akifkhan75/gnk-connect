@@ -19,7 +19,12 @@ import type {
   Paginated,
 } from '@gnk/types';
 import type { z } from 'zod';
-import type { adminBookingListSchema, bookingListSchema, PassengerInput } from '@gnk/validation';
+import {
+  checkBookingPassengers,
+  type adminBookingListSchema,
+  type bookingListSchema,
+  type PassengerInput,
+} from '@gnk/validation';
 
 type BookingListInput = z.output<typeof bookingListSchema>;
 type AdminBookingListInput = z.output<typeof adminBookingListSchema>;
@@ -192,30 +197,14 @@ export class BookingsService {
         message: 'This price quote has expired. Get a new quote.',
         code: 'QUOTE_EXPIRED',
       });
-    if (quote.seats !== dto.passengers.length) {
-      throw new UnprocessableEntityException(
-        `Enter details for exactly ${quote.seats} passenger${quote.seats > 1 ? 's' : ''}`,
-      );
-    }
-
     const departure = await this.prisma.departure.findUniqueOrThrow({
       where: { id: quote.departureId },
       include: { product: true },
     });
-    const returnDate = isoDate(departure.returnDate ?? departure.departureDate)!;
-    const expiring = dto.passengers.findIndex(
-      (p) => (p.passportExpiry as string) < addMonths(returnDate, 6),
-    );
-    if (expiring >= 0) {
-      throw new UnprocessableEntityException({
-        message: 'Passports must be valid for 6 months after the return date',
-        code: 'VALIDATION_FAILED',
-        errors: [
-          {
-            path: `passengers.${expiring}.passportExpiry`,
-            message: 'Must be valid 6 months after return',
-          },
-        ],
+    if (dto.passengers.length) {
+      assertPassengers(dto.passengers, quote.seats, {
+        departureDate: isoDate(departure.departureDate)!,
+        returnDate: isoDate(departure.returnDate ?? departure.departureDate)!,
       });
     }
 
@@ -259,20 +248,11 @@ export class BookingsService {
           status: 'PENDING_APPROVAL',
           idempotencyKey,
           agentNotes: dto.agentNotes,
-          passengers: {
-            create: dto.passengers.map((p) => ({
-              type: p.type,
-              title: p.title,
-              firstName: p.firstName.toUpperCase(),
-              lastName: p.lastName.toUpperCase(),
-              gender: p.gender,
-              dateOfBirth: new Date(`${p.dateOfBirth}T00:00:00Z`),
-              nationality: p.nationality.toUpperCase(),
-              passportNumberEnc: this.crypto.encrypt(p.passportNumber.toUpperCase()),
-              passportLast4: p.passportNumber.toUpperCase().slice(-4),
-              passportExpiry: new Date(`${p.passportExpiry}T00:00:00Z`),
-            })),
-          },
+          passengers: dto.passengers.length
+            ? {
+                create: dto.passengers.map((p) => this.passengerRow(p)),
+              }
+            : undefined,
           statusHistory: {
             create: { to: 'PENDING_APPROVAL', actorRealm: 'PARTNER', actorId: actor.userId },
           },
@@ -300,6 +280,55 @@ export class BookingsService {
     });
     await this.changed(booking.id, booking.accountId);
     return this.partnerGet(actor, booking.id);
+  }
+
+  /** Names added after a seat hold. Only when the booking was created without passengers. */
+  async addPassengers(
+    actor: PartnerActor,
+    id: string,
+    passengers: PassengerInput[],
+    meta: RequestMeta,
+  ): Promise<BookingDetailDto> {
+    const b = await this.prisma.booking.findFirst({
+      where: { id, ...this.partnerScope(actor) },
+      include: { passengers: true, departure: true },
+    });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (!['PENDING_APPROVAL', 'APPROVED'].includes(b.status))
+      throw new ConflictException('Passenger names can no longer be added on this booking');
+    if (b.passengers.length) throw new ConflictException('Passengers are already on this booking');
+    assertPassengers(passengers, b.seats, {
+      departureDate: isoDate(b.departure.departureDate)!,
+      returnDate: isoDate(b.departure.returnDate ?? b.departure.departureDate)!,
+    });
+    await this.prisma.passenger.createMany({
+      data: passengers.map((p) => ({ bookingId: b.id, ...this.passengerRow(p) })),
+    });
+    await this.audit.log({
+      actor: { realm: 'PARTNER', userId: actor.userId },
+      action: 'booking.passengers.add',
+      entityType: 'Booking',
+      entityId: id,
+      after: { seats: b.seats },
+      meta,
+    });
+    await this.changed(b.id, b.accountId);
+    return this.partnerGet(actor, b.id);
+  }
+
+  private passengerRow(p: PassengerInput) {
+    return {
+      type: p.type,
+      title: p.title,
+      firstName: p.firstName.toUpperCase(),
+      lastName: p.lastName.toUpperCase(),
+      gender: p.gender,
+      dateOfBirth: new Date(`${p.dateOfBirth}T00:00:00Z`),
+      nationality: p.nationality.toUpperCase(),
+      passportNumberEnc: this.crypto.encrypt(p.passportNumber.toUpperCase()),
+      passportLast4: p.passportNumber.toUpperCase().slice(-4),
+      passportExpiry: new Date(`${p.passportExpiry}T00:00:00Z`),
+    };
   }
 
   async partnerCancel(actor: PartnerActor, id: string, reason: string, meta: RequestMeta) {
@@ -1026,8 +1055,17 @@ export class BookingsService {
   }
 }
 
-function addMonths(isoDay: string, months: number) {
-  const d = new Date(`${isoDay}T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + months);
-  return d.toISOString().slice(0, 10);
+function assertPassengers(
+  passengers: PassengerInput[],
+  seats: number,
+  trip: { departureDate: string; returnDate: string },
+) {
+  const issues = checkBookingPassengers(passengers, seats, trip);
+  if (!issues.length) return;
+  const headline = issues.find((i) => i.path === 'passengers')?.message;
+  throw new UnprocessableEntityException({
+    message: headline ?? 'Some passenger details are invalid',
+    code: 'VALIDATION_FAILED',
+    errors: issues.map(({ path, message, code }) => ({ path, message, code })),
+  });
 }

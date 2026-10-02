@@ -7,8 +7,14 @@ import type {
   CurrencyDto,
   ExchangeRateDto,
   IncomeStatementDto,
+  BalanceSheetDto,
+  CashBankReportDto,
+  ExpenseReportDto,
+  SalesGroupReportDto,
+  SalesReportDto,
   NotificationPrefsDto,
   PeriodDto,
+  PublicCurrenciesDto,
   ReceiptDto,
   TrialBalanceDto,
   VoucherCounts,
@@ -43,6 +49,7 @@ import type {
   PartnerDashboardDto,
   PartnerInviteDto,
   PartnerSession,
+  PassportScanDto,
   PaymentDto,
   PricingRuleDto,
   PricingSimulationDto,
@@ -63,6 +70,7 @@ import type {
 import type {
   AccountCreateInput,
   AccountUpdateInput,
+  OpeningBalanceSetInput,
   AddMemberInput,
   AdminPartnerUserCreateInput,
   AdminPasswordResetInput,
@@ -77,8 +85,10 @@ import type {
   AdminBookingListInput,
   BookingListInput,
   ChangePasswordInput,
+  AddPassengersInput,
   CreateBookingInput,
   CreditLimitInput,
+  PassportScanInput,
   GroupSearchInput,
   InviteMemberInput,
   LedgerAdjustmentInput,
@@ -96,7 +106,14 @@ import type {
 } from '@gnk/validation';
 import type { HttpClient } from './http';
 
-type Page = { page?: number; pageSize?: number; q?: string };
+type Page = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+  type?: string;
+  balance?: string;
+};
 type ThemeBody = { theme: 'LIGHT' | 'DARK' | 'SYSTEM' };
 type Range = { from?: string; to?: string };
 export interface UploadedFile {
@@ -118,6 +135,7 @@ export interface PickerOption {
 export const publicApi = (http: HttpClient) => ({
   groups: (q: GroupSearchInput = {}) =>
     http.get<{ items: PublicGroupDto[]; total: number }>('public/groups', q as never),
+  currencies: () => http.get<PublicCurrenciesDto>('public/currencies'),
   chat: (messages: { role: 'user' | 'model'; text: string }[]) =>
     http.post<{ text: string }>('public/ai/chat', { messages }),
 });
@@ -189,6 +207,10 @@ export const partnerApi = (http: HttpClient) => ({
     get: (id: string) => http.get<BookingDetailDto>(`partner/bookings/${id}`),
     create: (dto: CreateBookingInput, idempotencyKey: string) =>
       http.post<BookingDetailDto>('partner/bookings', dto, { 'Idempotency-Key': idempotencyKey }),
+    addPassengers: (id: string, dto: AddPassengersInput) =>
+      http.post<BookingDetailDto>(`partner/bookings/${id}/passengers`, dto),
+    scanPassport: (dto: PassportScanInput) =>
+      http.post<PassportScanDto>('partner/bookings/scan-passport', dto),
     cancel: (id: string, reason: string) =>
       http.post<BookingDetailDto>(`partner/bookings/${id}/cancel`, { reason }),
   },
@@ -324,9 +346,13 @@ export const adminApi = (http: HttpClient) => ({
       http.post<ChartAccountDto>('admin/accounting/accounts', dto),
     updateAccount: (id: string, dto: AccountUpdateInput) =>
       http.patch<ChartAccountDto>(`admin/accounting/accounts/${id}`, dto),
+    deleteAccount: (id: string) => http.delete<void>(`admin/accounting/accounts/${id}`),
+    setOpeningBalance: (id: string, dto: OpeningBalanceSetInput) =>
+      http.post<ChartAccountDto>(`admin/accounting/accounts/${id}/opening-balance`, dto),
     vouchers: (q: VoucherListInput) =>
       http.get<Paginated<VoucherListItem>>('admin/accounting/vouchers', q as never),
-    voucherCounts: () => http.get<VoucherCounts>('admin/accounting/vouchers/counts'),
+    voucherCounts: (type?: VoucherListInput['type']) =>
+      http.get<VoucherCounts>('admin/accounting/vouchers/counts', type ? { type } : undefined),
     voucher: (id: string) => http.get<VoucherDto>(`admin/accounting/vouchers/${id}`),
     createVoucher: (dto: VoucherInput, action: 'draft' | 'submit' | 'post') =>
       http.post<VoucherDto>('admin/accounting/vouchers', { ...dto, action }),
@@ -345,6 +371,17 @@ export const adminApi = (http: HttpClient) => ({
       http.get<TrialBalanceDto>('admin/accounting/reports/trial-balance', { asOf }),
     incomeStatement: (q: Range) =>
       http.get<IncomeStatementDto>('admin/accounting/reports/income-statement', q),
+    balanceSheet: (asOf?: string) =>
+      http.get<BalanceSheetDto>('admin/accounting/reports/balance-sheet', { asOf }),
+    sales: (q: Range) => http.get<SalesReportDto>('admin/accounting/reports/sales', q),
+    commission: (q: Range) =>
+      http.get<SalesGroupReportDto>('admin/accounting/reports/commission', q),
+    salesByPartner: (q: Range) =>
+      http.get<SalesGroupReportDto>('admin/accounting/reports/sales-by-partner', q),
+    salesBySupplier: (q: Range) =>
+      http.get<SalesGroupReportDto>('admin/accounting/reports/sales-by-supplier', q),
+    expenses: (q: Range) => http.get<ExpenseReportDto>('admin/accounting/reports/expenses', q),
+    cashBank: (q: Range) => http.get<CashBankReportDto>('admin/accounting/reports/cash-bank', q),
     currencies: () => http.get<CurrencyDto[]>('admin/accounting/currencies'),
     saveCurrency: (dto: CurrencyInput) =>
       http.put<CurrencyDto[]>('admin/accounting/currencies', dto),

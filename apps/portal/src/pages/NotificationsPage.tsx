@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCheck } from 'lucide-react';
@@ -7,9 +8,14 @@ import {
   EmptyState,
   ErrorState,
   PageHeader,
+  Pagination,
+  SearchInput,
+  Select,
   Spinner,
   cn,
+  filterPage,
   formatDateTime,
+  includesQ,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
 import { keys } from '@/lib/query';
@@ -17,7 +23,17 @@ import { keys } from '@/lib/query';
 export function NotificationsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [page, setPage] = useState(1);
   const q = useQuery({ queryKey: keys.notifications, queryFn: api.notifications.list });
+  const list = filterPage(q.data?.items, {
+    q: search,
+    page,
+    pageSize: 20,
+    match: (n, s) => includesQ(n.title, n.body).includes(s),
+    filter: (n) => filter === 'all' || (filter === 'unread' ? !n.readAt : !!n.readAt),
+  });
   const refresh = () => qc.invalidateQueries({ queryKey: keys.notifications });
   return (
     <div className="mx-auto max-w-3xl">
@@ -38,19 +54,43 @@ export function NotificationsPage() {
         }
       />
       <Card>
+        <div className="flex flex-wrap items-center gap-3 border-b p-4">
+          <SearchInput
+            className="min-w-[14rem] flex-1"
+            placeholder="Search notifications"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+          <Select
+            className="w-36"
+            value={filter}
+            onChange={(e) => {
+              setFilter(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Read status"
+          >
+            <option value="all">All</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+          </Select>
+        </div>
         {q.error ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         ) : !q.data ? (
           <Spinner className="py-12" />
-        ) : !q.data.items.length ? (
+        ) : !list.total ? (
           <EmptyState
             icon={<Bell />}
-            title="No notifications"
+            title={q.data.items.length ? 'No matching notifications' : 'No notifications'}
             description="Updates about your account, bookings and payments appear here."
           />
         ) : (
           <ul className="divide-y">
-            {q.data.items.map((n) => (
+            {list.items.map((n) => (
               <li key={n.id}>
                 <button
                   type="button"
@@ -82,6 +122,12 @@ export function NotificationsPage() {
             ))}
           </ul>
         )}
+        <Pagination
+          page={list.page}
+          pageSize={list.pageSize}
+          total={list.total}
+          onChange={setPage}
+        />
       </Card>
     </div>
   );

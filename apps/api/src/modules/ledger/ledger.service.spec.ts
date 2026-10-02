@@ -88,6 +88,7 @@ describe('LedgerService', () => {
       code: 'AGT-1',
       tradeName: 'Al',
       legalName: 'Al',
+      status: 'APPROVED',
     });
     prisma.ledgerAccount.findUnique.mockResolvedValue({ id: 'la' });
     prisma.ledgerEntry.aggregate.mockResolvedValue({ _sum: { debit: D(20), credit: D(80) } });
@@ -101,6 +102,8 @@ describe('LedgerService', () => {
         credit: D(50),
         narration: null,
         transaction: {
+          id: 'tx-1',
+          type: 'RECEIPT',
           date: new Date('2026-09-01'),
           reference: 'RV-1',
           description: 'Payment',
@@ -204,7 +207,7 @@ describe('LedgerService', () => {
   it('validates cash/bank accounts', async () => {
     prisma.ledgerAccount.findUnique
       .mockResolvedValueOnce({ ...acct('x', { isGroup: true }), parent: null })
-      .mockResolvedValueOnce({ id: '1100' });
+      .mockResolvedValueOnce({ id: 'cash', parentId: '1100000', systemKey: 'CASH' });
     await expect(svc.cashOrBankAccount(prisma as never, 'x')).rejects.toBeInstanceOf(
       BadRequestException,
     );

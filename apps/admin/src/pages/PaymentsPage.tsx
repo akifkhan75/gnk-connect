@@ -1,9 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CreditCard, FileText, Plus, ReceiptText, TriangleAlert, X } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  Check,
+  ChevronDown,
+  CreditCard,
+  FileText,
+  Plus,
+  Printer,
+  ReceiptText,
+  TriangleAlert,
+  UserRound,
+  X,
+} from 'lucide-react';
 import type { AdminPaymentListItem } from '@gnk/types';
 import { recordPaymentSchema, todayPk, type RecordPaymentInput } from '@gnk/validation';
 import {
@@ -14,6 +27,10 @@ import {
   DataTable,
   Dialog,
   Drawer,
+  DropdownContent,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
   EmptyState,
   ErrorState,
   Field,
@@ -28,8 +45,10 @@ import {
   Spinner,
   StatusBadge,
   Tabs,
+  amountInWords,
   formatDate,
   formatDateTime,
+  formatMoney,
   titleCase,
   useToast,
 } from '@gnk/ui';
@@ -37,7 +56,11 @@ import { api } from '@/lib/api';
 import { applyServerErrors, errorMessage } from '@/lib/forms';
 import { useCan } from '@/lib/useCan';
 import { useFileUrl } from '@/lib/useFileUrl';
+import { AccountPicker } from '@/components/AccountPicker';
 import { RequirePerm } from '@/components/guards';
+import { VoucherRegister } from '@/pages/accounting/VoucherRegister';
+import { useVoucherOverlays } from '@/pages/accounting/voucher-overlay-context';
+import { isPaymentPayee, PAYEE_LABEL, type PaymentPayee } from '@/pages/accounting/voucher-home';
 
 const TABS = [
   { value: 'SUBMITTED', label: 'To verify' },
@@ -48,7 +71,7 @@ const TABS = [
 
 export function PaymentsPage() {
   return (
-    <RequirePerm perm="payments:read">
+    <RequirePerm anyOf={['payments:read', 'ledger:read']}>
       <Payments />
     </RequirePerm>
   );
@@ -56,9 +79,134 @@ export function PaymentsPage() {
 
 function Payments() {
   const can = useCan();
+  const overlays = useVoucherOverlays();
+  const [params, setParams] = useSearchParams();
+  const canIncoming = can('payments:read');
+  const canOutgoing = can('ledger:read');
+  const requested = params.get('tab');
+  const tab =
+    requested === 'outgoing' && canOutgoing
+      ? 'outgoing'
+      : requested === 'incoming' && canIncoming
+        ? 'incoming'
+        : canIncoming
+          ? 'incoming'
+          : 'outgoing';
+  const [recordOpen, setRecordOpen] = useState(params.get('record') === '1');
+
+  useEffect(() => {
+    const pay = params.get('pay');
+    if (!isPaymentPayee(pay)) return;
+    overlays.openNew('PAYMENT', { payee: pay });
+    const next = new URLSearchParams(params);
+    next.delete('pay');
+    next.set('tab', 'outgoing');
+    setParams(next, { replace: true });
+    // Open once from a deep link; overlay state is owned by the provider.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setTab = (next: 'incoming' | 'outgoing') => {
+    const url = new URLSearchParams(params);
+    url.set('tab', next);
+    url.delete('pay');
+    url.delete('page');
+    setParams(url, { replace: true });
+  };
+
+  const addOutgoing = (payee: PaymentPayee) => {
+    if (tab !== 'outgoing') setTab('outgoing');
+    overlays.openNew('PAYMENT', { payee });
+  };
+
+  const canRecord = can('payments:verify');
+  const canPay = can('ledger:post');
+
+  return (
+    <>
+      <PageHeader
+        title="Payments"
+        description={
+          tab === 'outgoing'
+            ? 'Money paid from cash or bank to a supplier, an expense, or staff.'
+            : "Check partner deposits against the bank statement. Approving credits the partner's balance and issues a receipt."
+        }
+        actions={
+          (canRecord || canPay) && (
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <Button>
+                  <Plus /> Add payment <ChevronDown className="opacity-70" />
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent className="w-56">
+                {canRecord && (
+                  <DropdownItem
+                    onSelect={() => {
+                      if (tab !== 'incoming') setTab('incoming');
+                      setRecordOpen(true);
+                    }}
+                  >
+                    <CreditCard /> Partner deposit
+                  </DropdownItem>
+                )}
+                {canPay && (
+                  <>
+                    <DropdownItem onSelect={() => addOutgoing('SUPPLIER')}>
+                      <Building2 /> {PAYEE_LABEL.SUPPLIER}
+                    </DropdownItem>
+                    <DropdownItem onSelect={() => addOutgoing('EXPENSE')}>
+                      <Briefcase /> {PAYEE_LABEL.EXPENSE}
+                    </DropdownItem>
+                    <DropdownItem onSelect={() => addOutgoing('STAFF')}>
+                      <UserRound /> {PAYEE_LABEL.STAFF}
+                    </DropdownItem>
+                  </>
+                )}
+              </DropdownContent>
+            </DropdownMenu>
+          )
+        }
+      />
+      {canIncoming && canOutgoing && (
+        <div className="mb-4">
+          <Tabs
+            value={tab}
+            onChange={(v) => setTab(v as 'incoming' | 'outgoing')}
+            items={[
+              { value: 'incoming', label: 'Incoming' },
+              { value: 'outgoing', label: 'Outgoing' },
+            ]}
+          />
+        </div>
+      )}
+      {tab === 'outgoing' && canOutgoing ? (
+        <VoucherRegister
+          type="PAYMENT"
+          title="Payments"
+          description=""
+          hideHeader
+          emptyTitle="No outgoing payments match"
+        />
+      ) : (
+        <IncomingPayments recordOpen={recordOpen} onRecordOpenChange={setRecordOpen} />
+      )}
+    </>
+  );
+}
+
+function IncomingPayments({
+  recordOpen,
+  onRecordOpenChange,
+}: {
+  recordOpen: boolean;
+  onRecordOpenChange: (open: boolean) => void;
+}) {
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string | null>(params.get('id'));
-  const [recordOpen, setRecordOpen] = useState(params.get('record') === '1');
+  const [receiptId, setReceiptId] = useState<string | null>(
+    params.get('receipt') === '1' ? params.get('id') : null,
+  );
   const q = {
     status: params.get('status') ?? 'SUBMITTED',
     q: params.get('q') || undefined,
@@ -82,17 +230,6 @@ function Payments() {
 
   return (
     <>
-      <PageHeader
-        title="Payments"
-        description="Check partner deposits against the bank statement. Approving credits the partner's balance and issues a receipt."
-        actions={
-          can('payments:verify') && (
-            <Button onClick={() => setRecordOpen(true)}>
-              <Plus /> Record payment
-            </Button>
-          )
-        }
-      />
       <Card>
         <div className="px-4">
           <Tabs
@@ -194,8 +331,13 @@ function Payments() {
           </>
         )}
       </Card>
-      <PaymentDrawer payment={current} onClose={() => setSelected(null)} />
-      <RecordPaymentDialog open={recordOpen} onOpenChange={setRecordOpen} />
+      <PaymentDrawer
+        payment={receiptId ? null : current}
+        onClose={() => setSelected(null)}
+        onOpenReceipt={() => current && setReceiptId(current.id)}
+      />
+      <ReceiptDrawer paymentId={receiptId} onClose={() => setReceiptId(null)} />
+      <RecordPaymentDialog open={recordOpen} onOpenChange={onRecordOpenChange} />
     </>
   );
 }
@@ -203,9 +345,11 @@ function Payments() {
 function PaymentDrawer({
   payment: p,
   onClose,
+  onOpenReceipt,
 }: {
   payment: AdminPaymentListItem | null;
   onClose: () => void;
+  onOpenReceipt: () => void;
 }) {
   const can = useCan();
   const qc = useQueryClient();
@@ -213,14 +357,6 @@ function PaymentDrawer({
   const [rejecting, setRejecting] = useState(false);
   const [deposit, setDeposit] = useState('');
   const [fileIndex, setFileIndex] = useState(0);
-  const accounts = useQuery({
-    queryKey: ['accounting', 'options'],
-    queryFn: api.accounting.options,
-    enabled: !!p && can('ledger:read'),
-  });
-  const cashBank = (accounts.data ?? []).filter(
-    (a) => a.path.includes('Cash and bank') && a.currency === 'PKR',
-  );
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['payments'] });
     void qc.invalidateQueries({ queryKey: ['payment-counts'] });
@@ -301,18 +437,18 @@ function PaymentDrawer({
                 The same bank reference was used on {p.duplicateOf}.
               </Alert>
             )}
-            {p.status === 'SUBMITTED' && can('payments:verify') && cashBank.length > 0 && (
+            {p.status === 'SUBMITTED' && can('payments:verify') && (
               <Field label="Deposit into" hint="The bank or cash account that received the money">
-                <Select value={deposit} onChange={(e) => setDeposit(e.target.value)}>
-                  <option value="">
-                    {p.method === 'CASH' ? 'Cash in hand (default)' : 'Main bank account (default)'}
-                  </option>
-                  {cashBank.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} · {a.name}
-                    </option>
-                  ))}
-                </Select>
+                <AccountPicker
+                  value={deposit || null}
+                  onValueChange={setDeposit}
+                  preset="cash-bank"
+                  allowClear
+                  enabled={!!p}
+                  placeholder={
+                    p.method === 'CASH' ? 'Cash in hand (default)' : 'Main bank account (default)'
+                  }
+                />
               </Field>
             )}
             <KeyValue
@@ -361,12 +497,13 @@ function PaymentDrawer({
                       {
                         label: 'Receipt',
                         value: (
-                          <Link
-                            to={`/payments/${p.id}/receipt`}
+                          <button
+                            type="button"
+                            onClick={onOpenReceipt}
                             className="inline-flex items-center gap-1 text-link hover:underline"
                           >
                             <ReceiptText className="size-3.5" /> {p.receipt.number}
-                          </Link>
+                          </button>
                         ),
                       },
                     ]
@@ -407,6 +544,80 @@ function PaymentDrawer({
   );
 }
 
+function ReceiptDrawer({ paymentId, onClose }: { paymentId: string | null; onClose: () => void }) {
+  const q = useQuery({
+    queryKey: ['payment', paymentId, 'receipt'],
+    queryFn: () => api.payments.receipt(paymentId!),
+    enabled: !!paymentId,
+  });
+  const r = q.data;
+  const p = r?.payment;
+  return (
+    <Drawer
+      open={!!paymentId}
+      onOpenChange={(o) => !o && onClose()}
+      title={r ? `Receipt ${r.number}` : 'Receipt'}
+      width="max-w-xl"
+      footer={
+        paymentId && (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              window.open(`/payments/${paymentId}/receipt?print=1`, '_blank', 'noopener')
+            }
+          >
+            <Printer /> Print
+          </Button>
+        )
+      }
+    >
+      {q.isLoading && <Spinner className="py-16" />}
+      {q.error && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
+      {r && p && (
+        <div className="space-y-5">
+          <div className="rounded-xl bg-surface-sunken p-5">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Amount received
+            </p>
+            <p className="tabular mt-1 text-2xl font-semibold">
+              {formatMoney(p.amount, { decimals: true })}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{amountInWords(p.amount)}</p>
+          </div>
+          <KeyValue
+            columns={1}
+            items={[
+              { label: 'Received from', value: `${r.receivedFrom.name} (${r.receivedFrom.code})` },
+              { label: 'Dated', value: formatDate(r.date) },
+              { label: 'Payment', value: p.reference },
+              { label: 'Method', value: titleCase(p.method) },
+              { label: 'Bank', value: p.bankName ?? '—' },
+              { label: 'Transaction / slip no.', value: p.transactionRef ?? '—' },
+              { label: 'Paid on', value: formatDate(p.paidAt) },
+              { label: 'Deposited to', value: r.depositAccount ?? '—' },
+              { label: 'Approved by', value: r.approvedBy ?? '—' },
+              ...(p.notes ? [{ label: 'Note', value: p.notes }] : []),
+            ]}
+          />
+          {p.allocations.length > 0 && (
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-muted-foreground">Applied to</p>
+              <ul className="space-y-1 text-sm">
+                {p.allocations.map((a) => (
+                  <li key={a.bookingId} className="flex justify-between gap-3">
+                    <span>{a.bookingReference}</span>
+                    <span className="tabular">{formatMoney(a.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
 function Proof({ id }: { id: string }) {
   const [loader] = useState(() => () => api.files.blob(id));
   const { url, type, error } = useFileUrl(loader);
@@ -430,25 +641,26 @@ function RecordPaymentDialog({
   const toast = useToast();
   const [error, setError] = useState<string>();
   const options = useQuery({ queryKey: ['options'], queryFn: api.catalog.options, enabled: open });
-  const accounts = useQuery({
-    queryKey: ['accounting', 'options'],
-    queryFn: api.accounting.options,
-    enabled: open,
-  });
-  const cashBank = (accounts.data ?? []).filter(
-    (a) => a.path.includes('Cash and bank') && a.currency === 'PKR',
-  );
   const [file, setFile] = useState<File | null>(null);
   const {
     register,
     handleSubmit,
     formState,
     reset,
+    setValue,
+    watch,
     setError: setFieldError,
   } = useForm<RecordPaymentInput>({
     resolver: zodResolver(recordPaymentSchema),
-    defaultValues: { method: 'CASH', transactionRef: '', paidAt: todayPk(), accountId: '' },
+    defaultValues: {
+      method: 'CASH',
+      transactionRef: '',
+      paidAt: todayPk(),
+      accountId: '',
+      depositAccountId: '',
+    },
   });
+  const depositAccountId = watch('depositAccountId');
   const record = useMutation({
     mutationFn: async (v: RecordPaymentInput) => {
       const attachmentIds = file
@@ -473,8 +685,8 @@ function RecordPaymentDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Record a payment"
-      description="For cash or deposits received directly. It is verified and credited immediately."
+      title="Record partner deposit"
+      description="For cash or deposits received from a partner. It is verified and credited immediately."
       size="lg"
       footer={
         <>
@@ -531,14 +743,16 @@ function RecordPaymentDialog({
           <Input type="date" max={todayPk()} {...register('paidAt')} />
         </Field>
         <Field label="Deposited into" required error={formState.errors.depositAccountId?.message}>
-          <Select {...register('depositAccountId')}>
-            <option value="">Choose bank or cash…</option>
-            {cashBank.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.code} · {a.name}
-              </option>
-            ))}
-          </Select>
+          <AccountPicker
+            value={depositAccountId}
+            onValueChange={(id) =>
+              setValue('depositAccountId', id, { shouldValidate: true, shouldDirty: true })
+            }
+            preset="cash-bank"
+            enabled={open}
+            invalid={!!formState.errors.depositAccountId}
+            placeholder="Choose bank or cash"
+          />
         </Field>
         <Field label="Note" className="sm:col-span-2" error={formState.errors.notes?.message}>
           <Input {...register('notes')} placeholder="Optional" />

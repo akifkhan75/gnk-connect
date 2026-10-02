@@ -21,12 +21,16 @@ import {
   Input,
   Money,
   PageHeader,
+  Pagination,
+  SearchInput,
   Select,
   StatCard,
   StatusBadge,
   formatDate,
   formatMoney,
   statusLabel,
+  filterPage,
+  includesQ,
   titleCase,
   useToast,
 } from '@gnk/ui';
@@ -48,7 +52,23 @@ export function PaymentsPage() {
 function Payments() {
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState(params.get('new') === '1');
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
   const payments = useQuery({ queryKey: keys.payments, queryFn: api.payments.list });
+  const list = filterPage(payments.data, {
+    q: search,
+    page,
+    match: (p, s) =>
+      includesQ(
+        p.reference,
+        p.transactionRef,
+        p.bankName,
+        p.method,
+        ...p.allocations.map((a) => a.bookingReference),
+      ).includes(s),
+    filter: (p) => status === 'all' || p.status === status,
+  });
   const instructions = useQuery({
     queryKey: keys.instructions,
     queryFn: api.payments.instructions,
@@ -95,11 +115,39 @@ function Payments() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader title="Payment history" />
+          <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3">
+            <SearchInput
+              className="min-w-[14rem] flex-1"
+              placeholder="Search reference, bank or booking"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+            <Select
+              className="w-44"
+              value={status}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
+              aria-label="Status"
+            >
+              <option value="all">All statuses</option>
+              <option value="SUBMITTED">Awaiting approval</option>
+              <option value="VERIFIED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="PENDING">Pending</option>
+              <option value="FAILED">Failed</option>
+              <option value="REFUNDED">Refunded</option>
+            </Select>
+          </div>
           {payments.error ? (
             <ErrorState error={payments.error} onRetry={() => payments.refetch()} />
           ) : (
             <DataTable
-              rows={payments.data}
+              rows={list.items}
               loading={payments.isLoading}
               rowKey={(p) => p.id}
               empty={
@@ -207,6 +255,12 @@ function Payments() {
               ]}
             />
           )}
+          <Pagination
+            page={list.page}
+            pageSize={list.pageSize}
+            total={list.total}
+            onChange={setPage}
+          />
         </Card>
 
         <Card>

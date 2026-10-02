@@ -6,6 +6,7 @@ import type { EnvConfig } from '../../core/config/env.config';
 import { ZodPipe } from '../../core/http/zod.pipe';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { Public } from '../auth/decorators';
+import { CurrenciesService } from '../ledger/currencies.service';
 
 const chatSchema = z.object({
   messages: z
@@ -23,6 +24,7 @@ export class PublicController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly currencies: CurrenciesService,
   ) {}
 
   @Public()
@@ -30,6 +32,13 @@ export class PublicController {
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
     return { status: 'ok' };
+  }
+
+  /** PKR is the base currency. Rates are PKR per 1 unit, set in admin Settings. */
+  @Public()
+  @Get('public/currencies')
+  currenciesList() {
+    return this.currencies.publicRates();
   }
 
   /** Website chat widget. The Gemini key stays on the server (plan 04 §8). */

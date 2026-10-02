@@ -14,6 +14,7 @@ import { z } from 'zod';
 import {
   accountCreateSchema,
   accountUpdateSchema,
+  openingBalanceSetSchema,
   currencySchema,
   exchangeRateSchema,
   ledgerRangeSchema,
@@ -84,7 +85,7 @@ export class AdminAccountingController {
     @Body(new ZodPipe(accountCreateSchema)) dto: z.output<typeof accountCreateSchema>,
     @Meta() meta: RequestMeta,
   ) {
-    const account = await this.chart.create(dto);
+    const account = await this.chart.create(dto, actor.userId);
     await this.log(actor, 'account.create', account.id, dto, meta);
     return this.chart.get(account.id);
   }
@@ -102,6 +103,31 @@ export class AdminAccountingController {
     return this.chart.get(id);
   }
 
+  @Post('accounts/:id/opening-balance')
+  @RequirePermission('ledger:coa')
+  async setOpeningBalance(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(openingBalanceSetSchema)) dto: z.output<typeof openingBalanceSetSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    const account = await this.chart.setOpening(id, dto.amount, actor.userId);
+    await this.log(actor, 'account.opening_balance', id, dto, meta);
+    return account;
+  }
+
+  @Delete('accounts/:id')
+  @HttpCode(204)
+  @RequirePermission('ledger:coa')
+  async deleteAccount(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Meta() meta: RequestMeta,
+  ) {
+    await this.chart.remove(id);
+    await this.log(actor, 'account.delete', id, {}, meta);
+  }
+
   // ---------- Vouchers ----------
 
   @Get('vouchers')
@@ -112,8 +138,11 @@ export class AdminAccountingController {
 
   @Get('vouchers/counts')
   @RequirePermission('ledger:read')
-  counts() {
-    return this.vouchers.counts();
+  counts(
+    @Query(new ZodPipe(voucherListSchema.pick({ type: true })))
+    q: { type: string } = { type: 'all' },
+  ) {
+    return this.vouchers.counts(q.type);
   }
 
   @Get('vouchers/:id')
@@ -227,6 +256,66 @@ export class AdminAccountingController {
   @RequirePermission('ledger:read')
   incomeStatement(@Query(new ZodPipe(ledgerRangeSchema)) q: Range) {
     return this.reports.incomeStatement(q.from, q.to);
+  }
+
+  @Get('reports/balance-sheet')
+  @RequirePermission('ledger:read')
+  balanceSheet(@Query(new ZodPipe(trialBalanceSchema)) q: z.output<typeof trialBalanceSchema>) {
+    return this.reports.balanceSheet(q.asOf);
+  }
+
+  @Get('reports/sales')
+  @RequirePermission('ledger:read')
+  sales(@CurrentActor() actor: StaffActor, @Query(new ZodPipe(ledgerRangeSchema)) q: Range) {
+    return this.reports.sales(q.from, q.to, actor.permissions.has('bookings:view_supplier_net'));
+  }
+
+  @Get('reports/commission')
+  @RequirePermission('ledger:read')
+  commission(@CurrentActor() actor: StaffActor, @Query(new ZodPipe(ledgerRangeSchema)) q: Range) {
+    return this.reports.commission(
+      q.from,
+      q.to,
+      actor.permissions.has('bookings:view_supplier_net'),
+    );
+  }
+
+  @Get('reports/sales-by-partner')
+  @RequirePermission('ledger:read')
+  salesByPartner(
+    @CurrentActor() actor: StaffActor,
+    @Query(new ZodPipe(ledgerRangeSchema)) q: Range,
+  ) {
+    return this.reports.salesByPartner(
+      q.from,
+      q.to,
+      actor.permissions.has('bookings:view_supplier_net'),
+    );
+  }
+
+  @Get('reports/sales-by-supplier')
+  @RequirePermission('ledger:read')
+  salesBySupplier(
+    @CurrentActor() actor: StaffActor,
+    @Query(new ZodPipe(ledgerRangeSchema)) q: Range,
+  ) {
+    return this.reports.salesBySupplier(
+      q.from,
+      q.to,
+      actor.permissions.has('bookings:view_supplier_net'),
+    );
+  }
+
+  @Get('reports/expenses')
+  @RequirePermission('ledger:read')
+  expenses(@Query(new ZodPipe(ledgerRangeSchema)) q: Range) {
+    return this.reports.expenses(q.from, q.to);
+  }
+
+  @Get('reports/cash-bank')
+  @RequirePermission('ledger:read')
+  cashBank(@Query(new ZodPipe(ledgerRangeSchema)) q: Range) {
+    return this.reports.cashBank(q.from, q.to);
   }
 
   // ---------- Currencies & rates ----------
