@@ -128,6 +128,12 @@ export type Gender = (typeof GENDERS)[number];
 export const TITLES = ['MR', 'MRS', 'MS', 'MISS', 'MSTR'] as const;
 export type Title = (typeof TITLES)[number];
 
+export const CONCESSION_TYPES = ['CHILD_SEATS', 'INFANT_SEATS', 'DISCOUNT'] as const;
+export type ConcessionType = (typeof CONCESSION_TYPES)[number];
+
+export const CONCESSION_STATUSES = ['PENDING', 'GRANTED', 'REJECTED', 'CANCELLED'] as const;
+export type ConcessionStatus = (typeof CONCESSION_STATUSES)[number];
+
 export const PAYMENT_METHODS = ['BANK_TRANSFER', 'CASH', 'CARD', 'GATEWAY', 'CREDIT'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 

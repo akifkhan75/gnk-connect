@@ -21,9 +21,14 @@ import type {
 import type { z } from 'zod';
 import {
   checkBookingPassengers,
+  maxChildSeatsForAdults,
+  maxInfantSeatsForAdults,
   type adminBookingListSchema,
   type bookingListSchema,
+  type PartyRules,
   type PassengerInput,
+  type RequestConcession,
+  type ReviewConcession,
 } from '@gnk/validation';
 
 type BookingListInput = z.output<typeof bookingListSchema>;
@@ -72,6 +77,7 @@ const ADMIN_TABS: Record<Exclude<AdminBookingListInput['tab'], 'all'>, BookingSt
 };
 
 const PARTNER_CANCELLABLE: BookingStatus[] = ['PENDING_APPROVAL', 'APPROVED'];
+const CONCESSION_OPEN: BookingStatus[] = ['PENDING_APPROVAL', 'APPROVED'];
 const ADMIN_CANCELLABLE: BookingStatus[] = [
   'PENDING_APPROVAL',
   'APPROVED',
@@ -171,7 +177,12 @@ export class BookingsService {
 
   async create(
     actor: PartnerActor,
-    dto: { quoteId: string; passengers: PassengerInput[]; agentNotes?: string },
+    dto: {
+      quoteId: string;
+      passengers: PassengerInput[];
+      childSeats?: number;
+      agentNotes?: string;
+    },
     idempotencyKey: string,
     meta: RequestMeta,
   ): Promise<BookingDetailDto> {
@@ -201,13 +212,27 @@ export class BookingsService {
       where: { id: quote.departureId },
       include: { product: true },
     });
-    if (dto.passengers.length) {
-      assertPassengers(dto.passengers, quote.seats, {
-        departureDate: isoDate(departure.departureDate)!,
-        returnDate: isoDate(departure.returnDate ?? departure.departureDate)!,
+    const childSeats = dto.childSeats ?? dto.passengers.filter((p) => p.type === 'CHILD').length;
+    const adults = quote.seats - childSeats;
+    if (childSeats > quote.seats || childSeats > maxChildSeatsForAdults(adults)) {
+      throw new UnprocessableEntityException({
+        message: '1 child is allowed per 10 adults',
+        code: 'CHILD_RATIO',
       });
     }
+    if (dto.passengers.length) {
+      assertPassengers(
+        dto.passengers,
+        quote.seats,
+        {
+          departureDate: isoDate(departure.departureDate)!,
+          returnDate: isoDate(departure.returnDate ?? departure.departureDate)!,
+        },
+        { childSeatQuota: childSeats },
+      );
+    }
 
+    const holdHours = (await this.settings.get()).booking?.holdTtlHours ?? 24;
     const booking = await this.prisma.$transaction(async (tx) => {
       // Consume the quote atomically so two concurrent submits can't both use it.
       const consumed = await tx.priceQuote.updateMany({
@@ -239,6 +264,7 @@ export class BookingsService {
           productId: departure.productId,
           departureId: departure.id,
           seats: quote.seats,
+          childSeats,
           supplierNetUnit: quote.supplierNet,
           markupUnit: quote.markup,
           unitPrice: quote.unitPrice,
@@ -246,6 +272,7 @@ export class BookingsService {
           pricingSnapshot: quote.breakdown as Prisma.InputJsonValue,
           quoteId: quote.id,
           status: 'PENDING_APPROVAL',
+          holdExpiresAt: new Date(Date.now() + holdHours * 60 * 60_000),
           idempotencyKey,
           agentNotes: dto.agentNotes,
           passengers: dto.passengers.length
@@ -282,7 +309,7 @@ export class BookingsService {
     return this.partnerGet(actor, booking.id);
   }
 
-  /** Names added after a seat hold. Only when the booking was created without passengers. */
+  /** Names added after a seat hold. Remaining seated slots and granted infants can be filled. */
   async addPassengers(
     actor: PartnerActor,
     id: string,
@@ -296,11 +323,27 @@ export class BookingsService {
     if (!b) throw new NotFoundException('Booking not found');
     if (!['PENDING_APPROVAL', 'APPROVED'].includes(b.status))
       throw new ConflictException('Passenger names can no longer be added on this booking');
-    if (b.passengers.length) throw new ConflictException('Passengers are already on this booking');
-    assertPassengers(passengers, b.seats, {
+    const trip = {
       departureDate: isoDate(b.departure.departureDate)!,
       returnDate: isoDate(b.departure.returnDate ?? b.departure.departureDate)!,
-    });
+    };
+    const rules: PartyRules = {
+      exactSeats: false,
+      grantedInfantSeats: b.infantSeats,
+      childSeatQuota: b.childSeats,
+    };
+    const existing: PassengerInput[] = b.passengers.map((p) => ({
+      type: p.type,
+      title: p.title,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      gender: p.gender,
+      dateOfBirth: isoDate(p.dateOfBirth)!,
+      nationality: p.nationality,
+      passportNumber: this.crypto.decrypt(p.passportNumberEnc),
+      passportExpiry: isoDate(p.passportExpiry)!,
+    }));
+    assertPassengers([...existing, ...passengers], b.seats, trip, rules);
     await this.prisma.passenger.createMany({
       data: passengers.map((p) => ({ bookingId: b.id, ...this.passengerRow(p) })),
     });
@@ -361,6 +404,282 @@ export class BookingsService {
       link: `/bookings/${b.id}`,
     });
     return this.partnerGet(actor, id);
+  }
+
+  async requestConcession(
+    actor: PartnerActor,
+    id: string,
+    dto: RequestConcession,
+    meta: RequestMeta,
+  ): Promise<BookingDetailDto> {
+    const b = await this.prisma.booking.findFirst({
+      where: { id, ...this.partnerScope(actor) },
+      include: { concessions: true },
+    });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (!CONCESSION_OPEN.includes(b.status))
+      throw new ConflictException('Concessions can only be requested while the hold is open');
+    if (b.concessions.some((c) => c.type === dto.type && c.status === 'PENDING'))
+      throw new ConflictException('A request of this type is already pending');
+
+    const adults = b.seats - b.childSeats;
+    if (dto.type === 'CHILD_SEATS') {
+      const max = maxChildSeatsForAdults(adults) - b.childSeats;
+      if (dto.seats > max) {
+        throw new UnprocessableEntityException({
+          message: '1 child is allowed per 10 adults',
+          code: 'CHILD_RATIO',
+        });
+      }
+    }
+    if (dto.type === 'INFANT_SEATS') {
+      const max = maxInfantSeatsForAdults(adults) - b.infantSeats;
+      if (dto.seats > max) {
+        throw new UnprocessableEntityException({
+          message: '1 infant is allowed per adult. Infants do not take a seat.',
+          code: 'INFANT_QUOTA',
+        });
+      }
+    }
+    if (dto.type === 'DISCOUNT') {
+      if (b.concessions.some((c) => c.type === 'DISCOUNT' && c.status === 'GRANTED'))
+        throw new ConflictException('A discount is already applied to this booking');
+      if (dto.amount >= num(b.totalPrice)) {
+        throw new UnprocessableEntityException({
+          message: 'Discount must be less than the booking total',
+          code: 'DISCOUNT_TOO_HIGH',
+        });
+      }
+    }
+
+    await this.prisma.bookingConcession.create({
+      data: {
+        bookingId: b.id,
+        type: dto.type,
+        seats: dto.type === 'DISCOUNT' ? 0 : dto.seats,
+        amount: dto.type === 'DISCOUNT' ? dto.amount : 0,
+        note: dto.note,
+        requestedByUserId: actor.userId,
+      },
+    });
+    await this.audit.log({
+      actor: { realm: 'PARTNER', userId: actor.userId },
+      action: 'booking.concession.request',
+      entityType: 'Booking',
+      entityId: id,
+      after: { type: dto.type },
+      meta,
+    });
+    const label =
+      dto.type === 'CHILD_SEATS'
+        ? `${dto.seats} child seat${dto.seats === 1 ? '' : 's'}`
+        : dto.type === 'INFANT_SEATS'
+          ? `${dto.seats} infant seat${dto.seats === 1 ? '' : 's'}`
+          : `a PKR ${dto.amount.toLocaleString('en-PK')} discount`;
+    await this.notifications.notifyStaff('bookings:approve', {
+      type: 'BOOKING_CONCESSION',
+      title: `Concession on ${b.reference}`,
+      body: `${actor.accountName} requested ${label} on ${b.reference}.`,
+      link: `/bookings/${b.id}`,
+    });
+    await this.changed(b.id, b.accountId);
+    return this.partnerGet(actor, id);
+  }
+
+  async cancelConcession(
+    actor: PartnerActor,
+    bookingId: string,
+    concessionId: string,
+    meta: RequestMeta,
+  ): Promise<BookingDetailDto> {
+    const b = await this.prisma.booking.findFirst({
+      where: { id: bookingId, ...this.partnerScope(actor) },
+    });
+    if (!b) throw new NotFoundException('Booking not found');
+    const updated = await this.prisma.bookingConcession.updateMany({
+      where: { id: concessionId, bookingId, status: 'PENDING' },
+      data: { status: 'CANCELLED', reviewedAt: new Date() },
+    });
+    if (!updated.count) throw new ConflictException('This request can no longer be withdrawn');
+    await this.audit.log({
+      actor: { realm: 'PARTNER', userId: actor.userId },
+      action: 'booking.concession.cancel',
+      entityType: 'BookingConcession',
+      entityId: concessionId,
+      meta,
+    });
+    await this.changed(bookingId, b.accountId);
+    return this.partnerGet(actor, bookingId);
+  }
+
+  async reviewConcession(
+    actor: StaffActor,
+    bookingId: string,
+    concessionId: string,
+    dto: ReviewConcession,
+    meta: RequestMeta,
+  ): Promise<AdminBookingDetailDto> {
+    const c = await this.prisma.bookingConcession.findFirst({
+      where: { id: concessionId, bookingId },
+      include: { booking: { include: { departure: true } } },
+    });
+    if (!c) throw new NotFoundException('Concession request not found');
+    if (c.status !== 'PENDING')
+      throw new ConflictException('This request has already been reviewed');
+
+    if (dto.decision === 'REJECT') {
+      await this.prisma.bookingConcession.update({
+        where: { id: c.id },
+        data: {
+          status: 'REJECTED',
+          staffNote: dto.staffNote,
+          reviewedByUserId: actor.userId,
+          reviewedAt: new Date(),
+        },
+      });
+    } else {
+      await this.prisma.$transaction(async (tx) => {
+        if (c.type === 'CHILD_SEATS') {
+          const seats = dto.seats && dto.seats > 0 ? dto.seats : c.seats;
+          await this.grantChildSeats(tx, c.booking, seats);
+          await tx.bookingConcession.update({
+            where: { id: c.id },
+            data: {
+              status: 'GRANTED',
+              grantedSeats: seats,
+              staffNote: dto.staffNote,
+              reviewedByUserId: actor.userId,
+              reviewedAt: new Date(),
+            },
+          });
+        } else if (c.type === 'INFANT_SEATS') {
+          const seats = dto.seats && dto.seats > 0 ? dto.seats : c.seats;
+          await this.grantInfantSeats(tx, c.booking, seats);
+          await tx.bookingConcession.update({
+            where: { id: c.id },
+            data: {
+              status: 'GRANTED',
+              grantedSeats: seats,
+              staffNote: dto.staffNote,
+              reviewedByUserId: actor.userId,
+              reviewedAt: new Date(),
+            },
+          });
+        } else {
+          const amount = dto.amount && dto.amount > 0 ? dto.amount : num(c.amount);
+          await this.grantDiscount(tx, c.booking, amount);
+          await tx.bookingConcession.update({
+            where: { id: c.id },
+            data: {
+              status: 'GRANTED',
+              grantedAmount: amount,
+              staffNote: dto.staffNote,
+              reviewedByUserId: actor.userId,
+              reviewedAt: new Date(),
+            },
+          });
+        }
+      });
+    }
+
+    await this.audit.log({
+      actor: { realm: 'STAFF', userId: actor.userId },
+      action: 'booking.concession.review',
+      entityType: 'BookingConcession',
+      entityId: concessionId,
+      after: { decision: dto.decision },
+      meta,
+    });
+    await this.notifications.notifyAccount(c.booking.accountId, {
+      type: 'BOOKING_CONCESSION',
+      title:
+        dto.decision === 'GRANT'
+          ? `Concession granted on ${c.booking.reference}`
+          : `Concession declined on ${c.booking.reference}`,
+      body:
+        dto.decision === 'GRANT'
+          ? 'GNK Connect granted your concession request.'
+          : (dto.staffNote ?? 'GNK Connect declined your concession request.'),
+      link: `/bookings/${bookingId}`,
+    });
+    await this.changed(bookingId, c.booking.accountId);
+    return this.adminGet(actor, bookingId);
+  }
+
+  private async grantChildSeats(
+    tx: Tx,
+    booking: {
+      id: string;
+      seats: number;
+      childSeats: number;
+      departureId: string;
+      unitPrice: Prisma.Decimal;
+      totalPrice: Prisma.Decimal;
+    },
+    seats: number,
+  ) {
+    const adults = booking.seats - booking.childSeats;
+    const max = maxChildSeatsForAdults(adults) - booking.childSeats;
+    if (seats < 1 || seats > max) {
+      throw new UnprocessableEntityException({
+        message: '1 child is allowed per 10 adults',
+        code: 'CHILD_RATIO',
+      });
+    }
+    const held = await tx.$executeRaw`
+      UPDATE "Departure" SET "heldSeats" = "heldSeats" + ${seats}, "version" = "version" + 1
+      WHERE id = ${booking.departureId}::uuid AND "supplierAvailable" - "heldSeats" >= ${seats}
+        AND status IN ('OPEN', 'FILLING_FAST')`;
+    if (!held)
+      throw new ConflictException({
+        message: 'Not enough seats are left on this departure',
+        code: 'SOLD_OUT',
+      });
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: {
+        seats: booking.seats + seats,
+        childSeats: booking.childSeats + seats,
+        totalPrice: num(booking.totalPrice) + num(booking.unitPrice) * seats,
+        version: { increment: 1 },
+      },
+    });
+  }
+
+  private async grantInfantSeats(
+    tx: Tx,
+    booking: { id: string; seats: number; childSeats: number; infantSeats: number },
+    seats: number,
+  ) {
+    const adults = booking.seats - booking.childSeats;
+    const max = maxInfantSeatsForAdults(adults) - booking.infantSeats;
+    if (seats < 1 || seats > max) {
+      throw new UnprocessableEntityException({
+        message: '1 infant is allowed per adult. Infants do not take a seat.',
+        code: 'INFANT_QUOTA',
+      });
+    }
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: { infantSeats: booking.infantSeats + seats, version: { increment: 1 } },
+    });
+  }
+
+  private async grantDiscount(
+    tx: Tx,
+    booking: { id: string; totalPrice: Prisma.Decimal },
+    amount: number,
+  ) {
+    if (amount <= 0 || amount >= num(booking.totalPrice)) {
+      throw new UnprocessableEntityException({
+        message: 'Discount must be less than the booking total',
+        code: 'DISCOUNT_TOO_HIGH',
+      });
+    }
+    await tx.booking.update({
+      where: { id: booking.id },
+      data: { totalPrice: num(booking.totalPrice) - amount, version: { increment: 1 } },
+    });
   }
 
   // =============== Admin ===============
@@ -1059,8 +1378,9 @@ function assertPassengers(
   passengers: PassengerInput[],
   seats: number,
   trip: { departureDate: string; returnDate: string },
+  rules?: PartyRules,
 ) {
-  const issues = checkBookingPassengers(passengers, seats, trip);
+  const issues = checkBookingPassengers(passengers, seats, trip, rules);
   if (!issues.length) return;
   const headline = issues.find((i) => i.path === 'passengers')?.message;
   throw new UnprocessableEntityException({

@@ -25,6 +25,7 @@ import {
   checkBookingPassengers,
   genderFromTitle,
   type FieldIssue,
+  type PartyRules,
   type TripDates,
 } from './passenger-rules';
 
@@ -146,7 +147,7 @@ export const passengerSchema = z
         path: ['title'],
         message: `Title ${p.title} does not match gender`,
       });
-    if (p.title === 'MSTR' && p.type !== 'CHILD')
+    if (p.title === 'MSTR' && p.type === 'ADULT')
       ctx.addIssue({
         code: 'custom',
         path: ['title'],
@@ -161,6 +162,7 @@ export function validatePassengerList(
   raw: unknown,
   seats: number,
   trip: TripDates,
+  rules: PartyRules = {},
 ): { ok: true; data: PassengerParsed[] } | { ok: false; issues: FieldIssue[] } {
   const parsed = passengerSchema.array().safeParse(raw);
   const issues: FieldIssue[] = [];
@@ -170,7 +172,7 @@ export function validatePassengerList(
     }
     return { ok: false, issues };
   }
-  issues.push(...checkBookingPassengers(parsed.data, seats, trip));
+  issues.push(...checkBookingPassengers(parsed.data, seats, trip, rules));
   if (issues.length) return { ok: false, issues };
   return { ok: true, data: parsed.data };
 }
@@ -179,6 +181,7 @@ export const createBookingSchema = z
   .object({
     quoteId: uuidSchema,
     passengers: z.array(passengerSchema).max(MAX_SEATS_PER_BOOKING).default([]),
+    childSeats: z.coerce.number().int().min(0).max(MAX_SEATS_PER_BOOKING).default(0),
     agentNotes: optionalText(1000),
     acceptTerms: z.literal(true, { error: 'Accept the booking terms to continue' }),
   })
@@ -220,6 +223,35 @@ export type BookingListInput = z.input<typeof bookingListSchema>;
 export const cancelBookingSchema = z.object({
   reason: z.string().trim().min(3, 'Give a reason').max(500),
 });
+
+export const requestConcessionSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('CHILD_SEATS'),
+    seats: z.coerce.number().int().min(1).max(MAX_SEATS_PER_BOOKING),
+    note: optionalText(500),
+  }),
+  z.object({
+    type: z.literal('INFANT_SEATS'),
+    seats: z.coerce.number().int().min(1).max(MAX_SEATS_PER_BOOKING),
+    note: optionalText(500),
+  }),
+  z.object({
+    type: z.literal('DISCOUNT'),
+    amount: moneySchema,
+    note: optionalText(500),
+  }),
+]);
+export type RequestConcessionInput = z.input<typeof requestConcessionSchema>;
+export type RequestConcession = z.output<typeof requestConcessionSchema>;
+
+export const reviewConcessionSchema = z.object({
+  decision: z.enum(['GRANT', 'REJECT']),
+  seats: z.coerce.number().int().min(0).max(MAX_SEATS_PER_BOOKING).optional(),
+  amount: z.coerce.number().min(0).max(999_999_999_999).optional(),
+  staffNote: optionalText(500),
+});
+export type ReviewConcessionInput = z.input<typeof reviewConcessionSchema>;
+export type ReviewConcession = z.output<typeof reviewConcessionSchema>;
 
 // ---------- Payments ----------
 

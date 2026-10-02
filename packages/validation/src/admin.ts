@@ -378,6 +378,7 @@ export const settingsSchema = z.object({
   bankAccounts: z.array(bankAccountSchema).max(10),
   booking: z.object({
     quoteTtlMinutes: z.coerce.number().int().min(5).max(240),
+    holdTtlHours: z.coerce.number().int().min(1).max(168).default(24),
     paymentTermsNote: z.string().trim().max(500),
   }),
   accounting: z.object({ requireJvApproval: z.boolean() }).default({ requireJvApproval: true }),

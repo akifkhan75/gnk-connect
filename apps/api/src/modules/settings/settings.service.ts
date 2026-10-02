@@ -12,7 +12,7 @@ const DEFAULTS: SettingsDto = {
     email: 'support@gnkconnect.com',
   },
   bankAccounts: [],
-  booking: { quoteTtlMinutes: 30, paymentTermsNote: '' },
+  booking: { quoteTtlMinutes: 30, holdTtlHours: 24, paymentTermsNote: '' },
   accounting: { requireJvApproval: true },
 };
 

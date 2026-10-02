@@ -26,6 +26,10 @@ const listRow = {
   markupUnit: D(10000),
   supplierNetUnit: D(90000),
   amountPaid: D(0),
+  childSeats: 0,
+  infantSeats: 0,
+  holdExpiresAt: new Date('2026-10-02T00:00:00Z'),
+  concessions: [],
   createdAt: new Date('2026-10-01T00:00:00Z'),
   createdByUserId: 'pu-1',
   assignedStaffId: null,
@@ -149,6 +153,8 @@ describe('BookingMapper', () => {
     const detail = mapper.toPartnerDetail(listRow as never, names, true);
     expect(detail.canCancel).toBe(true);
     expect(detail.pnr).toBeNull();
+    expect(detail.concessions.requests).toEqual([]);
+    expect(detail.holdExpiresAt).toBeTruthy();
     const adminDetail = mapper.toAdminDetail(listRow as never, names, staff(), {
       supplierName: 'AirDesk',
       balance: { balance: 0, creditLimit: 0, availableFunds: 0 },
@@ -434,6 +440,50 @@ describe('BookingsService', () => {
     prisma.booking.findUniqueOrThrow.mockResolvedValue({ ...listRow, status: 'CONFIRMED' });
     prisma.booking.updateMany.mockResolvedValue({ count: 1 });
     await expect(svc.completeFinished()).resolves.toBe(1);
+  });
+
+  it('requests and reviews child-seat and discount concessions', async () => {
+    const { svc, prisma } = service();
+    const open = {
+      ...listRow,
+      seats: 10,
+      childSeats: 0,
+      infantSeats: 0,
+      totalPrice: D(1_000_000),
+      unitPrice: D(100_000),
+      departureId: 'd1',
+      concessions: [],
+    };
+    prisma.booking.findFirst.mockResolvedValue(open);
+    prisma.bookingConcession.create.mockResolvedValue({ id: 'c1' });
+    prisma.partnerUser.findMany.mockResolvedValue([{ id: 'pu-1', fullName: 'O' }]);
+    await svc.requestConcession(partner(), 'b1', { type: 'CHILD_SEATS', seats: 1 }, meta);
+    expect(prisma.bookingConcession.create).toHaveBeenCalled();
+
+    prisma.booking.findFirst.mockResolvedValue({
+      ...open,
+      concessions: [{ type: 'CHILD_SEATS', status: 'PENDING' }],
+    });
+    await expect(
+      svc.requestConcession(partner(), 'b1', { type: 'CHILD_SEATS', seats: 1 }, meta),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    prisma.bookingConcession.findFirst.mockResolvedValue({
+      id: 'c1',
+      bookingId: 'b1',
+      type: 'CHILD_SEATS',
+      status: 'PENDING',
+      seats: 1,
+      amount: D(0),
+      booking: { ...open, accountId: 'acc-1', departure: {} },
+    });
+    prisma.booking.update.mockResolvedValue({});
+    prisma.bookingConcession.update.mockResolvedValue({});
+    prisma.booking.findUnique.mockResolvedValue(open);
+    prisma.supplier.findUnique.mockResolvedValue({ name: 'AirDesk' });
+    const granted = await svc.reviewConcession(staff(), 'b1', 'c1', { decision: 'GRANT' }, meta);
+    expect(granted.id).toBe('b1');
+    expect(prisma.$executeRaw).toHaveBeenCalled();
   });
 
   it('maps supplier errors on approve', async () => {

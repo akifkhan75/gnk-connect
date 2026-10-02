@@ -87,6 +87,8 @@ import type {
   ChangePasswordInput,
   AddPassengersInput,
   CreateBookingInput,
+  RequestConcessionInput,
+  ReviewConcessionInput,
   CreditLimitInput,
   PassportScanInput,
   GroupSearchInput,
@@ -209,6 +211,10 @@ export const partnerApi = (http: HttpClient) => ({
       http.post<BookingDetailDto>('partner/bookings', dto, { 'Idempotency-Key': idempotencyKey }),
     addPassengers: (id: string, dto: AddPassengersInput) =>
       http.post<BookingDetailDto>(`partner/bookings/${id}/passengers`, dto),
+    requestConcession: (id: string, dto: RequestConcessionInput) =>
+      http.post<BookingDetailDto>(`partner/bookings/${id}/concessions`, dto),
+    cancelConcession: (id: string, concessionId: string) =>
+      http.post<BookingDetailDto>(`partner/bookings/${id}/concessions/${concessionId}/cancel`),
     scanPassport: (dto: PassportScanInput) =>
       http.post<PassportScanDto>('partner/bookings/scan-passport', dto),
     cancel: (id: string, reason: string) =>
@@ -315,6 +321,11 @@ export const adminApi = (http: HttpClient) => ({
       http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/assign`, { staffId }),
     revealPassport: (passengerId: string) =>
       http.post<{ passportNumber: string }>(`admin/bookings/passengers/${passengerId}/reveal`),
+    reviewConcession: (id: string, concessionId: string, dto: ReviewConcessionInput) =>
+      http.post<AdminBookingDetailDto>(
+        `admin/bookings/${id}/concessions/${concessionId}/review`,
+        dto,
+      ),
   },
   invoices: { get: (id: string) => http.get<InvoiceDetailDto>(`admin/invoices/${id}`) },
   payments: {

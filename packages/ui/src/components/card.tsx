@@ -69,6 +69,7 @@ export function StatCard({
   hint,
   icon,
   tone = 'default',
+  size = 'md',
   className,
   onClick,
 }: {
@@ -77,31 +78,56 @@ export function StatCard({
   hint?: React.ReactNode;
   icon?: React.ReactNode;
   tone?: keyof typeof tones;
+  size?: 'sm' | 'md';
   className?: string;
   onClick?: () => void;
 }) {
   const Comp = onClick ? 'button' : 'div';
+  const compact = size === 'sm';
   return (
     <Comp
       onClick={onClick}
       className={cn(
-        'flex w-full items-start justify-between gap-3 rounded-xl bg-surface p-4 text-left shadow-card',
+        'flex w-full items-start justify-between text-left shadow-card',
+        compact ? 'gap-2 rounded-lg p-2.5' : 'gap-3 rounded-xl p-4',
         onClick &&
           'transition-[box-shadow,transform] duration-200 ease-[var(--ease)] hover:shadow-pop active:scale-[0.99]',
         className,
       )}
     >
       <div className="min-w-0">
-        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-        <p className="tabular mt-1 text-[24px] font-semibold leading-tight tracking-[-0.025em] [overflow-wrap:anywhere]">
+        <p
+          className={cn(
+            'font-medium text-muted-foreground',
+            compact ? 'text-[11px]' : 'text-[13px]',
+          )}
+        >
+          {label}
+        </p>
+        <p
+          className={cn(
+            'tabular font-semibold leading-tight tracking-[-0.025em] [overflow-wrap:anywhere]',
+            compact ? 'mt-0.5 text-[17px]' : 'mt-1 text-[24px]',
+          )}
+        >
           {value}
         </p>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+        {hint && (
+          <p
+            className={cn(
+              'text-muted-foreground',
+              compact ? 'mt-0.5 text-[10px] leading-snug' : 'mt-1 text-xs',
+            )}
+          >
+            {hint}
+          </p>
+        )}
       </div>
       {icon && (
         <div
           className={cn(
-            'flex size-9 shrink-0 items-center justify-center rounded-full [&_svg]:size-[17px]',
+            'flex shrink-0 items-center justify-center rounded-full',
+            compact ? 'size-7 [&_svg]:size-3.5' : 'size-9 [&_svg]:size-[17px]',
             tones[tone],
           )}
         >

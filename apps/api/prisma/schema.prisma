@@ -520,6 +520,19 @@ enum Title {
   MSTR
 }
 
+enum ConcessionType {
+  CHILD_SEATS
+  INFANT_SEATS
+  DISCOUNT
+}
+
+enum ConcessionStatus {
+  PENDING
+  GRANTED
+  REJECTED
+  CANCELLED
+}
+
 // Atomic per-year counters for human-readable references
 // (GNK-2026-000124, PAY-2026-000031, INV-2026-000210) via INSERT … ON CONFLICT … RETURNING.
 model DocumentSequence {
@@ -549,6 +562,10 @@ model Booking {
   status             BookingStatus        @default(PENDING_APPROVAL)
   paymentState       PaymentState         @default(UNPAID)
   holdExpiresAt      DateTime?
+  /// Child seats included in `seats` (booked at hold or granted as a concession).
+  childSeats         Int                  @default(0)
+  /// Lap infants — do not occupy a seat (plan 09 / AirDesk).
+  infantSeats        Int                  @default(0)
   agentNotes         String?
   internalNotes      String? // staff-only
   assignedStaffId    String?              @db.Uuid // staff member who owns this request
@@ -558,6 +575,7 @@ model Booking {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
   passengers         Passenger[]
+  concessions        BookingConcession[]
   statusHistory      BookingStatusEvent[]
   payments           Payment[]
   allocations        PaymentAllocation[]
@@ -571,6 +589,28 @@ model Booking {
   @@index([accountId, createdAt])
   @@index([createdAt])
   @@index([departureId])
+}
+
+model BookingConcession {
+  id                String            @id @default(uuid(7)) @db.Uuid
+  bookingId         String            @db.Uuid
+  type              ConcessionType
+  status            ConcessionStatus  @default(PENDING)
+  seats             Int               @default(0)
+  amount            Decimal           @default(0) @db.Decimal(14, 2)
+  grantedSeats      Int               @default(0)
+  grantedAmount     Decimal           @default(0) @db.Decimal(14, 2)
+  note              String?
+  staffNote         String?
+  requestedByUserId String            @db.Uuid
+  reviewedByUserId  String?           @db.Uuid
+  reviewedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  booking           Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId, createdAt])
+  @@index([status])
 }
 
 model Passenger {

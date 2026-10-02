@@ -23,6 +23,8 @@ import {
   createBookingSchema,
   internalNoteSchema,
   passportScanSchema,
+  requestConcessionSchema,
+  reviewConcessionSchema,
 } from '@gnk/validation';
 import { UUID } from '../../core/http/parse-uuid';
 import { Meta, type RequestMeta } from '../../core/http/request-meta';
@@ -99,6 +101,31 @@ export class PartnerBookingsController {
     @Meta() meta: RequestMeta,
   ) {
     return this.bookings.addPassengers(actor, id, dto.passengers, meta);
+  }
+
+  @Post(':id/concessions')
+  @HttpCode(200)
+  @RequireApproved()
+  @RequirePartnerCapability('bookings:create')
+  requestConcession(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(requestConcessionSchema)) dto: z.output<typeof requestConcessionSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.requestConcession(actor, id, dto, meta);
+  }
+
+  @Post(':id/concessions/:concessionId/cancel')
+  @HttpCode(200)
+  @RequirePartnerCapability('bookings:create')
+  cancelConcession(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Param('concessionId', UUID) concessionId: string,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.cancelConcession(actor, id, concessionId, meta);
   }
 
   @Post(':id/cancel')
@@ -224,6 +251,19 @@ export class AdminBookingsController {
     @Meta() meta: RequestMeta,
   ) {
     return this.bookings.assign(actor, id, dto.staffId, meta);
+  }
+
+  @Post(':id/concessions/:concessionId/review')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  reviewConcession(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Param('concessionId', UUID) concessionId: string,
+    @Body(new ZodPipe(reviewConcessionSchema)) dto: z.output<typeof reviewConcessionSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.reviewConcession(actor, id, concessionId, dto, meta);
   }
 
   @Patch(':id/notes')

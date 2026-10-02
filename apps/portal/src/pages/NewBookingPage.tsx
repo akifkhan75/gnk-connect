@@ -162,7 +162,7 @@ function BookingWorkspace({
   const submit = useMutation({
     mutationFn: (passengers: PassengerInput[]) =>
       api.bookings.create(
-        { quoteId: quote.data!.id, passengers, acceptTerms: true },
+        { quoteId: quote.data!.id, passengers, childSeats: children, acceptTerms: true },
         idempotencyKey.current,
       ),
     onSuccess: (booking) => {

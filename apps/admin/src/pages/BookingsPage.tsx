@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Check, Download, Eye, FileText, RefreshCw, Send, X } from 'lucide-react';
-import type { AdminBookingDetailDto, AdminBookingListItem } from '@gnk/types';
+import type { AdminBookingDetailDto, AdminBookingListItem, ConcessionDto } from '@gnk/types';
 import {
   Alert,
   Avatar,
@@ -12,9 +12,11 @@ import {
   CardHeader,
   ConfirmDialog,
   DataTable,
+  Dialog,
   Drawer,
   EmptyState,
   ErrorState,
+  Field,
   Input,
   KeyValue,
   Money,
@@ -29,6 +31,7 @@ import {
   Timeline,
   formatDate,
   formatDateTime,
+  formatMoney,
   statusLabel,
   statusTone,
   titleCase,
@@ -594,6 +597,8 @@ function BookingDetail({ id }: { id: string }) {
         </CardBody>
       </Card>
 
+      <AdminConcessions booking={b} canReview={can('bookings:approve')} onChanged={onDone} />
+
       <Card>
         <CardHeader title={`Passengers (${b.passengers.length})`} />
         <DataTable
@@ -789,6 +794,126 @@ function BookingDetail({ id }: { id: string }) {
         onConfirm={(r) => run('cancel', r)}
       />
     </div>
+  );
+}
+
+function AdminConcessions({
+  booking: b,
+  canReview,
+  onChanged,
+}: {
+  booking: AdminBookingDetailDto;
+  canReview: boolean;
+  onChanged: (b: AdminBookingDetailDto, message: string) => void;
+}) {
+  const toast = useToast();
+  const [review, setReview] = useState<ConcessionDto | null>(null);
+  const [staffNote, setStaffNote] = useState('');
+  const act = useMutation({
+    mutationFn: (decision: 'GRANT' | 'REJECT') =>
+      api.bookings.reviewConcession(b.id, review!.id, {
+        decision,
+        staffNote: staffNote || undefined,
+      }),
+    onSuccess: (next, decision) => {
+      setReview(null);
+      setStaffNote('');
+      onChanged(next, decision === 'GRANT' ? 'Concession granted' : 'Concession declined');
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const c = b.concessions ?? {
+    grantedChildSeats: 0,
+    grantedInfantSeats: 0,
+    discountAmount: 0,
+    requests: [],
+    canRequestChild: false,
+    canRequestInfant: false,
+    canRequestDiscount: false,
+  };
+  return (
+    <Card>
+      <CardHeader
+        title="Concessions"
+        description="Child seats (1 per 10 adults, adult fare), lap infants (no seat), and discounts."
+      />
+      <CardBody className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Granted child seats</p>
+            <p className="text-lg font-semibold tabular">{c.grantedChildSeats}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Granted infant seats</p>
+            <p className="text-lg font-semibold tabular">{c.grantedInfantSeats}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Discount applied</p>
+            <p className="text-lg font-semibold tabular">
+              {c.discountAmount > 0 ? formatMoney(c.discountAmount, { decimals: true }) : '—'}
+            </p>
+          </div>
+        </div>
+        {c.requests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No concession requests yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {c.requests.map((r) => (
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-sunken px-3 py-2 text-sm"
+              >
+                <div>
+                  <p className="font-medium">
+                    {r.type === 'DISCOUNT'
+                      ? `Discount ${formatMoney(r.status === 'GRANTED' ? r.grantedAmount : r.amount, { decimals: true })}`
+                      : `${r.status === 'GRANTED' ? r.grantedSeats : r.seats} ${r.type === 'CHILD_SEATS' ? 'child' : 'infant'} seat(s)`}{' '}
+                    <StatusBadge status={r.status} />
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(r.createdAt)}
+                    {r.note ? ` · Agent: ${r.note}` : ''}
+                    {r.staffNote ? ` · ${r.staffNote}` : ''}
+                  </p>
+                </div>
+                {r.status === 'PENDING' && canReview && (
+                  <Button size="sm" onClick={() => setReview(r)}>
+                    Review
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+      <Dialog
+        open={!!review}
+        onOpenChange={(o) => !o && setReview(null)}
+        title="Review concession"
+        description="Child seats add inventory at the adult fare. Infants do not take a seat. Discounts reduce the booking total."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setReview(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger-outline"
+              onClick={() => act.mutate('REJECT')}
+              loading={act.isPending}
+            >
+              Decline
+            </Button>
+            <Button onClick={() => act.mutate('GRANT')} loading={act.isPending}>
+              Grant
+            </Button>
+          </>
+        }
+      >
+        <Field label="Note to partner (optional)">
+          <Textarea rows={3} value={staffNote} onChange={(e) => setStaffNote(e.target.value)} />
+        </Field>
+      </Dialog>
+    </Card>
   );
 }
 

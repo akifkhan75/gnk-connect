@@ -74,6 +74,24 @@ describe('AirDesk passenger rules', () => {
       trip,
     );
     expect(infant.some((i) => i.code === 'INFANT_NOT_ALLOWED')).toBe(true);
+
+    const granted = checkBookingPassengers(
+      [
+        adult(),
+        adult({
+          type: 'INFANT',
+          firstName: 'Noor',
+          dateOfBirth: '2025-06-01',
+          passportNumber: 'CD9876543',
+        }),
+      ],
+      1,
+      trip,
+      { grantedInfantSeats: 1 },
+    );
+    expect(
+      granted.filter((i) => i.code === 'INFANT_NOT_ALLOWED' || i.code === 'SEAT_COUNT'),
+    ).toEqual([]);
   });
 
   it('accepts a valid adult and only warns on PK passport format', () => {

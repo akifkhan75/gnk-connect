@@ -17,6 +17,7 @@ import {
   isIsoDate,
   paxTypeFromDob,
   pkPassportHint,
+  type PartyRules,
   type PassengerInput,
   type TripDates,
 } from '@gnk/validation';
@@ -77,16 +78,26 @@ export function blankPax(type: PassengerInput['type'] = 'ADULT'): PassengerInput
   };
 }
 
-export function buildPassengers(adults: number, children: number, previous: PassengerInput[] = []) {
+export function buildPassengers(
+  adults: number,
+  children: number,
+  previous: PassengerInput[] = [],
+  infants = 0,
+) {
+  const prevOf = (type: PassengerInput['type']) => previous.filter((p) => p.type === type);
   return [
-    ...Array.from({ length: adults }, (_, i) => {
-      const prev = previous[i];
-      return { ...(prev?.type === 'ADULT' ? prev : blankPax('ADULT')), type: 'ADULT' as const };
-    }),
-    ...Array.from({ length: children }, (_, i) => {
-      const prev = previous[adults + i];
-      return { ...(prev?.type === 'CHILD' ? prev : blankPax('CHILD')), type: 'CHILD' as const };
-    }),
+    ...Array.from({ length: adults }, (_, i) => ({
+      ...(prevOf('ADULT')[i] ?? blankPax('ADULT')),
+      type: 'ADULT' as const,
+    })),
+    ...Array.from({ length: children }, (_, i) => ({
+      ...(prevOf('CHILD')[i] ?? blankPax('CHILD')),
+      type: 'CHILD' as const,
+    })),
+    ...Array.from({ length: infants }, (_, i) => ({
+      ...(prevOf('INFANT')[i] ?? blankPax('INFANT')),
+      type: 'INFANT' as const,
+    })),
   ];
 }
 
@@ -151,18 +162,20 @@ function applyRowChecks(
   setValue: UseFormSetValue<{ passengers: PassengerInput[] }>,
   setError: UseFormSetError<{ passengers: PassengerInput[] }>,
   clearErrors: UseFormClearErrors<{ passengers: PassengerInput[] }>,
+  rules: PartyRules = {},
 ) {
   let next = passenger;
   if (!lockType && isIsoDate(passenger.dateOfBirth)) {
     const derived = paxTypeFromDob(passenger.dateOfBirth, trip.departureDate);
-    if (derived !== 'INFANT' && derived !== passenger.type) {
+    const allowInfant = (rules.grantedInfantSeats ?? 0) > 0;
+    if ((derived !== 'INFANT' || allowInfant) && derived !== passenger.type) {
       setValue(`passengers.${index}.type`, derived, { shouldDirty: true });
       next = { ...passenger, type: derived };
     }
   }
   const fields = ['dateOfBirth', 'passportExpiry', 'passportNumber', 'title', 'type'] as const;
   clearErrors(fields.map((f) => `passengers.${index}.${f}` as const));
-  for (const issue of checkPassenger(next, trip, index)) {
+  for (const issue of checkPassenger(next, trip, index, rules)) {
     setError(issue.path as 'passengers', { type: 'validate', message: issue.message });
   }
 }
@@ -178,6 +191,7 @@ export function PassengerRows({
   errors,
   trip,
   lockType = false,
+  rules,
   onScanned,
 }: {
   fields: FieldArrayWithId<{ passengers: PassengerInput[] }, 'passengers'>[];
@@ -190,6 +204,7 @@ export function PassengerRows({
   errors?: FieldErrors<{ passengers: PassengerInput[] }>['passengers'];
   trip?: TripDates;
   lockType?: boolean;
+  rules?: PartyRules;
   onScanned?: (index: number, scan: PassportScanDto) => void;
 }) {
   const [scanning, setScanning] = useState<number | null>(null);
@@ -211,6 +226,7 @@ export function PassengerRows({
       setValue,
       setError,
       clearErrors,
+      rules,
     );
   };
 

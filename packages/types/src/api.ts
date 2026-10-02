@@ -7,6 +7,8 @@
 
 import type {
   BookingStatus,
+  ConcessionStatus,
+  ConcessionType,
   DepartureStatus,
   Gender,
   KycDocStatus,
@@ -342,6 +344,30 @@ export interface PassengerDto {
   passportExpiry: string;
 }
 
+export interface ConcessionDto {
+  id: string;
+  type: ConcessionType;
+  status: ConcessionStatus;
+  seats: number;
+  amount: number;
+  grantedSeats: number;
+  grantedAmount: number;
+  note: string | null;
+  staffNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface BookingConcessionsDto {
+  grantedChildSeats: number;
+  grantedInfantSeats: number;
+  discountAmount: number;
+  requests: ConcessionDto[];
+  canRequestChild: boolean;
+  canRequestInfant: boolean;
+  canRequestDiscount: boolean;
+}
+
 export interface BookingDetailDto extends BookingListItem {
   productId: string;
   returnDate: string | null;
@@ -357,6 +383,10 @@ export interface BookingDetailDto extends BookingListItem {
   outbound: FlightLegDto | null;
   inbound: FlightLegDto | null;
   canCancel: boolean;
+  holdExpiresAt: string | null;
+  childSeats: number;
+  infantSeats: number;
+  concessions: BookingConcessionsDto;
 }
 
 export interface BookingStatusCounts {
@@ -724,7 +754,7 @@ export interface AuditLogDto {
 export interface SettingsDto {
   company: CompanyInfoDto;
   bankAccounts: BankAccountDto[];
-  booking: { quoteTtlMinutes: number; paymentTermsNote: string };
+  booking: { quoteTtlMinutes: number; holdTtlHours: number; paymentTermsNote: string };
   accounting: { requireJvApproval: boolean };
 }
 

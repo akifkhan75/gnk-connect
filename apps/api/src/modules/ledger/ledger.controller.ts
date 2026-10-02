@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import {
   adminPartnerListSchema,
@@ -56,7 +57,7 @@ export class AdminLedgerController {
       q.status === 'APPROVED' || q.status === 'SUSPENDED'
         ? q.status
         : { in: ['APPROVED', 'SUSPENDED'] as ('APPROVED' | 'SUSPENDED')[] };
-    const where = {
+    const where: Prisma.PartnerAccountWhereInput = {
       deletedAt: null,
       status,
       ...(q.type && q.type !== 'ALL' ? { type: q.type } : {}),
