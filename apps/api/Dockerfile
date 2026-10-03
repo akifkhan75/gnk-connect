@@ -26,6 +26,7 @@ COPY --from=installer --chown=nestjs:nodejs /app/node_modules ./node_modules
 # node_modules/@gnk/* are workspace symlinks to ../../packages/*, which run from their dist/ builds.
 COPY --from=installer --chown=nestjs:nodejs /app/packages ./packages
 COPY --from=installer --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
+COPY --from=installer --chown=nestjs:nodejs /app/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY --from=installer --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
 COPY --from=installer --chown=nestjs:nodejs /app/apps/api/prisma ./apps/api/prisma
 

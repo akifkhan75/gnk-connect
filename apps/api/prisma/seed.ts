@@ -1,8 +1,8 @@
-import { PrismaClient } from '@prisma/client';
+import { createPrismaClient } from '../src/infra/prisma/create-client';
 import { seedBase } from './seed-base';
 import { seedDemo } from './seed-demo';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   const base = await seedBase(prisma);
