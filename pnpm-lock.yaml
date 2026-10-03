@@ -14,8 +14,8 @@ importers:
         specifier: ^4.0.0
         version: 4.63.5
       '@turbo/darwin-arm64':
-        specifier: ^2.11.4
-        version: 2.11.4
+        specifier: ^2.11.5
+        version: 2.11.5
     devDependencies:
       '@commitlint/cli':
         specifier: ^21.2.3
@@ -4311,6 +4311,11 @@ packages:
       {
         integrity: sha512-SgXCVgBC1v+bdE6+KQGV6Kob7nBYo75zxzNFFuA4jLdM0J8lYamdTUoZSHLR0dy+kXVEYZqSC98CKqC17NG3Og==,
       }
+    cpu: [arm64]
+    os: [darwin]
+
+  '@turbo/darwin-arm64@2.11.5':
+    resolution: {integrity: sha512-ToZDGi2u410+TfRtC/O1/LpujGgvNJoRBZnwVXob7oO0+3OSlwIO3zofXKUvwQvlba7a8ZXPyCZwufjAXd7f0w==}
     cpu: [arm64]
     os: [darwin]
 
@@ -15562,6 +15567,9 @@ snapshots:
     optional: true
 
   '@turbo/darwin-arm64@2.11.4':
+    optional: true
+
+  '@turbo/darwin-arm64@2.11.5':
     optional: true
 
   '@turbo/linux-64@2.11.4':
