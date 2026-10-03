@@ -58,13 +58,7 @@ export const zeroMoneySchema = z.coerce
   .max(999_999_999_999, 'Amount is too large')
   .refine((v) => Math.round(v * 100) === v * 100, 'Use at most 2 decimals');
 
-export const optionalText = (max = 500) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .optional()
-    .transform((v) => (v ? v : undefined));
+export const optionalText = (max = 500) => z.string().trim().max(max).optional();
 
 /** Airline PNR for an extra child/infant seat. Blank is allowed at approve time. */
 export const optionalPnrSchema = z.preprocess(

@@ -72,8 +72,14 @@ describe('@gnk/validation', () => {
       adultAmount: 10000,
       childAmount: '3000',
     });
-    expect(discount).toMatchObject({ adultAmount: 10000, childAmount: 3000, infantAmount: 0 });
+    expect(discount).toMatchObject({
+      type: 'DISCOUNT',
+      adultAmount: 10000,
+      childAmount: 3000,
+      infantAmount: 0,
+    });
     expect(requestConcessionSchema.safeParse({ type: 'DISCOUNT' }).success).toBe(false);
+    if (discount.type !== 'DISCOUNT') throw new Error('expected discount concession');
     expect(seatDiscountTotal(discount, partyFromSeats(11, 1, 0))).toBe(103000);
   });
 
