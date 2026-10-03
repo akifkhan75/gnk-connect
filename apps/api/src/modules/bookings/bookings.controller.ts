@@ -14,15 +14,21 @@ import { Throttle } from '@nestjs/throttler';
 import type { z } from 'zod';
 import {
   adminBookingListSchema,
+  adminConcessionListSchema,
   bookingAssignSchema,
   bookingDecisionSchema,
   bookingListSchema,
   bookingRejectSchema,
   addPassengersSchema,
+  updatePassengersSchema,
   cancelBookingSchema,
   createBookingSchema,
+  extendHoldSchema,
   internalNoteSchema,
   passportScanSchema,
+  concessionPnrSchema,
+  requestConcessionSchema,
+  reviewConcessionSchema,
 } from '@gnk/validation';
 import { UUID } from '../../core/http/parse-uuid';
 import { Meta, type RequestMeta } from '../../core/http/request-meta';
@@ -101,6 +107,43 @@ export class PartnerBookingsController {
     return this.bookings.addPassengers(actor, id, dto.passengers, meta);
   }
 
+  @Patch(':id/passengers')
+  @RequireApproved()
+  @RequirePartnerCapability('bookings:create')
+  updatePassengers(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(updatePassengersSchema)) dto: z.output<typeof updatePassengersSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.updatePassengers(actor, id, dto.passengers, meta);
+  }
+
+  @Post(':id/concessions')
+  @HttpCode(200)
+  @RequireApproved()
+  @RequirePartnerCapability('bookings:create')
+  requestConcession(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(requestConcessionSchema)) dto: z.output<typeof requestConcessionSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.requestConcession(actor, id, dto, meta);
+  }
+
+  @Post(':id/concessions/:concessionId/cancel')
+  @HttpCode(200)
+  @RequirePartnerCapability('bookings:create')
+  cancelConcession(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Param('concessionId', UUID) concessionId: string,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.cancelConcession(actor, id, concessionId, meta);
+  }
+
   @Post(':id/cancel')
   @HttpCode(200)
   @RequirePartnerCapability('bookings:create')
@@ -131,7 +174,10 @@ export class PartnerInvoicesController {
 
 @Controller('admin/bookings')
 export class AdminBookingsController {
-  constructor(private readonly bookings: BookingsService) {}
+  constructor(
+    private readonly bookings: BookingsService,
+    private readonly config: ConfigService<EnvConfig, true>,
+  ) {}
 
   @Get()
   @RequirePermission('bookings:read')
@@ -146,6 +192,24 @@ export class AdminBookingsController {
   @RequirePermission('bookings:read')
   counts() {
     return this.bookings.adminCounts();
+  }
+
+  @Get('concessions')
+  @RequirePermission('bookings:read')
+  listConcessions(
+    @Query(new ZodPipe(adminConcessionListSchema)) q: z.output<typeof adminConcessionListSchema>,
+  ) {
+    return this.bookings.adminConcessionList(q);
+  }
+
+  @Post('scan-passport')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 10 * 60_000 } })
+  @RequirePermission('bookings:approve')
+  scanPassport(
+    @Body(new ZodPipe(passportScanSchema)) dto: z.output<typeof passportScanSchema>,
+  ): Promise<PassportScanDto> {
+    return readPassportScan(this.config.get('GEMINI_API_KEY', { infer: true }), dto);
   }
 
   @Get(':id')
@@ -224,6 +288,77 @@ export class AdminBookingsController {
     @Meta() meta: RequestMeta,
   ) {
     return this.bookings.assign(actor, id, dto.staffId, meta);
+  }
+
+  @Post(':id/concessions/:concessionId/review')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  reviewConcession(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Param('concessionId', UUID) concessionId: string,
+    @Body(new ZodPipe(reviewConcessionSchema)) dto: z.output<typeof reviewConcessionSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.reviewConcession(actor, id, concessionId, dto, meta);
+  }
+
+  @Patch(':id/concessions/:concessionId')
+  @RequirePermission('bookings:approve')
+  setConcessionPnr(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Param('concessionId', UUID) concessionId: string,
+    @Body(new ZodPipe(concessionPnrSchema)) dto: z.output<typeof concessionPnrSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.setConcessionPnr(actor, id, concessionId, dto.pnr, meta);
+  }
+
+  @Post(':id/concessions')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  grantConcession(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(requestConcessionSchema)) dto: z.output<typeof requestConcessionSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.grantConcession(actor, id, dto, meta);
+  }
+
+  @Patch(':id/hold')
+  @RequirePermission('bookings:approve')
+  extendHold(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(extendHoldSchema)) dto: z.output<typeof extendHoldSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.extendHold(actor, id, dto.holdExpiresAt, meta);
+  }
+
+  @Post(':id/passengers')
+  @HttpCode(200)
+  @RequirePermission('bookings:approve')
+  addPassengers(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(addPassengersSchema)) dto: z.output<typeof addPassengersSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.adminAddPassengers(actor, id, dto.passengers, meta);
+  }
+
+  @Patch(':id/passengers')
+  @RequirePermission('bookings:approve')
+  updatePassengers(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(updatePassengersSchema)) dto: z.output<typeof updatePassengersSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.adminUpdatePassengers(actor, id, dto.passengers, meta);
   }
 
   @Patch(':id/notes')

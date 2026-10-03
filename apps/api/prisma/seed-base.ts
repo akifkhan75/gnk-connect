@@ -88,6 +88,7 @@ export async function seedBase(prisma: PrismaClient) {
     bankAccounts: [],
     booking: {
       quoteTtlMinutes: 30,
+      holdTtlHours: 24,
       paymentTermsNote:
         'Bookings are sent to the airline once your account balance or credit covers the total. Deposit by bank transfer and upload the slip under Payments.',
     },

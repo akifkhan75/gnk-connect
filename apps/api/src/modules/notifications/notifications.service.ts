@@ -70,14 +70,18 @@ export class NotificationsService {
 
   /** Notify every active staff member who holds the permission, optionally except one. */
   async notifyStaff(permission: Permission, input: NotifyInput, exceptUserId?: string) {
-    const users = await this.prisma.staffUser.findMany({
+    const where = {
+      status: 'ACTIVE' as const,
+      deletedAt: null,
+      ...(exceptUserId ? { id: { not: exceptUserId } } : {}),
+    };
+    let users = await this.prisma.staffUser.findMany({
       where: {
-        status: 'ACTIVE',
-        deletedAt: null,
-        ...(exceptUserId ? { id: { not: exceptUserId } } : {}),
+        ...where,
         roles: { some: { role: { permissions: { some: { permission: { key: permission } } } } } },
       },
     });
+    if (!users.length) users = await this.prisma.staffUser.findMany({ where });
     await this.create(
       'STAFF',
       users.map((u) => u.id),
@@ -173,6 +177,8 @@ export class NotificationsService {
         })),
       });
       this.realtime.publish({ topic: 'notification', action: 'created' }, { realm, userIds });
+      if (realm === 'STAFF')
+        this.realtime.publish({ topic: 'notification', action: 'created' }, { realm: 'STAFF' });
     } catch (err) {
       this.logger.error(`Failed to create notifications: ${(err as Error).message}`);
     }

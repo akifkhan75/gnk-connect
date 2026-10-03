@@ -4,21 +4,26 @@ import { cn } from '@gnk/ui';
 export function TealCard({
   title,
   icon,
+  actions,
   children,
   className,
   bodyClassName,
 }: {
   title: ReactNode;
   icon?: ReactNode;
+  actions?: ReactNode;
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
 }) {
   return (
     <section className={cn('overflow-hidden rounded-xl bg-surface shadow-card', className)}>
-      <header className="flex items-center gap-2 bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-foreground">
-        {icon}
-        {title}
+      <header className="flex items-center justify-between gap-3 bg-accent px-5 py-2.5 text-[14px] font-semibold text-accent-foreground">
+        <span className="flex min-w-0 items-center gap-2">
+          {icon}
+          {title}
+        </span>
+        {actions}
       </header>
       <div className={bodyClassName}>{children}</div>
     </section>

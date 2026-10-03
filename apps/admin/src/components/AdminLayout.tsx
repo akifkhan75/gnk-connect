@@ -18,6 +18,7 @@ import {
   ReceiptText,
   ScrollText,
   Settings,
+  TicketPercent,
   UserCog,
   UserRound,
   Wallet,
@@ -92,6 +93,13 @@ function AdminShell() {
           icon: BookOpen,
           perm: 'bookings:read',
           badge: queues.data?.bookings || null,
+        },
+        {
+          label: 'Concessions',
+          href: '/concessions',
+          icon: TicketPercent,
+          perm: 'bookings:read',
+          badge: queues.data?.concessions || null,
         },
         {
           label: 'Payments',

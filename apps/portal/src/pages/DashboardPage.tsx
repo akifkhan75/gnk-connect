@@ -94,14 +94,16 @@ export function DashboardPage() {
         </Card>
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
             <StatCard
+              size="sm"
               label="Pending approval"
               value={d?.stats.pendingApproval ?? '–'}
               icon={<Hourglass />}
               tone="warning"
             />
             <StatCard
+              size="sm"
               label="Awaiting funds"
               value={d?.stats.awaitingPayment ?? '–'}
               icon={<Clock />}
@@ -109,18 +111,21 @@ export function DashboardPage() {
               hint="Approved, not yet issued"
             />
             <StatCard
+              size="sm"
               label="Confirmed"
               value={d?.stats.confirmed ?? '–'}
               icon={<CheckCircle2 />}
               tone="success"
             />
             <StatCard
+              size="sm"
               label="Departing in 30 days"
               value={d?.stats.upcomingDepartures ?? '–'}
               icon={<CalendarClock />}
             />
             {can.money(account.role) && (
               <StatCard
+                size="sm"
                 label="Available to book"
                 value={d ? formatMoney(d.balance.availableFunds) : '–'}
                 hint={

@@ -4,6 +4,12 @@ import {
   PartnerPaymentInstructionsController,
 } from './modules/settings/settings.controller';
 import { ZodPipe } from './core/http/zod.pipe';
+import {
+  adminConcessionListSchema,
+  extendHoldSchema,
+  requestConcessionSchema,
+  reviewConcessionSchema,
+} from '@gnk/validation';
 import { z } from 'zod';
 import { mockPrisma, staff } from './test/helpers';
 
@@ -50,5 +56,47 @@ describe('HTTP integration', () => {
     const pipe = new ZodPipe(z.object({ seats: z.number().int().min(1) }));
     expect(pipe.transform({ seats: 2 })).toEqual({ seats: 2 });
     expect(() => pipe.transform({ seats: 0 })).toThrow();
+  });
+
+  it('validates AirDesk per-seat discount requests', () => {
+    const request = new ZodPipe(requestConcessionSchema);
+    expect(request.transform({ type: 'DISCOUNT', adultAmount: 10000, childAmount: 3000 })).toEqual({
+      type: 'DISCOUNT',
+      adultAmount: 10000,
+      childAmount: 3000,
+      infantAmount: 0,
+    });
+    expect(() => request.transform({ type: 'DISCOUNT', adultAmount: 0, childAmount: 0 })).toThrow();
+    const review = new ZodPipe(reviewConcessionSchema);
+    expect(review.transform({ decision: 'GRANT', amount: 2500 })).toMatchObject({
+      decision: 'GRANT',
+      amount: 2500,
+    });
+    expect(
+      review.transform({
+        decision: 'GRANT',
+        seats: 2,
+        pnr: 'abc123',
+        adultAmount: 8000,
+        childAmount: 0,
+        infantAmount: 0,
+      }),
+    ).toMatchObject({
+      decision: 'GRANT',
+      seats: 2,
+      pnr: 'ABC123',
+      adultAmount: 8000,
+    });
+    const hold = new ZodPipe(extendHoldSchema);
+    expect(hold.transform({ holdExpiresAt: '2026-10-10T12:00:00.000Z' })).toEqual({
+      holdExpiresAt: '2026-10-10T12:00:00.000Z',
+    });
+    expect(() => hold.transform({ holdExpiresAt: 'not-a-date' })).toThrow();
+    const concessions = new ZodPipe(adminConcessionListSchema);
+    expect(concessions.transform({})).toEqual({ page: 1, pageSize: 25, status: 'PENDING' });
+    expect(concessions.transform({ status: 'GRANTED', page: '2' })).toMatchObject({
+      status: 'GRANTED',
+      page: 2,
+    });
   });
 });

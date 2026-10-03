@@ -4,7 +4,7 @@ import { useEvents } from './api';
 
 // Which cached queries each kind of change makes stale (matched by key prefix).
 const STALE: Record<RealtimeTopic, string[]> = {
-  booking: ['bookings', 'booking', 'booking-counts', 'dashboard', 'queues'],
+  booking: ['bookings', 'booking', 'booking-counts', 'concessions', 'dashboard', 'queues'],
   payment: [
     'payments',
     'payment',

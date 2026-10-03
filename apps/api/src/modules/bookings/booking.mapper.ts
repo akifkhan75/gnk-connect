@@ -4,8 +4,10 @@ import type {
   AdminBookingDetailDto,
   AdminBookingListItem,
   BalanceDto,
+  BookingConcessionsDto,
   BookingDetailDto,
   BookingListItem,
+  ConcessionDto,
   FlightLegDto,
   PassengerDto,
   PaymentDto,
@@ -43,6 +45,7 @@ const detailInclude = {
   payments: { orderBy: { createdAt: 'desc' } },
   allocations: { include: { payment: true } },
   supplierCalls: { orderBy: { createdAt: 'desc' }, take: 20 },
+  concessions: { orderBy: { createdAt: 'asc' } },
 } satisfies Prisma.BookingInclude;
 
 export type BookingListRow = Prisma.BookingGetPayload<{ include: typeof listInclude }>;
@@ -50,6 +53,12 @@ export type BookingDetailRow = Prisma.BookingGetPayload<{ include: typeof detail
 
 const staffRef = (id: string | null, names: Map<string, string>) =>
   id ? { id, name: (names.get(id) ?? 'GNK staff').replace(/ \(GNK\)$/, '') } : null;
+
+/** AirDesk Concession Requests column: seats as "1 child seat(s)", discounts as "—". */
+export function concessionRequestLabel(c: { type: string; seats: number }): string {
+  if (c.type === 'DISCOUNT') return '—';
+  return c.type === 'CHILD_SEATS' ? `${c.seats} child seat(s)` : `${c.seats} infant seat(s)`;
+}
 
 /** Payments linked to a booking: legacy single-booking payments and allocations. */
 export function bookingPayments(b: BookingDetailRow): PaymentDto[] {
@@ -200,6 +209,44 @@ export class BookingMapper {
         b.invoice && !b.invoice.voidedAt ? { id: b.invoice.id, number: b.invoice.number } : null,
       ...this.legs(b),
       canCancel,
+      holdExpiresAt: iso(b.holdExpiresAt),
+      childSeats: b.childSeats,
+      infantSeats: b.infantSeats,
+      concessions: this.concessions(b),
+    };
+  }
+
+  private concessions(b: BookingDetailRow): BookingConcessionsDto {
+    const requests: ConcessionDto[] = (b.concessions ?? []).map((c) => ({
+      id: c.id,
+      type: c.type,
+      status: c.status,
+      seats: c.seats,
+      amount: num(c.amount),
+      adultAmount: num(c.adultAmount ?? 0),
+      childAmount: num(c.childAmount ?? 0),
+      infantAmount: num(c.infantAmount ?? 0),
+      grantedSeats: c.grantedSeats,
+      grantedAmount: num(c.grantedAmount),
+      pnr: c.pnr ?? null,
+      note: c.note,
+      staffNote: c.staffNote,
+      createdAt: iso(c.createdAt)!,
+      reviewedAt: iso(c.reviewedAt),
+    }));
+    const granted = (type: ConcessionDto['type']) =>
+      requests.filter((r) => r.type === type && r.status === 'GRANTED');
+    const pending = (type: ConcessionDto['type']) =>
+      requests.some((r) => r.type === type && r.status === 'PENDING');
+    const open = b.status === 'PENDING_APPROVAL' || b.status === 'APPROVED';
+    return {
+      grantedChildSeats: granted('CHILD_SEATS').reduce((s, r) => s + r.grantedSeats, 0),
+      grantedInfantSeats: granted('INFANT_SEATS').reduce((s, r) => s + r.grantedSeats, 0),
+      discountAmount: granted('DISCOUNT').reduce((s, r) => s + r.grantedAmount, 0),
+      requests,
+      canRequestChild: open && !pending('CHILD_SEATS'),
+      canRequestInfant: open && !pending('INFANT_SEATS'),
+      canRequestDiscount: open && !pending('DISCOUNT') && granted('DISCOUNT').length === 0,
     };
   }
 

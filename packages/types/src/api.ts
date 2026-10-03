@@ -7,6 +7,8 @@
 
 import type {
   BookingStatus,
+  ConcessionStatus,
+  ConcessionType,
   DepartureStatus,
   Gender,
   KycDocStatus,
@@ -342,6 +344,50 @@ export interface PassengerDto {
   passportExpiry: string;
 }
 
+export interface ConcessionDto {
+  id: string;
+  type: ConcessionType;
+  status: ConcessionStatus;
+  seats: number;
+  amount: number;
+  adultAmount: number;
+  childAmount: number;
+  infantAmount: number;
+  grantedSeats: number;
+  grantedAmount: number;
+  pnr: string | null;
+  note: string | null;
+  staffNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export interface BookingConcessionsDto {
+  grantedChildSeats: number;
+  grantedInfantSeats: number;
+  discountAmount: number;
+  requests: ConcessionDto[];
+  canRequestChild: boolean;
+  canRequestInfant: boolean;
+  canRequestDiscount: boolean;
+}
+
+/** One row on the admin Concession Requests queue. */
+export interface AdminConcessionListItem {
+  id: string;
+  bookingId: string;
+  bookingReference: string;
+  accountId: string;
+  accountName: string;
+  type: ConcessionType;
+  status: ConcessionStatus;
+  /** AirDesk request column: "1 child seat(s)" or "—" for a discount. */
+  requestLabel: string;
+  seats: number;
+  amount: number;
+  createdAt: string;
+}
+
 export interface BookingDetailDto extends BookingListItem {
   productId: string;
   returnDate: string | null;
@@ -357,6 +403,10 @@ export interface BookingDetailDto extends BookingListItem {
   outbound: FlightLegDto | null;
   inbound: FlightLegDto | null;
   canCancel: boolean;
+  holdExpiresAt: string | null;
+  childSeats: number;
+  infantSeats: number;
+  concessions: BookingConcessionsDto;
 }
 
 export interface BookingStatusCounts {
@@ -724,7 +774,7 @@ export interface AuditLogDto {
 export interface SettingsDto {
   company: CompanyInfoDto;
   bankAccounts: BankAccountDto[];
-  booking: { quoteTtlMinutes: number; paymentTermsNote: string };
+  booking: { quoteTtlMinutes: number; holdTtlHours: number; paymentTermsNote: string };
   accounting: { requireJvApproval: boolean };
 }
 
@@ -738,6 +788,7 @@ export interface AdminDashboardDto {
     pendingPartners: number;
     pendingBookings: number;
     pendingPayments: number;
+    pendingConcessions: number;
   };
   daily: { date: string; bookings: number; gmv: number }[];
   funnel: { requested: number; approved: number; confirmed: number; rejected: number };
@@ -763,6 +814,8 @@ export interface AdminQueueCounts {
   payments: number;
   /** Journal vouchers waiting for approval. */
   vouchers: number;
+  /** Agent concession requests waiting for review. */
+  concessions: number;
 }
 
 // ---------- Public website ----------

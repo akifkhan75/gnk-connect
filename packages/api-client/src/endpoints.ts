@@ -22,6 +22,7 @@ import type {
   VoucherListItem,
   AdminBookingDetailDto,
   AdminBookingListItem,
+  AdminConcessionListItem,
   AdminDashboardDto,
   AdminPartnerDetailDto,
   AdminPartnerListItem,
@@ -86,7 +87,11 @@ import type {
   BookingListInput,
   ChangePasswordInput,
   AddPassengersInput,
+  UpdatePassengersInput,
   CreateBookingInput,
+  ExtendHoldInput,
+  RequestConcessionInput,
+  ReviewConcessionInput,
   CreditLimitInput,
   PassportScanInput,
   GroupSearchInput,
@@ -209,6 +214,12 @@ export const partnerApi = (http: HttpClient) => ({
       http.post<BookingDetailDto>('partner/bookings', dto, { 'Idempotency-Key': idempotencyKey }),
     addPassengers: (id: string, dto: AddPassengersInput) =>
       http.post<BookingDetailDto>(`partner/bookings/${id}/passengers`, dto),
+    updatePassengers: (id: string, dto: UpdatePassengersInput) =>
+      http.patch<BookingDetailDto>(`partner/bookings/${id}/passengers`, dto),
+    requestConcession: (id: string, dto: RequestConcessionInput) =>
+      http.post<BookingDetailDto>(`partner/bookings/${id}/concessions`, dto),
+    cancelConcession: (id: string, concessionId: string) =>
+      http.post<BookingDetailDto>(`partner/bookings/${id}/concessions/${concessionId}/cancel`),
     scanPassport: (dto: PassportScanInput) =>
       http.post<PassportScanDto>('partner/bookings/scan-passport', dto),
     cancel: (id: string, reason: string) =>
@@ -299,6 +310,8 @@ export const adminApi = (http: HttpClient) => ({
     list: (q: AdminBookingListInput) =>
       http.get<Paginated<AdminBookingListItem>>('admin/bookings', q as never),
     counts: () => http.get<Record<string, number>>('admin/bookings/counts'),
+    listConcessions: (q: Page & { status?: string }) =>
+      http.get<Paginated<AdminConcessionListItem>>('admin/bookings/concessions', q),
     get: (id: string) => http.get<AdminBookingDetailDto>(`admin/bookings/${id}`),
     approve: (id: string, note?: string) =>
       http.post<AdminBookingDetailDto>(`admin/bookings/${id}/approve`, { note }),
@@ -315,6 +328,23 @@ export const adminApi = (http: HttpClient) => ({
       http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/assign`, { staffId }),
     revealPassport: (passengerId: string) =>
       http.post<{ passportNumber: string }>(`admin/bookings/passengers/${passengerId}/reveal`),
+    reviewConcession: (id: string, concessionId: string, dto: ReviewConcessionInput) =>
+      http.post<AdminBookingDetailDto>(
+        `admin/bookings/${id}/concessions/${concessionId}/review`,
+        dto,
+      ),
+    setConcessionPnr: (id: string, concessionId: string, dto: { pnr: string }) =>
+      http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/concessions/${concessionId}`, dto),
+    grantConcession: (id: string, dto: RequestConcessionInput) =>
+      http.post<AdminBookingDetailDto>(`admin/bookings/${id}/concessions`, dto),
+    extendHold: (id: string, dto: ExtendHoldInput) =>
+      http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/hold`, dto),
+    addPassengers: (id: string, dto: AddPassengersInput) =>
+      http.post<AdminBookingDetailDto>(`admin/bookings/${id}/passengers`, dto),
+    updatePassengers: (id: string, dto: UpdatePassengersInput) =>
+      http.patch<AdminBookingDetailDto>(`admin/bookings/${id}/passengers`, dto),
+    scanPassport: (dto: PassportScanInput) =>
+      http.post<PassportScanDto>('admin/bookings/scan-passport', dto),
   },
   invoices: { get: (id: string) => http.get<InvoiceDetailDto>(`admin/invoices/${id}`) },
   payments: {

@@ -3,6 +3,50 @@ import type { Gender, PaxType, Title } from '@gnk/types';
 /** AirDesk / plan 09: one child seat per 10 adults. Infants do not take a seat. */
 export const CHILD_PER_ADULTS = 10;
 
+export type PartyRules = {
+  /** Require adults+children === seats (create / fill-all). Default true. */
+  exactSeats?: boolean;
+  /** Lap-infant quota granted on the booking. Default 0 (infants blocked). */
+  grantedInfantSeats?: number;
+  /** Max seated children on this booking (create-time + granted). */
+  childSeatQuota?: number;
+};
+
+export function maxChildSeatsForAdults(adults: number) {
+  return Math.floor(Math.max(0, adults) / CHILD_PER_ADULTS);
+}
+
+/** One lap infant per adult; infants do not occupy a seat. */
+export function maxInfantSeatsForAdults(adults: number) {
+  return Math.max(0, adults);
+}
+
+export function partyFromSeats(seats: number, childSeats: number, infantSeats: number) {
+  return {
+    adults: Math.max(0, seats - childSeats),
+    children: Math.max(0, childSeats),
+    infants: Math.max(0, infantSeats),
+  };
+}
+
+export type SeatDiscountRates = {
+  adultAmount: number;
+  childAmount: number;
+  infantAmount: number;
+};
+
+/** AirDesk: fixed PKR off each seat of that type. Infants have no fare unless a rate is set. */
+export function seatDiscountTotal(
+  rates: SeatDiscountRates,
+  party: { adults: number; children: number; infants: number },
+) {
+  return (
+    Math.max(0, rates.adultAmount) * party.adults +
+    Math.max(0, rates.childAmount) * party.children +
+    Math.max(0, rates.infantAmount) * party.infants
+  );
+}
+
 /** Pakistani passport MRZ pattern — warning only when nationality is PK. */
 export const PK_PASSPORT = /^[A-Z]{2}\d{7}$/;
 
@@ -53,6 +97,11 @@ export function genderFromTitle(title: Title): Gender {
   return title === 'MR' || title === 'MSTR' ? 'MALE' : 'FEMALE';
 }
 
+/** Adults: Mr/Mrs/Ms/Miss. Children and infants: Master/Miss. */
+export function titlesForType(type: PaxType): Title[] {
+  return type === 'ADULT' ? ['MR', 'MRS', 'MS', 'MISS'] : ['MSTR', 'MISS'];
+}
+
 export function pkPassportHint(nationality: string, passportNumber: string): string | undefined {
   if (nationality.toUpperCase() !== 'PK') return;
   const n = passportNumber.toUpperCase().replace(/\s/g, '');
@@ -62,9 +111,15 @@ export function pkPassportHint(nationality: string, passportNumber: string): str
   }
 }
 
-export function checkPassenger(p: PassengerCheck, trip: TripDates, index?: number): FieldIssue[] {
+export function checkPassenger(
+  p: PassengerCheck,
+  trip: TripDates,
+  index?: number,
+  rules: PartyRules = {},
+): FieldIssue[] {
   const prefix = index === undefined ? '' : `passengers.${index}.`;
   const issues: FieldIssue[] = [];
+  const infantQuota = rules.grantedInfantSeats ?? 0;
 
   if (genderFromTitle(p.title) !== p.gender) {
     issues.push({
@@ -73,7 +128,14 @@ export function checkPassenger(p: PassengerCheck, trip: TripDates, index?: numbe
       code: 'TITLE_GENDER_MISMATCH',
     });
   }
-  if (p.title === 'MSTR' && (p.type !== 'CHILD' || p.gender !== 'MALE')) {
+  if (p.title === 'MSTR' && p.gender !== 'MALE') {
+    issues.push({
+      path: `${prefix}title`,
+      message: 'MSTR is for male children only',
+      code: 'MSTR_TITLE',
+    });
+  }
+  if (p.title === 'MSTR' && p.type === 'ADULT') {
     issues.push({
       path: `${prefix}title`,
       message: 'MSTR is for male children only',
@@ -81,10 +143,10 @@ export function checkPassenger(p: PassengerCheck, trip: TripDates, index?: numbe
     });
   }
 
-  if (p.type === 'INFANT') {
+  if (p.type === 'INFANT' && infantQuota < 1) {
     issues.push({
       path: `${prefix}dateOfBirth`,
-      message: 'Infant fare is not configured for this group',
+      message: 'Infant seats must be requested and granted before adding an infant',
       code: 'INFANT_NOT_ALLOWED',
     });
   }
@@ -95,8 +157,8 @@ export function checkPassenger(p: PassengerCheck, trip: TripDates, index?: numbe
       issues.push({
         path: `${prefix}dateOfBirth`,
         message:
-          derived === 'INFANT'
-            ? 'Infant fare is not configured for this group'
+          derived === 'INFANT' && infantQuota < 1
+            ? 'Infant seats must be requested and granted before adding an infant'
             : `This passenger is a ${derived.toLowerCase()} on the departure date`,
         code: 'PAX_TYPE_MISMATCH',
       });
@@ -117,13 +179,20 @@ export function checkPassenger(p: PassengerCheck, trip: TripDates, index?: numbe
   return issues;
 }
 
-export function checkPassengerParty(passengers: PassengerCheck[], seats: number): FieldIssue[] {
+export function checkPassengerParty(
+  passengers: PassengerCheck[],
+  seats: number,
+  rules: PartyRules = {},
+): FieldIssue[] {
   const issues: FieldIssue[] = [];
   const adults = passengers.filter((p) => p.type === 'ADULT').length;
   const children = passengers.filter((p) => p.type === 'CHILD').length;
   const infants = passengers.filter((p) => p.type === 'INFANT').length;
+  const seated = adults + children;
+  const exact = rules.exactSeats !== false;
+  const infantQuota = rules.grantedInfantSeats ?? 0;
 
-  if (adults < 1) {
+  if (seated > 0 && adults < 1) {
     issues.push({
       path: 'passengers',
       message: 'At least one adult is required',
@@ -131,8 +200,9 @@ export function checkPassengerParty(passengers: PassengerCheck[], seats: number)
     });
   }
 
-  const maxChildren = Math.floor(adults / CHILD_PER_ADULTS);
-  if (children > maxChildren) {
+  // Create-time only: 1 child per 10 adults. After a hold, granted childSeatQuota is the cap
+  // (agents request extra child seats; staff approve them with an optional seat PNR).
+  if (rules.childSeatQuota == null && children > maxChildSeatsForAdults(adults)) {
     issues.push({
       path: 'passengers',
       message: '1 child is allowed per 10 adults',
@@ -140,18 +210,35 @@ export function checkPassengerParty(passengers: PassengerCheck[], seats: number)
     });
   }
 
-  if (infants > 0) {
+  if (rules.childSeatQuota != null && children > rules.childSeatQuota) {
     issues.push({
       path: 'passengers',
-      message: 'Infant fare is not configured for this group',
-      code: 'INFANT_NOT_ALLOWED',
+      message: 'Child seats on this booking have not been granted',
+      code: 'CHILD_QUOTA',
     });
   }
 
-  if (adults + children !== seats) {
+  if (infants > infantQuota) {
+    issues.push({
+      path: 'passengers',
+      message:
+        infantQuota < 1
+          ? 'Infant seats must be requested and granted before adding an infant'
+          : `This booking allows ${infantQuota} infant${infantQuota === 1 ? '' : 's'}`,
+      code: infantQuota < 1 ? 'INFANT_NOT_ALLOWED' : 'INFANT_QUOTA',
+    });
+  }
+
+  if (exact && seated !== seats) {
     issues.push({
       path: 'passengers',
       message: `Enter details for exactly ${seats} passenger${seats > 1 ? 's' : ''}`,
+      code: 'SEAT_COUNT',
+    });
+  } else if (!exact && seated > seats) {
+    issues.push({
+      path: 'passengers',
+      message: `This booking has ${seats} seat${seats > 1 ? 's' : ''}`,
       code: 'SEAT_COUNT',
     });
   }
@@ -178,9 +265,10 @@ export function checkBookingPassengers(
   passengers: PassengerCheck[],
   seats: number,
   trip: TripDates,
+  rules: PartyRules = {},
 ): FieldIssue[] {
   return [
-    ...checkPassengerParty(passengers, seats),
-    ...passengers.flatMap((p, i) => checkPassenger(p, trip, i)),
+    ...checkPassengerParty(passengers, seats, rules),
+    ...passengers.flatMap((p, i) => checkPassenger(p, trip, i, rules)),
   ];
 }

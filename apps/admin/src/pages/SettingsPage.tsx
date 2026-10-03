@@ -186,13 +186,20 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
       </Card>
       <Card>
         <CardHeader title="Bookings" />
-        <CardBody className="grid gap-4 sm:grid-cols-[200px_minmax(0,1fr)]">
+        <CardBody className="grid gap-4 sm:grid-cols-[200px_200px_minmax(0,1fr)]">
           <Field
             label="Price quote valid for (minutes)"
             required
             error={e.booking?.quoteTtlMinutes?.message}
           >
             <Input type="number" min={5} max={240} {...register('booking.quoteTtlMinutes')} />
+          </Field>
+          <Field
+            label="Seat hold valid for (hours)"
+            required
+            error={e.booking?.holdTtlHours?.message}
+          >
+            <Input type="number" min={1} max={168} {...register('booking.holdTtlHours')} />
           </Field>
           <Field
             label="Payment terms shown to partners"

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { PrismaService } from './prisma/prisma.service';
 import { AuditService } from '../modules/audit/audit.service';
 import { MailerService } from './mailer/mailer.service';
 import { StorageService } from './storage/storage.service';
@@ -82,6 +83,18 @@ describe('StorageService', () => {
     const big = Buffer.alloc(15 * 1024 * 1024 + 1, 0x25);
     big.write('%PDF-', 0);
     await expect(storage.save(big, 'big.pdf')).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('PrismaService', () => {
+  it('connects on init and disconnects on destroy', async () => {
+    const prisma = new PrismaService();
+    prisma.$connect = jest.fn();
+    prisma.$disconnect = jest.fn();
+    await prisma.onModuleInit();
+    await prisma.onModuleDestroy();
+    expect(prisma.$connect).toHaveBeenCalled();
+    expect(prisma.$disconnect).toHaveBeenCalled();
   });
 });
 

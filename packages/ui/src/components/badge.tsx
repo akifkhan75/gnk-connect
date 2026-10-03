@@ -72,6 +72,7 @@ const STATUS: Record<string, [string, Tone]> = {
   CLOSED: ['Closed', 'neutral'],
   // payments
   PENDING: ['Pending', 'warning'],
+  GRANTED: ['Granted', 'success'],
   VERIFIED: ['Verified', 'success'],
   // vouchers
   POSTED: ['Posted', 'success'],

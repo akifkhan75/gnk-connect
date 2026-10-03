@@ -92,6 +92,7 @@ export function mockPrisma(): PrismaMock {
     'priceQuote',
     'documentSequence',
     'booking',
+    'bookingConcession',
     'passenger',
     'bookingStatusEvent',
     'supplierCallLog',

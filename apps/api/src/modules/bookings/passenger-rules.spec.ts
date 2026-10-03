@@ -2,8 +2,10 @@ import {
   addMonthsIso,
   ageOn,
   checkBookingPassengers,
+  partyFromSeats,
   paxTypeFromDob,
   pkPassportHint,
+  seatDiscountTotal,
   validatePassengerList,
 } from '@gnk/validation';
 
@@ -74,6 +76,60 @@ describe('AirDesk passenger rules', () => {
       trip,
     );
     expect(infant.some((i) => i.code === 'INFANT_NOT_ALLOWED')).toBe(true);
+
+    const granted = checkBookingPassengers(
+      [
+        adult(),
+        adult({
+          type: 'INFANT',
+          firstName: 'Noor',
+          dateOfBirth: '2025-06-01',
+          passportNumber: 'CD9876543',
+        }),
+      ],
+      1,
+      trip,
+      { grantedInfantSeats: 1 },
+    );
+    expect(
+      granted.filter((i) => i.code === 'INFANT_NOT_ALLOWED' || i.code === 'SEAT_COUNT'),
+    ).toEqual([]);
+  });
+
+  it('lets a granted extra child sit on a one-adult hold', () => {
+    const child = adult({
+      type: 'CHILD',
+      title: 'MSTR',
+      firstName: 'Omar',
+      dateOfBirth: '2018-01-01',
+      passportNumber: 'CD9876543',
+    });
+    const createTime = checkBookingPassengers([adult(), child], 2, trip);
+    expect(createTime.some((i) => i.code === 'CHILD_RATIO')).toBe(true);
+
+    const afterGrant = checkBookingPassengers([adult(), child], 2, trip, {
+      exactSeats: false,
+      childSeatQuota: 1,
+    });
+    expect(afterGrant.filter((i) => i.code === 'CHILD_RATIO' || i.code === 'CHILD_QUOTA')).toEqual(
+      [],
+    );
+  });
+
+  it('computes AirDesk per-seat discounts from the current party', () => {
+    expect(partyFromSeats(11, 1, 1)).toEqual({ adults: 10, children: 1, infants: 1 });
+    expect(
+      seatDiscountTotal(
+        { adultAmount: 10000, childAmount: 3000, infantAmount: 0 },
+        partyFromSeats(1, 0, 0),
+      ),
+    ).toBe(10000);
+    expect(
+      seatDiscountTotal(
+        { adultAmount: 10000, childAmount: 3000, infantAmount: 0 },
+        partyFromSeats(11, 1, 0),
+      ),
+    ).toBe(103000);
   });
 
   it('accepts a valid adult and only warns on PK passport format', () => {

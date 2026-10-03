@@ -64,44 +64,6 @@ const TITLE_LABEL: Record<Title, string> = {
   MSTR: 'Master',
 };
 
-export function blankPax(type: PassengerInput['type'] = 'ADULT'): PassengerInput {
-  const title: Title = type === 'ADULT' ? 'MR' : 'MSTR';
-  return {
-    type,
-    title,
-    firstName: '',
-    lastName: '',
-    gender: genderFromTitle(title),
-    dateOfBirth: '',
-    nationality: 'PK',
-    passportNumber: '',
-    passportExpiry: '',
-  };
-}
-
-export function buildPassengers(
-  adults: number,
-  children: number,
-  previous: PassengerInput[] = [],
-  infants = 0,
-) {
-  const prevOf = (type: PassengerInput['type']) => previous.filter((p) => p.type === type);
-  return [
-    ...Array.from({ length: adults }, (_, i) => ({
-      ...(prevOf('ADULT')[i] ?? blankPax('ADULT')),
-      type: 'ADULT' as const,
-    })),
-    ...Array.from({ length: children }, (_, i) => ({
-      ...(prevOf('CHILD')[i] ?? blankPax('CHILD')),
-      type: 'CHILD' as const,
-    })),
-    ...Array.from({ length: infants }, (_, i) => ({
-      ...(prevOf('INFANT')[i] ?? blankPax('INFANT')),
-      type: 'INFANT' as const,
-    })),
-  ];
-}
-
 async function fileToPassportPayload(file: File) {
   const mime: 'image/jpeg' | 'image/png' | 'image/webp' =
     file.type === 'image/png'

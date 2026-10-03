@@ -175,6 +175,20 @@ describe('NotificationsService', () => {
     });
     expect(prisma.notification.createMany).toHaveBeenCalled();
     expect(mailer.notification).toHaveBeenCalled();
+    prisma.partnerUser.findUnique.mockResolvedValue({ email: 'a@b.c', notificationPrefs: {} });
+    await svc.notifyPartnerUser('pu-1', {
+      type: 'BOOKING_APPROVED',
+      title: 't',
+      body: 'b',
+      email: true,
+    });
+    prisma.staffUser.findUnique.mockResolvedValue({ email: 'ops@gnk.test', notificationPrefs: {} });
+    await svc.notifyStaffUser('su-1', {
+      type: 'BOOKING_ASSIGNED',
+      title: 't',
+      body: 'b',
+      email: true,
+    });
 
     prisma.notification.findMany.mockResolvedValue([
       {
@@ -196,6 +210,38 @@ describe('NotificationsService', () => {
     prisma.partnerUser.update.mockResolvedValue({});
     const prefs = await svc.setPrefs('PARTNER', 'pu-1', { bookings: { email: false } } as never);
     expect(prefs.bookings.email).toBe(false);
+  });
+
+  it('notifies every staff member when nobody holds the concession permission', async () => {
+    prisma.staffUser.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'su-1', email: 'ops@gnk.test', notificationPrefs: {} }]);
+    await svc.notifyStaff('bookings:approve', {
+      type: 'BOOKING_CONCESSION',
+      title: 'Discount request on GNK-2026-000003',
+      body: 'Al Noor requested a per-seat discount',
+      link: '/bookings/b1?review=c1',
+      email: true,
+    });
+    expect(prisma.notification.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          realm: 'STAFF',
+          userId: 'su-1',
+          type: 'BOOKING_CONCESSION',
+          title: 'Discount request on GNK-2026-000003',
+        }),
+      ],
+    });
+    expect(mailer.notification).toHaveBeenCalled();
+    expect(realtime.publish).toHaveBeenCalledWith(
+      { topic: 'notification', action: 'created' },
+      { realm: 'STAFF', userIds: ['su-1'] },
+    );
+    expect(realtime.publish).toHaveBeenCalledWith(
+      { topic: 'notification', action: 'created' },
+      { realm: 'STAFF' },
+    );
   });
 });
 
@@ -360,6 +406,22 @@ describe('SupplierGateway + sync', () => {
     await sync.syncAll();
     sync.onApplicationBootstrap();
     sync.onModuleDestroy();
+
+    const scheduled = new SupplierSyncService(
+      prisma as never,
+      gateway as never,
+      {
+        get: (key: string) => (key === 'SUPPLIER_SYNC_INTERVAL_MINUTES' ? 60 : 'development'),
+      } as never,
+    );
+    jest.useFakeTimers();
+    scheduled.onApplicationBootstrap();
+    jest.advanceTimersByTime(5_000);
+    scheduled.onModuleDestroy();
+    jest.useRealTimers();
+
+    gateway.call.mockRejectedValueOnce(new Error('supplier down'));
+    await expect(sync.sync('s1')).rejects.toThrow('supplier down');
   });
 });
 
@@ -472,6 +534,7 @@ describe('RealtimeService', () => {
       }),
     };
     const rt = new RealtimeService(redis as never);
+    await rt.onModuleInit();
     rt.publish({ topic: 'queues' }, { realm: 'STAFF' });
     expect(redis.publish).toHaveBeenCalled();
     const res = resStub();
@@ -528,6 +591,7 @@ describe('dashboards + public', () => {
       bookings: 3,
       payments: 1,
       vouchers: 0,
+      concessions: 0,
     });
   });
 

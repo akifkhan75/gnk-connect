@@ -114,7 +114,7 @@ export class AdminDashboardController {
   @Get('queues')
   async queues(@CurrentActor() actor: StaffActor): Promise<AdminQueueCounts> {
     const has = (p: Parameters<StaffActor['permissions']['has']>[0]) => actor.permissions.has(p);
-    const [partners, bookings, payments, vouchers] = await Promise.all([
+    const [partners, bookings, payments, vouchers, concessions] = await Promise.all([
       has('partners:review')
         ? this.prisma.partnerAccount.count({
             where: { status: { in: ['SUBMITTED', 'UNDER_REVIEW'] } },
@@ -129,8 +129,11 @@ export class AdminDashboardController {
       has('ledger:jv_approve')
         ? this.prisma.ledgerTransaction.count({ where: { status: 'SUBMITTED', type: 'JOURNAL' } })
         : 0,
+      has('bookings:approve')
+        ? this.prisma.bookingConcession.count({ where: { status: 'PENDING' } })
+        : 0,
     ]);
-    return { partners, bookings, payments, vouchers };
+    return { partners, bookings, payments, vouchers, concessions };
   }
 
   @Get('dashboard')
@@ -150,6 +153,7 @@ export class AdminDashboardController {
       top,
       upcoming,
       supplier,
+      pendingConcessions,
     ] = await Promise.all([
       this.prisma.booking.count({ where: { createdAt: { gte: since } } }),
       this.prisma.booking.aggregate({
@@ -198,6 +202,7 @@ export class AdminDashboardController {
         take: 6,
       }),
       this.prisma.supplier.findFirst({ orderBy: { createdAt: 'asc' } }),
+      this.prisma.bookingConcession.count({ where: { status: 'PENDING' } }),
     ]);
 
     const margin = actor.permissions.has('bookings:view_supplier_net')
@@ -238,6 +243,7 @@ export class AdminDashboardController {
         pendingPartners,
         pendingBookings,
         pendingPayments,
+        pendingConcessions,
       },
       daily: series,
       funnel: {
