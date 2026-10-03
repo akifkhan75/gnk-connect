@@ -14,13 +14,13 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.554.0",
-    "react": "^19.0.0",
+    "react": "^19.3.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.6.1",
     "@gnk/types": "*"
   },
   "devDependencies": {
-    "@types/react": "^19.0.8",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^19.0.3",
     "typescript": "~5.8.2"
   },
