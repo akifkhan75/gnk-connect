@@ -24,7 +24,7 @@ import { PricingEngine, SCOPE_PRECEDENCE, type PricingContext } from './pricing.
 
 type RuleData = z.output<typeof pricingRuleSchema>;
 type DepartureWithProduct = Departure & { product: Product };
-const content = (p: Product) => p.content as unknown as ProductContentDto;
+const content = (p: Product) => (p.content ?? {}) as unknown as ProductContentDto;
 
 export const seatsLeft = (d: Pick<Departure, 'supplierAvailable' | 'heldSeats'>) =>
   Math.max(0, d.supplierAvailable - d.heldSeats);

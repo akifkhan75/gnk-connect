@@ -284,6 +284,7 @@ describe('PricingService', () => {
         title: 't',
         sector: 'LHE-JED',
         airline: 'SV',
+        content: { outbound: null, inbound: null },
       },
     };
     const prices = await svc.priceMany([d as never], { id: 'acc-1', pricingTierId: null });
