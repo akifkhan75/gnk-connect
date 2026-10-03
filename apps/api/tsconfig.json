@@ -14,7 +14,9 @@
     "paths": {
       "@gnk/types": ["../../packages/types/src/index.ts"],
       "@gnk/suppliers": ["../../packages/suppliers/src/index.ts"],
-      "@gnk/validation": ["../../packages/validation/src/index.ts"]
+      "@gnk/validation": ["../../packages/validation/src/index.ts"],
+      "@gnk/api-client": ["../../packages/api-client/src/index.ts"],
+      "@gnk/ui/format": ["../../packages/ui/src/lib/format.ts"]
     },
     "incremental": true,
     "skipLibCheck": true,

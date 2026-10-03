@@ -50,7 +50,7 @@ describe('nextAccountCode', () => {
 
 describe('ChartService coverage', () => {
   const prisma = mockPrisma();
-  const svc = new ChartService(prisma as never);
+  const svc = new ChartService(prisma as never, {} as never);
 
   it('lists, options, balances, and creates accounts', async () => {
     prisma.$queryRaw.mockResolvedValue([]);

@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDown, X } from 'lucide-react';
 import type { AccountOption } from '@gnk/types';
@@ -84,7 +91,7 @@ export function AccountPicker({
   }, [results]);
 
   useEffect(() => {
-    const close = (e: MouseEvent) => {
+    const close = (e: Event) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', close);
@@ -99,7 +106,7 @@ export function AccountPicker({
     setQuery('');
   };
 
-  const clear = (e: MouseEvent) => {
+  const clear = (e: ReactMouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onValueChange?.('');

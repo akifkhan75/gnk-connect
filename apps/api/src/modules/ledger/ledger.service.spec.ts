@@ -216,7 +216,7 @@ describe('LedgerService', () => {
 
 describe('ChartService', () => {
   const prisma = mockPrisma();
-  const chart = new ChartService(prisma as never);
+  const chart = new ChartService(prisma as never, {} as never);
 
   it('lists a rolled-up tree and picker options', async () => {
     const parent = { ...acct('1000'), isGroup: true, parentId: null, name: 'Assets' };
