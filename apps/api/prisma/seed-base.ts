@@ -100,5 +100,26 @@ export async function seedBase(prisma: PrismaClient) {
     });
   }
 
+  // Starter FX rates (PKR per 1 unit). Admin updates these in Settings → Currencies.
+  const starterRates: { currency: string; rate: number }[] = [
+    { currency: 'USD', rate: 278 },
+    { currency: 'SAR', rate: 74.1 },
+    { currency: 'AED', rate: 75.7 },
+  ];
+  for (const r of starterRates) {
+    const exists = await prisma.exchangeRate.findFirst({ where: { currency: r.currency } });
+    if (!exists) {
+      await prisma.exchangeRate.create({
+        data: {
+          currency: r.currency,
+          rate: r.rate,
+          date: new Date(),
+          note: 'Seeded starting rate — update from Settings',
+          createdById: admin.id,
+        },
+      });
+    }
+  }
+
   return { adminId: admin.id, supplierId: supplier.id };
 }

@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { z } from 'zod';
@@ -17,9 +18,11 @@ import {
   bookingDecisionSchema,
   bookingListSchema,
   bookingRejectSchema,
+  addPassengersSchema,
   cancelBookingSchema,
   createBookingSchema,
   internalNoteSchema,
+  passportScanSchema,
 } from '@gnk/validation';
 import { UUID } from '../../core/http/parse-uuid';
 import { Meta, type RequestMeta } from '../../core/http/request-meta';
@@ -31,11 +34,17 @@ import {
   RequirePartnerCapability,
   RequirePermission,
 } from '../auth/decorators';
+import { ConfigService } from '@nestjs/config';
+import type { EnvConfig } from '../../core/config/env.config';
+import type { PassportScanDto } from '@gnk/types';
 import { BookingsService } from './bookings.service';
 
 @Controller('partner/bookings')
 export class PartnerBookingsController {
-  constructor(private readonly bookings: BookingsService) {}
+  constructor(
+    private readonly bookings: BookingsService,
+    private readonly config: ConfigService<EnvConfig, true>,
+  ) {}
 
   @Get()
   list(
@@ -66,6 +75,30 @@ export class PartnerBookingsController {
     @Meta() meta: RequestMeta,
   ) {
     return this.bookings.create(actor, dto, idempotencyKey ?? '', meta);
+  }
+
+  @Post('scan-passport')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 10 * 60_000 } })
+  @RequireApproved()
+  @RequirePartnerCapability('bookings:create')
+  async scanPassport(
+    @Body(new ZodPipe(passportScanSchema)) dto: z.output<typeof passportScanSchema>,
+  ): Promise<PassportScanDto> {
+    return readPassportScan(this.config.get('GEMINI_API_KEY', { infer: true }), dto);
+  }
+
+  @Post(':id/passengers')
+  @HttpCode(200)
+  @RequireApproved()
+  @RequirePartnerCapability('bookings:create')
+  addPassengers(
+    @CurrentActor() actor: PartnerActor,
+    @Param('id', UUID) id: string,
+    @Body(new ZodPipe(addPassengersSchema)) dto: z.output<typeof addPassengersSchema>,
+    @Meta() meta: RequestMeta,
+  ) {
+    return this.bookings.addPassengers(actor, id, dto.passengers, meta);
   }
 
   @Post(':id/cancel')
@@ -225,4 +258,66 @@ export class AdminInvoicesController {
   get(@Param('id', UUID) id: string) {
     return this.bookings.invoice(id);
   }
+}
+
+async function readPassportScan(
+  key: string | undefined,
+  dto: { image: string; mimeType: string },
+): Promise<PassportScanDto> {
+  if (!key) throw new ServiceUnavailableException('Passport scan is not available right now');
+  const raw = dto.image.includes(',') ? dto.image.slice(dto.image.indexOf(',') + 1) : dto.image;
+  const res = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: 'Extract machine-readable passport fields. Reply with JSON only: title (MR|MRS|MS|MISS|MSTR), firstName, lastName, gender (MALE|FEMALE), dateOfBirth (YYYY-MM-DD), nationality (ISO 3166-1 alpha-2), passportNumber, passportExpiry (YYYY-MM-DD). Use null when a field is unreadable.',
+            },
+          ],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: 'Read this passport image.' },
+              { inlineData: { mimeType: dto.mimeType, data: raw } },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens: 400, temperature: 0 },
+      }),
+      signal: AbortSignal.timeout(20_000),
+    },
+  ).catch(() => null);
+  if (!res?.ok)
+    throw new ServiceUnavailableException('Could not read the passport. Enter details manually.');
+  const data = (await res.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  };
+  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+  const json = text.replace(/```json|```/g, '').trim();
+  let parsed: Record<string, string | null>;
+  try {
+    parsed = JSON.parse(json) as Record<string, string | null>;
+  } catch {
+    throw new ServiceUnavailableException('Could not read the passport. Enter details manually.');
+  }
+  const title = ['MR', 'MRS', 'MS', 'MISS', 'MSTR'].includes(parsed.title ?? '')
+    ? (parsed.title as PassportScanDto['title'])
+    : null;
+  const gender = parsed.gender === 'MALE' || parsed.gender === 'FEMALE' ? parsed.gender : null;
+  return {
+    title,
+    firstName: parsed.firstName || null,
+    lastName: parsed.lastName || null,
+    gender,
+    dateOfBirth: parsed.dateOfBirth || null,
+    nationality: parsed.nationality ? String(parsed.nationality).slice(0, 2).toUpperCase() : null,
+    passportNumber: parsed.passportNumber || null,
+    passportExpiry: parsed.passportExpiry || null,
+  };
 }

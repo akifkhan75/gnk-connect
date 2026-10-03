@@ -27,6 +27,7 @@ import type {
   ThemePreference,
   Title,
   UserStatus,
+  VoucherType,
 } from './enums';
 import type { FileRef, UserRef } from './accounting';
 import type { Permission } from './permissions';
@@ -276,6 +277,7 @@ export interface GroupFilters {
   sectors: string[];
   airlines: string[];
   types: ProductType[];
+  durations: number[];
 }
 
 export interface QuoteDto {
@@ -294,7 +296,21 @@ export interface QuoteDto {
     departureDate: string;
     returnDate: string | null;
     baggage: string | null;
+    outbound: FlightLegDto | null;
+    inbound: FlightLegDto | null;
   };
+}
+
+/** Fields extracted from a passport scan for the booking form. */
+export interface PassportScanDto {
+  title: Title | null;
+  firstName: string | null;
+  lastName: string | null;
+  gender: Gender | null;
+  dateOfBirth: string | null;
+  nationality: string | null;
+  passportNumber: string | null;
+  passportExpiry: string | null;
 }
 
 export interface BookingListItem {
@@ -396,8 +412,11 @@ export interface ReceiptDto {
 
 export interface StatementLine {
   date: string;
+  voucherId?: string;
   reference: string;
+  type?: VoucherType;
   description: string;
+  narration?: string | null;
   debit: number;
   credit: number;
   balance: number;
@@ -407,6 +426,7 @@ export interface StatementDto {
   accountId: string;
   accountCode: string;
   accountName: string;
+  status?: PartnerAccountStatus;
   from: string;
   to: string;
   openingBalance: number;
@@ -416,6 +436,7 @@ export interface StatementDto {
   creditLimit: number;
   /** closingBalance + creditLimit: what the partner can spend on bookings right now. */
   availableFunds: number;
+  lastTransaction?: string | null;
   lines: StatementLine[];
 }
 

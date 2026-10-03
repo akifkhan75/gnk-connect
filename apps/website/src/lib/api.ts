@@ -1,4 +1,4 @@
-import type { PublicGroupDto } from '@gnk/types';
+import type { PublicCurrenciesDto, PublicGroupDto } from '@gnk/types';
 
 const API_URL: string = (import.meta as any).env?.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -20,6 +20,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /** Public endpoints only: the website never sees prices or supplier data. */
 export const publicApi = {
   groups: () => request<{ items: PublicGroupDto[]; total: number }>('public/groups?pageSize=50'),
+  currencies: () => request<PublicCurrenciesDto>('public/currencies'),
   chat: (messages: { role: 'user' | 'model'; text: string }[]) =>
     request<{ text: string }>('public/ai/chat', {
       method: 'POST',

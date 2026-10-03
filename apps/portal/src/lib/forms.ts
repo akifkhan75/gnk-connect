@@ -1,5 +1,6 @@
 import type { FieldValues, Path, UseFormSetError } from 'react-hook-form';
 import { ApiError } from '@gnk/api-client';
+import type { FieldIssue } from '@gnk/validation';
 
 /** Maps an API 422's field errors onto the form; returns the message for a form-level alert. */
 export function applyServerErrors<T extends FieldValues>(
@@ -21,3 +22,25 @@ export const errorMessage = (e: unknown) =>
 
 /** Browser-generated idempotency key for a single submit attempt. */
 export const newIdempotencyKey = () => crypto.randomUUID();
+
+export function applyFieldIssues<T extends FieldValues>(
+  issues: FieldIssue[],
+  setError: UseFormSetError<T>,
+) {
+  for (const issue of issues) {
+    setError(issue.path as Path<T>, { type: 'validate', message: issue.message });
+  }
+}
+
+export function passengerFormError(issues: FieldIssue[]) {
+  return (
+    issues.find((i) => i.path === 'passengers')?.message ?? 'Fix the highlighted passenger fields.'
+  );
+}
+
+export function focusFirstIssue(issues: FieldIssue[]) {
+  const path = issues.find((i) => i.path !== 'passengers')?.path;
+  if (!path) return;
+  const el = document.querySelector<HTMLElement>(`[name="${path}"]`);
+  el?.focus();
+}

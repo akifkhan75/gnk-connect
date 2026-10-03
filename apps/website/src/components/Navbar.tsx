@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { BRAND_NAME, CONTACT_INFO, SERVICES } from '../constants';
 import { portalLink } from '../lib/links';
-import { CURRENCIES, useCurrency, type CurrencyCode } from '../context/CurrencyContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -96,7 +96,7 @@ export const Navbar: React.FC = () => {
   const [menu, setMenu] = useState<Menu>(null);
   const [scrolled, setScrolled] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
-  const { currency, setCurrency } = useCurrency();
+  const { currency, currencies, setCurrency } = useCurrency();
   const { savedItems, setIsDrawerOpen } = useWishlist();
   const { resolved, toggle } = useTheme();
   const location = useLocation();
@@ -268,21 +268,21 @@ export const Navbar: React.FC = () => {
                     transition={{ duration: 0.16 }}
                     className="absolute right-0 top-10 w-40 rounded-2xl border border-line bg-surface p-1 shadow-[0_18px_40px_-12px_rgb(11_26_51/0.25)]"
                   >
-                    {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => (
+                    {currencies.map((c) => (
                       <button
-                        key={code}
+                        key={c.code}
                         type="button"
                         onClick={() => {
-                          setCurrency(code);
+                          setCurrency(c.code);
                           setCurrencyOpen(false);
                         }}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-[13px] transition-colors ${
-                          currency === code
+                          currency === c.code
                             ? 'bg-brand-soft font-semibold text-brand-ink'
                             : 'text-ink-2 hover:bg-surface-2'
                         }`}
                       >
-                        {CURRENCIES[code].label}
+                        {c.code === 'PKR' ? 'PKR (₨)' : `${c.code} (${c.symbol.trim()})`}
                       </button>
                     ))}
                   </motion.div>
@@ -409,16 +409,16 @@ export const Navbar: React.FC = () => {
               <div className="mt-8 flex items-center justify-between">
                 <span className="text-[12px] font-medium text-ink-3">Currency</span>
                 <div className="flex rounded-full bg-surface-2 p-0.5">
-                  {(Object.keys(CURRENCIES) as CurrencyCode[]).map((code) => (
+                  {currencies.map((c) => (
                     <button
-                      key={code}
+                      key={c.code}
                       type="button"
-                      onClick={() => setCurrency(code)}
+                      onClick={() => setCurrency(c.code)}
                       className={`rounded-full px-3 py-1 text-[12.5px] font-medium transition-colors ${
-                        currency === code ? 'bg-surface text-ink shadow-sm' : 'text-ink-3'
+                        currency === c.code ? 'bg-surface text-ink shadow-sm' : 'text-ink-3'
                       }`}
                     >
-                      {code}
+                      {c.code}
                     </button>
                   ))}
                 </div>

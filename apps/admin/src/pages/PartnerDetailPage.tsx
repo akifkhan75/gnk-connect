@@ -360,7 +360,7 @@ function PartnerDetail() {
               />
               {can('ledger:read') && (
                 <Button asChild variant="link" className="mt-3">
-                  <Link to={`/ledger/${p.id}`}>View statement →</Link>
+                  <Link to={`/ledger/${p.id}`}>View ledger →</Link>
                 </Button>
               )}
             </CardBody>

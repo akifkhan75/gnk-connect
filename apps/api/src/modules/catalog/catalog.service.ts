@@ -65,6 +65,7 @@ export class CatalogService {
       orderBy: { departureDate: 'asc' },
     });
     if (q.minSeats) rows = rows.filter((d) => seatsLeft(d) >= q.minSeats!);
+    if (q.days) rows = rows.filter((d) => d.product.durationDays === q.days);
 
     const prices = await this.partnerPrices(actor, rows);
     let items = rows.map((d) => this.toGroupItem(d, prices.get(d.id) ?? null));
@@ -78,13 +79,14 @@ export class CatalogService {
   async filters(): Promise<GroupFilters> {
     const products = await this.prisma.product.findMany({
       where: { isPublished: true, deletedAt: null },
-      select: { sector: true, airline: true, type: true },
+      select: { sector: true, airline: true, type: true, durationDays: true },
     });
     const uniq = <T>(v: (T | null)[]) => [...new Set(v.filter(Boolean) as T[])].sort();
     return {
       sectors: uniq(products.map((p) => p.sector)),
       airlines: uniq(products.map((p) => p.airline)),
       types: uniq(products.map((p) => p.type)),
+      durations: uniq(products.map((p) => p.durationDays)).sort((a, b) => a - b),
     };
   }
 

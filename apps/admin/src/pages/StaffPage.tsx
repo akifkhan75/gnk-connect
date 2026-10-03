@@ -29,6 +29,7 @@ import {
   ConfirmDialog,
   DataTable,
   Dialog,
+  EmptyState,
   DropdownContent,
   DropdownItem,
   DropdownMenu,
@@ -38,12 +39,17 @@ import {
   Field,
   Input,
   PageHeader,
+  Pagination,
   PasswordInput,
+  SearchInput,
   SegmentedControl,
+  Select,
   StatusBadge,
   Textarea,
   cn,
+  filterPage,
   formatRelative,
+  includesQ,
   useToast,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
@@ -84,7 +90,16 @@ function Users() {
   const [editing, setEditing] = useState<StaffUserDto | null>(null);
   const [resetting, setResetting] = useState<StaffUserDto | null>(null);
   const [disabling, setDisabling] = useState<StaffUserDto | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
   const q = useQuery({ queryKey: ['staff'], queryFn: api.staff.list });
+  const list = filterPage(q.data, {
+    q: search,
+    page,
+    match: (u, s) => includesQ(u.fullName, u.email, u.roles.join(' ')).includes(s),
+    filter: (u) => status === 'all' || u.status === status,
+  });
   const roles = useQuery({ queryKey: ['roles'], queryFn: api.staff.roles });
   useEffect(() => {
     if (!adding && params.get('add')) setParams({}, { replace: true });
@@ -106,11 +121,34 @@ function Users() {
 
   return (
     <Card>
-      <div className="flex items-center justify-between border-b border-border/70 p-4">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 p-4">
+        <SearchInput
+          className="min-w-[16rem] flex-1"
+          placeholder="Search name, email or role"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-36"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Status"
+        >
+          <option value="all">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INVITED">Invited</option>
+          <option value="DISABLED">Disabled</option>
+        </Select>
         <p className="text-[13px] text-muted-foreground">
-          {q.data ? `${q.data.length} user${q.data.length === 1 ? '' : 's'}` : ' '}
+          {q.data ? `${list.total} of ${q.data.length}` : ' '}
         </p>
-        <Button onClick={() => setAdding(true)}>
+        <Button className="ml-auto" onClick={() => setAdding(true)}>
           <UserPlus /> Add user
         </Button>
       </div>
@@ -118,7 +156,7 @@ function Users() {
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : (
         <DataTable
-          rows={q.data}
+          rows={list.items}
           loading={q.isLoading}
           rowKey={(u) => u.id}
           columns={[
@@ -224,6 +262,7 @@ function Users() {
           ]}
         />
       )}
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
       <AddUserDialog open={adding} onOpenChange={setAdding} roles={roles.data ?? []} />
       <RolesDialog user={editing} roles={roles.data ?? []} onClose={() => setEditing(null)} />
       <ResetPasswordDialog
@@ -597,21 +636,53 @@ function Roles() {
   const q = useQuery({ queryKey: ['roles'], queryFn: api.staff.roles });
   const [editing, setEditing] = useState<RoleDto | 'new' | null>(null);
   const [deleting, setDeleting] = useState<RoleDto | null>(null);
+  const [search, setSearch] = useState('');
+  const [scope, setScope] = useState('all');
+  const [page, setPage] = useState(1);
+  const list = filterPage(q.data, {
+    q: search,
+    page,
+    pageSize: 12,
+    match: (r, s) => includesQ(r.name, r.description).includes(s),
+    filter: (r) => scope === 'all' || (scope === 'system' ? r.isSystem : !r.isSystem),
+  });
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <SearchInput
+          className="min-w-[16rem] flex-1"
+          placeholder="Search roles"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-40"
+          value={scope}
+          onChange={(e) => {
+            setScope(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Role type"
+        >
+          <option value="all">All roles</option>
+          <option value="system">System</option>
+          <option value="custom">Custom</option>
+        </Select>
         <p className="text-[13px] text-muted-foreground">
-          System roles are maintained by GNK. Create custom roles for anything else.
+          {q.data ? `${list.total} of ${q.data.length}` : ' '}
         </p>
         {can('roles:manage') && (
-          <Button onClick={() => setEditing('new')}>
+          <Button className="ml-auto" onClick={() => setEditing('new')}>
             <Plus /> New role
           </Button>
         )}
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {q.data?.map((r) => (
+        {list.items.map((r) => (
           <Card key={r.id} className="flex flex-col p-5">
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -679,6 +750,10 @@ function Roles() {
           </Card>
         ))}
       </div>
+      {!q.isLoading && !list.total ? (
+        <EmptyState title="No roles match" description="Try a different search or filter." />
+      ) : null}
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
       <RoleEditor role={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
         open={!!deleting}

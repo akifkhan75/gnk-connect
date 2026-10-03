@@ -722,7 +722,7 @@ model Currency {
   isActive Boolean @default(true)
 }
 
-/// Manually entered conversion rates (PKR per 1 unit), used as defaults in the voucher editor.
+/// Manually entered conversion rates (PKR per 1 unit). Defaults on vouchers and the public website.
 model ExchangeRate {
   id          String   @id @default(uuid(7)) @db.Uuid
   currency    String   @db.Char(3)
@@ -745,7 +745,8 @@ model LedgerAccount {
   parentId       String?          @db.Uuid
   isGroup        Boolean          @default(false)
   isActive       Boolean          @default(true)
-  systemKey      String?          @unique // CASH, BANK, AR_CONTROL, SUPPLIER_PAYABLE, REVENUE, FX, ADJUSTMENTS…
+  isLocked       Boolean          @default(false)
+  systemKey      String?          @unique // CASH, BANK, AR_CONTROL, SUPPLIER_PAYABLE, REVENUE, FX, ADJUSTMENTS, OPENING_BALANCE…
   currency       String           @default("PKR") @db.Char(3)
   description    String?
   accountId      String?          @unique @db.Uuid // partner receivable

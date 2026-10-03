@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeftRight, Check, FileText, Paperclip, Plus, Scale, Trash2, X } from 'lucide-react';
 import { ApiError } from '@gnk/api-client';
@@ -7,15 +6,14 @@ import type { AccountOption, VoucherDto } from '@gnk/types';
 import { todayPk, toBaseAmount, type VoucherInput } from '@gnk/validation';
 import {
   Alert,
-  Breadcrumbs,
   Button,
   Card,
   CardBody,
   CardHeader,
+  Dialog,
   Field,
   FileDrop,
   Input,
-  PageHeader,
   SegmentedControl,
   Spinner,
   cn,
@@ -26,7 +24,7 @@ import {
 import { api } from '@/lib/api';
 import { useCan } from '@/lib/useCan';
 import { AccountPicker } from '@/components/AccountPicker';
-import { RequirePerm } from '@/components/guards';
+import { PAYEE_LABEL, type PaymentPayee } from './voucher-home';
 
 type Kind = 'JOURNAL' | 'PAYMENT' | 'RECEIPT';
 type Side = 'DEBIT' | 'CREDIT';
@@ -43,13 +41,18 @@ interface Line {
 
 const TITLES: Record<Kind, string> = {
   JOURNAL: 'Journal voucher',
-  PAYMENT: 'Payment voucher',
-  RECEIPT: 'Receipt voucher',
+  PAYMENT: 'Payment',
+  RECEIPT: 'Receipt',
 };
 const HELP: Record<Kind, string> = {
   JOURNAL: 'Transfers between accounts. Needs approval by someone other than you before it posts.',
-  PAYMENT: 'Money going out of a bank or cash account: supplier payments, expenses, refunds.',
-  RECEIPT: 'Money coming into a bank or cash account that is not a partner deposit.',
+  PAYMENT: 'Money going out of cash or bank to a supplier, an expense, or staff.',
+  RECEIPT: 'Money coming into a bank or cash account that is not recorded as a partner deposit.',
+};
+const PAYEE_PLACEHOLDER: Record<PaymentPayee, string> = {
+  SUPPLIER: 'e.g. Paid Al Haram Hotels for October block',
+  EXPENSE: 'e.g. Office rent for October',
+  STAFF: 'e.g. September salaries',
 };
 
 let seq = 0;
@@ -64,26 +67,64 @@ const blank = (side: Side = 'DEBIT'): Line => ({
 });
 const num = (s: string) => (s.trim() === '' ? NaN : Number(s));
 const opt = (s: string) => (Number.isFinite(num(s)) ? num(s) : undefined);
-const isCashOrBank = (a: AccountOption) => a.path.includes('Cash and bank') && a.currency === 'PKR';
-
-export function VoucherEditorPage() {
-  const { id } = useParams();
-  const [params] = useSearchParams();
-  const perm =
-    (params.get('type') ?? 'JOURNAL') === 'JOURNAL' ? 'ledger:jv_prepare' : 'ledger:post';
+export function VoucherFormDialog({
+  open,
+  type = 'JOURNAL',
+  payee,
+  id,
+  onOpenChange,
+  onSaved,
+}: {
+  open: boolean;
+  type?: Kind;
+  payee?: PaymentPayee;
+  id?: string;
+  onOpenChange: (open: boolean) => void;
+  onSaved: (id: string) => void;
+}) {
+  const title = id
+    ? 'Edit voucher'
+    : type === 'PAYMENT'
+      ? 'New payment'
+      : `New ${TITLES[type].toLowerCase()}`;
   return (
-    <RequirePerm perm={id ? 'ledger:read' : perm}>
-      <Editor id={id} />
-    </RequirePerm>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={id ? 'Update this draft and save, submit, or post.' : HELP[type]}
+      size="full"
+    >
+      {open ? (
+        <Editor
+          key={`${id ?? type}-${payee ?? ''}`}
+          id={id}
+          initialType={type}
+          initialPayee={payee}
+          onClose={() => onOpenChange(false)}
+          onSaved={onSaved}
+        />
+      ) : null}
+    </Dialog>
   );
 }
 
-function Editor({ id }: { id?: string }) {
-  const navigate = useNavigate();
+function Editor({
+  id,
+  initialType,
+  initialPayee,
+  onClose,
+  onSaved,
+}: {
+  id?: string;
+  initialType: Kind;
+  initialPayee?: PaymentPayee;
+  onClose: () => void;
+  onSaved: (id: string) => void;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const can = useCan();
-  const [params] = useSearchParams();
   const existing = useQuery({
     queryKey: ['accounting', 'voucher', id],
     queryFn: () => api.accounting.voucher(id!),
@@ -98,7 +139,8 @@ function Editor({ id }: { id?: string }) {
     queryFn: api.accounting.currencies,
   });
 
-  const [kind, setKind] = useState<Kind>((params.get('type') as Kind) || 'JOURNAL');
+  const [kind, setKind] = useState<Kind>(initialType);
+  const [payee, setPayee] = useState<PaymentPayee>(initialPayee ?? 'SUPPLIER');
   const [mode, setMode] = useState<'simple' | 'lines'>(kind === 'JOURNAL' ? 'lines' : 'simple');
   const [date, setDate] = useState(todayPk());
   const [description, setDescription] = useState('');
@@ -128,6 +170,20 @@ function Editor({ id }: { id?: string }) {
   }, [existing.data, loaded]);
 
   const byId = useMemo(() => new Map((options.data ?? []).map((o) => [o.id, o])), [options.data]);
+  useEffect(() => {
+    if (kind !== 'PAYMENT') return;
+    const other = lines[1];
+    const acc = other?.accountId ? byId.get(other.accountId) : undefined;
+    if (!acc) return;
+    const next: PaymentPayee = matchesPayee(acc, 'SUPPLIER')
+      ? 'SUPPLIER'
+      : matchesPayee(acc, 'STAFF')
+        ? 'STAFF'
+        : matchesPayee(acc, 'EXPENSE')
+          ? 'EXPENSE'
+          : payee;
+    if (next !== payee) setPayee(next);
+  }, [byId, kind, lines, payee]);
   const rateFor = (currency: string) =>
     currencies.data?.find((c) => c.code === currency)?.latestRate ?? null;
 
@@ -246,7 +302,7 @@ function Editor({ id }: { id?: string }) {
             ? 'Sent for approval'
             : `${v.reference} posted`,
       );
-      navigate(`/accounting/vouchers/${v.id}`, { replace: true });
+      onSaved(v.id);
     } catch (e) {
       if (e instanceof ApiError) {
         setFieldErrors(e.fieldErrors);
@@ -257,7 +313,7 @@ function Editor({ id }: { id?: string }) {
     }
   };
 
-  if (id && existing.isLoading) return <Spinner className="py-24" />;
+  if (id && existing.isLoading) return <Spinner className="py-16" />;
   if (existing.data && !existing.data.allowedActions.includes('edit'))
     return (
       <Alert tone="warning" title="This voucher can't be edited">
@@ -271,20 +327,7 @@ function Editor({ id }: { id?: string }) {
     Object.entries(fieldErrors).find(([k]) => k.startsWith(`lines.${i}.`))?.[1];
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
-        breadcrumbs={
-          <Breadcrumbs
-            items={[
-              { label: 'Vouchers', onClick: () => navigate('/accounting/vouchers') },
-              { label: id ? (existing.data?.reference ?? '…') : 'New' },
-            ]}
-          />
-        }
-        title={id ? `Edit ${TITLES[kind].toLowerCase()}` : `New ${TITLES[kind].toLowerCase()}`}
-        description={HELP[kind]}
-      />
-
+    <div>
       {existing.data?.status === 'REJECTED' && existing.data.rejectionReason && (
         <Alert tone="warning" title="Returned by the approver" className="mb-5">
           {existing.data.rejectionReason}
@@ -302,7 +345,7 @@ function Editor({ id }: { id?: string }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder={
                 kind === 'PAYMENT'
-                  ? 'e.g. Paid Al Haram Hotels for October block'
+                  ? PAYEE_PLACEHOLDER[payee]
                   : kind === 'RECEIPT'
                     ? 'e.g. Refund received from airline'
                     : 'e.g. Recharge hotel block to Al Noor Travels'
@@ -310,6 +353,24 @@ function Editor({ id }: { id?: string }) {
               maxLength={300}
             />
           </Field>
+          {kind === 'PAYMENT' && (
+            <Field label="Pay" className="sm:col-span-2">
+              <SegmentedControl
+                value={payee}
+                onChange={(next) => {
+                  setPayee(next);
+                  const other = lines[1];
+                  if (!other?.accountId) return;
+                  const acc = byId.get(other.accountId);
+                  if (acc && !matchesPayee(acc, next)) update(other.key, { accountId: null });
+                }}
+                items={(Object.keys(PAYEE_LABEL) as PaymentPayee[]).map((value) => ({
+                  value,
+                  label: PAYEE_LABEL[value],
+                }))}
+              />
+            </Field>
+          )}
         </CardBody>
       </Card>
 
@@ -342,6 +403,7 @@ function Editor({ id }: { id?: string }) {
           {mode === 'simple' && lines.length === 2 ? (
             <SimpleEntry
               kind={kind}
+              payee={kind === 'PAYMENT' ? payee : undefined}
               lines={lines}
               byId={byId}
               options={options.data}
@@ -453,7 +515,7 @@ function Editor({ id }: { id?: string }) {
         </Totals>
       </Card>
 
-      <Card className="mb-6">
+      <Card className="mb-4">
         <CardHeader
           title="Attachments"
           description="Bills, bank advice or approvals supporting this voucher."
@@ -491,8 +553,8 @@ function Editor({ id }: { id?: string }) {
           {error}
         </Alert>
       )}
-      <div className="sticky bottom-4 z-10 flex flex-wrap items-center justify-end gap-2 rounded-2xl bg-surface/80 p-3 shadow-pop backdrop-blur-xl">
-        <span className="mr-auto pl-2 text-[13px] text-muted-foreground">
+      <div className="sticky bottom-0 z-10 -mx-6 -mb-4 flex flex-wrap items-center justify-end gap-2 border-t border-border/70 bg-surface px-6 py-3">
+        <span className="mr-auto pl-0 text-[13px] text-muted-foreground">
           {diff === 0 && debit > 0 ? (
             <span className="inline-flex items-center gap-1.5 text-success">
               <Check className="size-4" /> Balanced · {formatMoney(debit, { decimals: true })}
@@ -501,7 +563,7 @@ function Editor({ id }: { id?: string }) {
             'Not balanced yet'
           )}
         </span>
-        <Button variant="ghost" onClick={() => navigate(-1)}>
+        <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
         <Button variant="secondary" onClick={() => save('draft')} loading={busy === 'draft'}>
@@ -605,8 +667,34 @@ function FcRow({
   );
 }
 
+function matchesPayee(a: AccountOption, payee: PaymentPayee) {
+  const hay = `${a.path} ${a.name} ${a.systemKey ?? ''}`.toLowerCase();
+  if (payee === 'SUPPLIER') return a.systemKey === 'SUPPLIER_PAYABLE' || hay.includes('supplier');
+  if (payee === 'STAFF')
+    return a.class === 'EXPENSE' && /salary|salaries|wage|staff|payroll/.test(hay);
+  return a.class === 'EXPENSE';
+}
+
+function payeeFilter(
+  payee: PaymentPayee | undefined,
+  bankId: string | null,
+  options?: AccountOption[],
+  selectedId?: string | null,
+) {
+  return (a: AccountOption) => {
+    if (a.id === bankId) return false;
+    if (selectedId && a.id === selectedId) return true;
+    if (!payee) return true;
+    const match = matchesPayee(a, payee);
+    if (match) return true;
+    const any = (options ?? []).some((o) => o.id !== bankId && matchesPayee(o, payee));
+    return !any;
+  };
+}
+
 function SimpleEntry({
   kind,
+  payee,
   lines,
   byId,
   options,
@@ -616,6 +704,7 @@ function SimpleEntry({
   error,
 }: {
   kind: Kind;
+  payee?: PaymentPayee;
   lines: Line[];
   byId: Map<string, AccountOption>;
   options: AccountOption[] | undefined;
@@ -627,6 +716,14 @@ function SimpleEntry({
   const [bank, other] = lines;
   const acc = other.accountId ? byId.get(other.accountId) : undefined;
   const foreign = !!acc && acc.currency !== 'PKR';
+  const paidTo =
+    payee === 'SUPPLIER'
+      ? 'Paid to (supplier)'
+      : payee === 'STAFF'
+        ? 'Paid to (salary or staff)'
+        : payee === 'EXPENSE'
+          ? 'Paid to (expense)'
+          : 'Paid to';
   return (
     <div className="grid gap-4 p-5 sm:grid-cols-2">
       <Field
@@ -637,24 +734,25 @@ function SimpleEntry({
           options={options}
           value={bank.accountId}
           onChange={(a) => onAccount(bank.key, a)}
-          filter={isCashOrBank}
+          preset="cash-bank"
           placeholder="Choose bank or cash"
         />
       </Field>
-      <Field
-        label={
-          kind === 'PAYMENT'
-            ? 'Paid to (expense, supplier or other)'
-            : 'Received from (income or other)'
-        }
-        required
-      >
+      <Field label={kind === 'PAYMENT' ? paidTo : 'Received from (income or other)'} required>
         <AccountPicker
           options={options}
           value={other.accountId}
           onChange={(a) => onAccount(other.key, a)}
-          filter={(a) => a.id !== bank.accountId}
-          placeholder="Search account"
+          filter={payeeFilter(payee, bank.accountId, options, other.accountId)}
+          placeholder={
+            payee === 'SUPPLIER'
+              ? 'Search supplier payable'
+              : payee === 'STAFF'
+                ? 'Search salary or staff account'
+                : payee === 'EXPENSE'
+                  ? 'Search expense account'
+                  : 'Search account'
+          }
         />
       </Field>
       {foreign ? (

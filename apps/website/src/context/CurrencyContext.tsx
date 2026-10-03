@@ -1,61 +1,87 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { PublicCurrencyDto } from '@gnk/types';
+import { publicApi } from '../lib/api';
 
-export type CurrencyCode = 'USD' | 'PKR' | 'SAR' | 'AED';
+export type CurrencyCode = string;
 
-export interface CurrencyRate {
-  code: CurrencyCode;
-  symbol: string;
-  rate: number; // conversion from USD
-  label: string;
-}
+const STORAGE_KEY = 'gnk_currency';
 
-export const CURRENCIES: Record<CurrencyCode, CurrencyRate> = {
-  PKR: { code: 'PKR', symbol: 'Rs. ', rate: 280, label: 'PKR (₨)' },
-  USD: { code: 'USD', symbol: '$', rate: 1, label: 'USD ($)' },
-  SAR: { code: 'SAR', symbol: 'SAR ', rate: 3.75, label: 'SAR (﷼)' },
-  AED: { code: 'AED', symbol: 'AED ', rate: 3.67, label: 'AED (د.إ)' },
-};
+const PKR: PublicCurrencyDto = { code: 'PKR', name: 'Pakistani rupee', symbol: 'Rs', rate: 1 };
+
+/** Used only if the API is unreachable. Admin Settings rates replace these. */
+const FALLBACK: PublicCurrencyDto[] = [
+  PKR,
+  { code: 'USD', name: 'US dollar', symbol: '$', rate: 278 },
+  { code: 'SAR', name: 'Saudi riyal', symbol: 'SR', rate: 74.1 },
+  { code: 'AED', name: 'UAE dirham', symbol: 'AED', rate: 75.7 },
+];
 
 interface CurrencyContextValue {
   currency: CurrencyCode;
+  currencies: PublicCurrencyDto[];
   setCurrency: (code: CurrencyCode) => void;
-  formatPrice: (priceUSDStr: string | number) => string;
+  /** Format a PKR amount in the visitor's selected currency. */
+  formatPrice: (pricePkr: string | number) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | undefined>(undefined);
 
+const parsePkr = (value: string | number) =>
+  typeof value === 'number' ? value : parseFloat(value.replace(/[^0-9.]/g, '')) || 0;
+
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currency, setCurrencyState] = useState<CurrencyCode>('PKR');
+  const [currency, setCurrencyState] = useState<CurrencyCode>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) || 'PKR';
+    } catch {
+      return 'PKR';
+    }
+  });
+  const [currencies, setCurrencies] = useState<PublicCurrencyDto[]>(FALLBACK);
 
   useEffect(() => {
-    const saved = localStorage.getItem('gnk_currency') as CurrencyCode;
-    if (saved && CURRENCIES[saved]) {
-      setCurrencyState(saved);
-    }
+    let cancelled = false;
+    publicApi
+      .currencies()
+      .then((dto) => {
+        if (cancelled || !dto.currencies.length) return;
+        setCurrencies(dto.currencies);
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && dto.currencies.some((c) => c.code === saved)) setCurrencyState(saved);
+        else setCurrencyState(dto.base);
+      })
+      .catch(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved && FALLBACK.some((c) => c.code === saved)) setCurrencyState(saved);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const setCurrency = (code: CurrencyCode) => {
+    if (!currencies.some((c) => c.code === code)) return;
     setCurrencyState(code);
-    localStorage.setItem('gnk_currency', code);
+    localStorage.setItem(STORAGE_KEY, code);
   };
 
-  const formatPrice = (priceUSDStr: string | number): string => {
-    const numeric =
-      typeof priceUSDStr === 'number'
-        ? priceUSDStr
-        : parseFloat(priceUSDStr.replace(/[^0-9.]/g, '')) || 0;
-
-    const current = CURRENCIES[currency];
-    const converted = Math.round(numeric * current.rate);
-
-    if (currency === 'PKR') {
-      return `Rs. ${converted.toLocaleString()}`;
-    }
-    return `${current.symbol}${converted.toLocaleString()}`;
-  };
+  const formatPrice = useMemo(() => {
+    return (pricePkr: string | number) => {
+      const pkr = parsePkr(pricePkr);
+      const current = currencies.find((c) => c.code === currency) ?? PKR;
+      const amount = current.code === 'PKR' ? Math.round(pkr) : pkr / current.rate;
+      const formatted = amount.toLocaleString('en-PK', {
+        minimumFractionDigits: current.code === 'PKR' ? 0 : 2,
+        maximumFractionDigits: current.code === 'PKR' ? 0 : 2,
+      });
+      if (current.code === 'PKR') return `Rs. ${formatted}`;
+      const gap = /[A-Za-z]/.test(current.symbol) ? ' ' : '';
+      return `${current.symbol}${gap}${formatted}`;
+    };
+  }, [currencies, currency]);
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice }}>
+    <CurrencyContext.Provider value={{ currency, currencies, setCurrency, formatPrice }}>
       {children}
     </CurrencyContext.Provider>
   );

@@ -10,7 +10,6 @@ import {
   FileClock,
   FilePlus2,
   FileSpreadsheet,
-  Landmark,
   LayoutDashboard,
   LogOut,
   Network,
@@ -47,14 +46,25 @@ import {
 import { ENV_NAME, api, useAuth } from '@/lib/api';
 import { useLiveUpdates } from '@/lib/live';
 import { useCan } from '@/lib/useCan';
+import { useVoucherOverlays } from '@/pages/accounting/voucher-overlay-context';
+import { VoucherOverlayProvider } from '@/pages/accounting/voucher-overlays';
 
-type Item = NavItem & { perm: Permission };
+type Item = NavItem & { perm?: Permission; anyOf?: Permission[] };
 
 export function AdminLayout() {
+  return (
+    <VoucherOverlayProvider>
+      <AdminShell />
+    </VoucherOverlayProvider>
+  );
+}
+
+function AdminShell() {
   const { session, logout } = useAuth();
   const can = useCan();
   const location = useLocation();
   const navigate = useNavigate();
+  const overlays = useVoucherOverlays();
   const qc = useQueryClient();
   const live = useLiveUpdates();
   const [search, setSearch] = useState('');
@@ -87,7 +97,7 @@ export function AdminLayout() {
           label: 'Payments',
           href: '/payments',
           icon: CreditCard,
-          perm: 'payments:read',
+          anyOf: ['payments:read', 'ledger:read'],
           badge: queues.data?.payments || null,
         },
         {
@@ -105,9 +115,15 @@ export function AdminLayout() {
         {
           label: 'Vouchers',
           href: '/accounting/vouchers',
-          icon: ReceiptText,
+          icon: FilePlus2,
           perm: 'ledger:read',
           badge: queues.data?.vouchers || null,
+        },
+        {
+          label: 'Receipts',
+          href: '/accounting/receipts',
+          icon: ReceiptText,
+          perm: 'ledger:read',
         },
         {
           label: 'Chart of accounts',
@@ -115,17 +131,11 @@ export function AdminLayout() {
           icon: Network,
           perm: 'ledger:read',
         },
-        { label: 'Partner balances', href: '/ledger', icon: ScrollText, perm: 'ledger:read' },
+        { label: 'Partners', href: '/ledger', icon: ScrollText, perm: 'ledger:read' },
         {
           label: 'Reports',
           href: '/accounting/reports',
           icon: FileSpreadsheet,
-          perm: 'ledger:read',
-        },
-        {
-          label: 'Currencies & periods',
-          href: '/accounting/setup',
-          icon: Landmark,
           perm: 'ledger:read',
         },
       ],
@@ -143,12 +153,20 @@ export function AdminLayout() {
       items: [
         { label: 'Users & roles', href: '/staff', icon: UserCog, perm: 'staff:manage' },
         { label: 'Audit log', href: '/audit', icon: FileClock, perm: 'audit:read' },
-        { label: 'Settings', href: '/settings', icon: Settings, perm: 'settings:manage' },
+        {
+          label: 'Settings',
+          href: '/settings',
+          icon: Settings,
+          anyOf: ['settings:manage', 'ledger:read'],
+        },
       ],
     },
   ];
   const nav: NavGroup[] = groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => can(i.perm)) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => (i.anyOf ? i.anyOf.some((p) => can(p)) : can(i.perm!))),
+    }))
     .filter((g) => g.items.length);
 
   const commands: CommandItem[] = [
@@ -159,25 +177,48 @@ export function AdminLayout() {
             label: 'New journal voucher',
             group: 'Create',
             icon: FilePlus2,
-            onSelect: () => navigate('/accounting/vouchers/new?type=JOURNAL'),
+            onSelect: () => overlays.openNew('JOURNAL'),
           },
         ]
       : []),
     ...(can('ledger:post')
       ? [
           {
-            id: 'new-pv',
-            label: 'New payment voucher',
+            id: 'pay-supplier',
+            label: 'Pay a supplier',
             group: 'Create',
             icon: Wallet,
-            onSelect: () => navigate('/accounting/vouchers/new?type=PAYMENT'),
+            onSelect: () => {
+              navigate('/payments?tab=outgoing');
+              overlays.openNew('PAYMENT', { payee: 'SUPPLIER' });
+            },
+          },
+          {
+            id: 'pay-expense',
+            label: 'Pay an expense',
+            group: 'Create',
+            icon: Wallet,
+            onSelect: () => {
+              navigate('/payments?tab=outgoing');
+              overlays.openNew('PAYMENT', { payee: 'EXPENSE' });
+            },
+          },
+          {
+            id: 'pay-staff',
+            label: 'Pay staff',
+            group: 'Create',
+            icon: Wallet,
+            onSelect: () => {
+              navigate('/payments?tab=outgoing');
+              overlays.openNew('PAYMENT', { payee: 'STAFF' });
+            },
           },
           {
             id: 'new-rv',
-            label: 'New receipt voucher',
+            label: 'New receipt',
             group: 'Create',
             icon: ReceiptText,
-            onSelect: () => navigate('/accounting/vouchers/new?type=RECEIPT'),
+            onSelect: () => overlays.openNew('RECEIPT'),
           },
         ]
       : []),
@@ -185,10 +226,10 @@ export function AdminLayout() {
       ? [
           {
             id: 'record-payment',
-            label: 'Record a partner payment',
+            label: 'Record a partner deposit',
             group: 'Create',
             icon: CreditCard,
-            onSelect: () => navigate('/payments?record=1'),
+            onSelect: () => navigate('/payments?tab=incoming&record=1'),
           },
         ]
       : []),
@@ -272,7 +313,24 @@ export function AdminLayout() {
               onOpenItem={async (n) => {
                 if (!n.readAt) await api.notifications.read(n.id);
                 void qc.invalidateQueries({ queryKey: ['notifications'] });
-                if (n.link) navigate(n.link);
+                if (!n.link) return;
+                const receipt = n.link.match(/^\/payments\/([^/]+)\/receipt/);
+                if (receipt) {
+                  navigate(`/payments?id=${receipt[1]}&receipt=1`);
+                  return;
+                }
+                const voucherNew = n.link.startsWith('/accounting/vouchers/new');
+                if (voucherNew) {
+                  const type = new URL(n.link, 'https://app.local').searchParams.get('type');
+                  overlays.openNew(type === 'PAYMENT' || type === 'RECEIPT' ? type : 'JOURNAL');
+                  return;
+                }
+                const voucher = n.link.match(/^\/accounting\/vouchers\/([^/]+)/);
+                if (voucher && !n.link.includes('/print')) {
+                  overlays.openView(voucher[1]);
+                  return;
+                }
+                navigate(n.link);
               }}
               onReadAll={async () => {
                 await api.notifications.readAll();

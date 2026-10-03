@@ -26,9 +26,13 @@ import {
   Input,
   Money,
   PageHeader,
+  Pagination,
+  SearchInput,
   Select,
   Tabs,
+  filterPage,
   formatDate,
+  includesQ,
   titleCase,
   useToast,
 } from '@gnk/ui';
@@ -82,24 +86,70 @@ function Rules() {
   const toast = useToast();
   const [editing, setEditing] = useState<PricingRuleDto | 'new' | null>(null);
   const [deleting, setDeleting] = useState<PricingRuleDto | null>(null);
+  const [search, setSearch] = useState('');
+  const [scope, setScope] = useState('all');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
   const q = useQuery({ queryKey: ['rules'], queryFn: api.pricing.rules });
+  const list = filterPage(q.data, {
+    q: search,
+    page,
+    match: (r, s) => includesQ(r.name, r.targetLabel, SCOPE_LABEL[r.scope]).includes(s),
+    filter: (r) =>
+      (scope === 'all' || r.scope === scope) &&
+      (status === 'all' || (status === 'active' ? r.isActive : !r.isActive)),
+  });
   if (q.error) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const writable = can('pricing:write');
   return (
     <>
-      <div className="flex items-center justify-between gap-3 border-b p-4">
-        <p className="text-[13px] text-muted-foreground">
-          Precedence: partner + product → partner → tier → departure → product → product type →
-          supplier → default.
-        </p>
+      <div className="flex flex-wrap items-center gap-3 border-b p-4">
+        <SearchInput
+          className="min-w-[16rem] flex-1"
+          placeholder="Search rules"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-44"
+          value={scope}
+          onChange={(e) => {
+            setScope(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Scope"
+        >
+          <option value="all">All scopes</option>
+          {PRICING_SCOPES.map((s) => (
+            <option key={s} value={s}>
+              {SCOPE_LABEL[s]}
+            </option>
+          ))}
+        </Select>
+        <Select
+          className="w-36"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Status"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+        </Select>
         {writable && (
-          <Button onClick={() => setEditing('new')}>
+          <Button className="ml-auto" onClick={() => setEditing('new')}>
             <Plus /> New rule
           </Button>
         )}
       </div>
       <DataTable
-        rows={q.data}
+        rows={list.items}
         loading={q.isLoading}
         rowKey={(r) => r.id}
         rowClassName={(r) => (r.isActive ? undefined : 'opacity-55')}
@@ -217,6 +267,7 @@ function Rules() {
             : []),
         ]}
       />
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
       {editing && (
         <RuleDialog rule={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />
       )}
@@ -580,7 +631,14 @@ function Tiers() {
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const q = useQuery({ queryKey: ['tiers'], queryFn: api.pricing.tiers });
+  const list = filterPage(q.data, {
+    q: search,
+    page,
+    match: (t, s) => includesQ(t.name).includes(s),
+  });
   const create = useMutation({
     mutationFn: () => api.pricing.createTier(name.trim()),
     onSuccess: (t) => {
@@ -597,25 +655,36 @@ function Tiers() {
   });
   return (
     <>
-      {can('pricing:write') && (
-        <div className="flex gap-2 border-b p-4">
-          <Input
-            className="max-w-xs"
-            placeholder="New tier, e.g. Gold"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <Button
-            onClick={() => create.mutate()}
-            disabled={name.trim().length < 2}
-            loading={create.isPending}
-          >
-            <Plus /> Add tier
-          </Button>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3 border-b p-4">
+        <SearchInput
+          className="min-w-[16rem] flex-1"
+          placeholder="Search tiers"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        {can('pricing:write') && (
+          <>
+            <Input
+              className="max-w-xs"
+              placeholder="New tier, e.g. Gold"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <Button
+              onClick={() => create.mutate()}
+              disabled={name.trim().length < 2}
+              loading={create.isPending}
+            >
+              <Plus /> Add tier
+            </Button>
+          </>
+        )}
+      </div>
       <DataTable
-        rows={q.data}
+        rows={list.items}
         loading={q.isLoading}
         rowKey={(t) => t.id}
         empty={
@@ -647,6 +716,7 @@ function Tiers() {
             : []),
         ]}
       />
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
     </>
   );
 }

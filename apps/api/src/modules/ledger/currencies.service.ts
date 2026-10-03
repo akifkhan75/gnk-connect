@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import type { CurrencyDto, ExchangeRateDto, PeriodDto } from '@gnk/types';
+import type { CurrencyDto, ExchangeRateDto, PeriodDto, PublicCurrenciesDto } from '@gnk/types';
 import type { z } from 'zod';
 import type { currencySchema, exchangeRateSchema } from '@gnk/validation';
 import { todayPk } from '@gnk/validation';
@@ -56,6 +56,22 @@ export class CurrenciesService {
     return this.currencies();
   }
 
+  /** Active currencies with a rate, for the public website. PKR is always included. */
+  async publicRates(): Promise<PublicCurrenciesDto> {
+    const rows = await this.currencies();
+    return {
+      base: BASE,
+      currencies: rows
+        .filter((c) => c.isActive && (c.code === BASE || c.latestRate != null))
+        .map((c) => ({
+          code: c.code,
+          name: c.name,
+          symbol: c.symbol || c.code,
+          rate: c.code === BASE ? 1 : c.latestRate!,
+        })),
+    };
+  }
+
   async rates(currency?: string): Promise<ExchangeRateDto[]> {
     const rows = await this.prisma.exchangeRate.findMany({
       where: currency ? { currency } : {},
@@ -79,6 +95,8 @@ export class CurrenciesService {
   }
 
   async addRate(dto: z.output<typeof exchangeRateSchema>, staffId: string) {
+    if (dto.currency === BASE)
+      throw new BadRequestException('PKR is the base currency and does not take a conversion rate');
     const currency = await this.prisma.currency.findUnique({ where: { code: dto.currency } });
     if (!currency?.isActive)
       throw new BadRequestException(`${dto.currency} is not an active currency`);

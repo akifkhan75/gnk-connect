@@ -12,6 +12,7 @@ export interface ChartAccountDto {
   parentId: string | null;
   isGroup: boolean;
   isActive: boolean;
+  isLocked: boolean;
   systemKey: string | null;
   currency: string;
   description: string | null;
@@ -137,6 +138,10 @@ export interface AccountLedgerDto {
   fcClosing: number | null;
   totalDebit: number;
   totalCredit: number;
+  /** Latest posting date on this account, regardless of the selected range. */
+  lastTransaction: string | null;
+  /** True when an opening-balance journal has already been posted. */
+  hasOpening: boolean;
   lines: AccountLedgerLine[];
 }
 
@@ -166,6 +171,112 @@ export interface IncomeStatementDto {
   netProfit: number;
 }
 
+export interface ReportAmountRow {
+  accountId?: string;
+  code: string;
+  name: string;
+  amount: number;
+}
+
+export interface BalanceSheetDto {
+  asOf: string;
+  assets: ReportAmountRow[];
+  liabilities: ReportAmountRow[];
+  equity: ReportAmountRow[];
+  currentEarnings: number;
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  totalLiabilitiesAndEquity: number;
+}
+
+export interface SalesLineDto {
+  bookingId: string;
+  date: string;
+  reference: string;
+  partnerId: string;
+  partnerCode: string;
+  partnerName: string;
+  supplierId: string;
+  supplierName: string;
+  product: string;
+  seats: number;
+  revenue: number;
+  cost: number | null;
+  commission: number | null;
+}
+
+export interface SalesReportDto {
+  from: string;
+  to: string;
+  includeCost: boolean;
+  rows: SalesLineDto[];
+  bookings: number;
+  seats: number;
+  revenue: number;
+  cost: number | null;
+  commission: number | null;
+}
+
+export interface SalesGroupRow {
+  id: string;
+  code?: string;
+  name: string;
+  bookings: number;
+  seats: number;
+  revenue: number;
+  cost: number | null;
+  commission: number | null;
+}
+
+export interface SalesGroupReportDto {
+  from: string;
+  to: string;
+  includeCost: boolean;
+  rows: SalesGroupRow[];
+  bookings: number;
+  seats: number;
+  revenue: number;
+  cost: number | null;
+  commission: number | null;
+}
+
+export interface ExpenseLineDto {
+  date: string;
+  voucherId: string;
+  reference: string;
+  type: VoucherType;
+  accountCode: string;
+  accountName: string;
+  description: string;
+  amount: number;
+}
+
+export interface ExpenseReportDto {
+  from: string;
+  to: string;
+  lines: ExpenseLineDto[];
+  byAccount: ReportAmountRow[];
+  total: number;
+}
+
+export interface CashBankAccountReport {
+  accountId: string;
+  code: string;
+  name: string;
+  opening: number;
+  inflows: number;
+  outflows: number;
+  closing: number;
+  lines: AccountLedgerLine[];
+}
+
+export interface CashBankReportDto {
+  from: string;
+  to: string;
+  accounts: CashBankAccountReport[];
+}
+
 export interface CurrencyDto {
   code: string;
   name: string;
@@ -173,6 +284,19 @@ export interface CurrencyDto {
   isActive: boolean;
   latestRate: number | null;
   latestRateDate: string | null;
+}
+
+/** Public website rates. `rate` is PKR for one unit (PKR is always 1). */
+export interface PublicCurrencyDto {
+  code: string;
+  name: string;
+  symbol: string;
+  rate: number;
+}
+
+export interface PublicCurrenciesDto {
+  base: 'PKR';
+  currencies: PublicCurrencyDto[];
 }
 
 export interface ExchangeRateDto {

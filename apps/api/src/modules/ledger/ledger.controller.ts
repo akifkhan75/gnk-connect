@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import {
   adminPartnerListSchema,
@@ -52,14 +53,21 @@ export class AdminLedgerController {
   async accounts(
     @Query(new ZodPipe(adminPartnerListSchema)) q: z.output<typeof adminPartnerListSchema>,
   ): Promise<Paginated<AdminPartnerListItem>> {
-    const where = {
+    const status =
+      q.status === 'APPROVED' || q.status === 'SUSPENDED'
+        ? q.status
+        : { in: ['APPROVED', 'SUSPENDED'] as ('APPROVED' | 'SUSPENDED')[] };
+    const where: Prisma.PartnerAccountWhereInput = {
       deletedAt: null,
-      status: { in: ['APPROVED', 'SUSPENDED'] as ('APPROVED' | 'SUSPENDED')[] },
+      status,
+      ...(q.type && q.type !== 'ALL' ? { type: q.type } : {}),
       ...(q.q
         ? {
             OR: [
               { legalName: { contains: q.q, mode: 'insensitive' as const } },
+              { tradeName: { contains: q.q, mode: 'insensitive' as const } },
               { code: { contains: q.q, mode: 'insensitive' as const } },
+              { city: { contains: q.q, mode: 'insensitive' as const } },
             ],
           }
         : {}),
@@ -88,6 +96,12 @@ export class AdminLedgerController {
         creditLimit: num(a.creditLimit),
         createdAt: a.createdAt.toISOString(),
       }))
+      .filter((a) => {
+        if (q.balance === 'OWING') return a.balance < 0;
+        if (q.balance === 'CREDIT') return a.balance > 0;
+        if (q.balance === 'ZERO') return a.balance === 0;
+        return true;
+      })
       .sort((a, b) => a.balance - b.balance);
     const start = (q.page - 1) * q.pageSize;
     return {

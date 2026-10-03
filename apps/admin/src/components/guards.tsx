@@ -33,15 +33,25 @@ export function GuestOnly() {
 }
 
 /** Missing permission renders a 403 page, never a silent redirect (plan 07 §5). */
-export function RequirePerm({ perm, children }: { perm: Permission; children: ReactNode }) {
+export function RequirePerm({
+  perm,
+  anyOf,
+  children,
+}: {
+  perm?: Permission;
+  anyOf?: Permission[];
+  children: ReactNode;
+}) {
   const can = useCan();
-  if (!can(perm)) {
+  const ok = anyOf?.length ? anyOf.some((p) => can(p)) : perm ? can(perm) : false;
+  const needed = anyOf?.length ? anyOf.join(' or ') : perm;
+  if (!ok) {
     return (
       <EmptyState
         className="py-24"
         icon={<ShieldAlert />}
         title="You don't have access to this area"
-        description={`This page needs the "${perm}" permission. Ask a super admin if you need it.`}
+        description={`This page needs the "${needed}" permission. Ask a super admin if you need it.`}
         action={
           <Button asChild variant="secondary">
             <Link to="/">Go to dashboard</Link>

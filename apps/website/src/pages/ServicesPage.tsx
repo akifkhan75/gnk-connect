@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { SERVICES, BRAND_NAME, CONTACT_INFO } from '../constants';
+import { SERVICES, BRAND_NAME, CONTACT_INFO, pkr } from '../constants';
 import {
   CheckCircle,
   ArrowLeft,
@@ -62,6 +62,7 @@ const VisaForm: React.FC<{
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [visaType, setVisaType] = useState('Dubai UAE E-Visa');
+  const { formatPrice } = useCurrency();
   const { showToast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -114,9 +115,15 @@ const VisaForm: React.FC<{
           onChange={(e) => setVisaType(e.target.value)}
           className="w-full px-4 py-2.5 bg-canvas border border-line rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
         >
-          <option value="Dubai UAE E-Visa">Dubai (UAE) 30/60 Days E-Visa ($150)</option>
-          <option value="Thailand Sticker Visa">Thailand Official Sticker Visa ($80)</option>
-          <option value="Schengen File Consultation">Schengen Complete Dossier ($200)</option>
+          <option value="Dubai UAE E-Visa">
+            Dubai (UAE) 30/60 Days E-Visa ({formatPrice(pkr(150))})
+          </option>
+          <option value="Thailand Sticker Visa">
+            Thailand Official Sticker Visa ({formatPrice(pkr(80))})
+          </option>
+          <option value="Schengen File Consultation">
+            Schengen Complete Dossier ({formatPrice(pkr(200))})
+          </option>
           <option value="UK & USA Visit Visa File">UK / USA File Preparation</option>
           <option value="Malaysia & Singapore Visa">Malaysia / Singapore E-Visa</option>
         </select>

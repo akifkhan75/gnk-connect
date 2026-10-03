@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarCheck2, Lock, LockOpen, Plus } from 'lucide-react';
 import { ApiError } from '@gnk/api-client';
-import type { CurrencyDto } from '@gnk/types';
+import type { CurrencyDto, ExchangeRateDto } from '@gnk/types';
 import { todayPk } from '@gnk/validation';
 import {
   Alert,
@@ -18,34 +18,28 @@ import {
   ErrorState,
   Field,
   Input,
-  PageHeader,
+  Pagination,
+  SearchInput,
+  Select,
+  filterPage,
   formatDate,
   formatDateTime,
+  includesQ,
   useToast,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
 import { useCan } from '@/lib/useCan';
-import { RequirePerm } from '@/components/guards';
 
 export function SetupPage() {
+  return <Navigate to="/settings?tab=currencies" replace />;
+}
+
+export function CurrenciesAndPeriods() {
   return (
-    <RequirePerm perm="ledger:read">
-      <PageHeader
-        title="Currencies and periods"
-        description="Books are kept in PKR. Foreign amounts are entered with a manual rate; the latest rate here is offered as the default."
-      />
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Currencies />
-        <Periods />
-      </div>
-      <p className="mt-6 text-[13px] text-muted-foreground">
-        Journal voucher approval (maker-checker) is set in{' '}
-        <Link to="/settings" className="text-link hover:underline">
-          Settings
-        </Link>
-        .
-      </p>
-    </RequirePerm>
+    <div className="grid gap-5 xl:grid-cols-2">
+      <Currencies />
+      <Periods />
+    </div>
   );
 }
 
@@ -58,6 +52,16 @@ function Currencies() {
   const [selected, setSelected] = useState<string | null>(null);
   const [rateFor, setRateFor] = useState<string | null>(null);
   const [editing, setEditing] = useState<CurrencyDto | 'new' | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
+  const [ratePage, setRatePage] = useState(1);
+  const list = filterPage(q.data, {
+    q: search,
+    page,
+    match: (c, s) => includesQ(c.code, c.name).includes(s),
+    filter: (c) => status === 'all' || (status === 'active' ? c.isActive : !c.isActive),
+  });
   const rates = useQuery({
     queryKey: ['accounting', 'rates', selected],
     queryFn: () => api.accounting.rates(selected!),
@@ -67,7 +71,7 @@ function Currencies() {
     <Card>
       <CardHeader
         title="Currencies and rates"
-        description="Rate = PKR for one unit of the currency."
+        description="PKR is the base currency. Rate = PKR for one unit — used on vouchers and the public website."
         actions={
           can('ledger:coa') && (
             <Button size="sm" variant="secondary" onClick={() => setEditing('new')}>
@@ -76,15 +80,42 @@ function Currencies() {
           )
         }
       />
+      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-4 py-3">
+        <SearchInput
+          className="min-w-[12rem] flex-1"
+          placeholder="Search currency"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-36"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Status"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </Select>
+      </div>
       {q.error ? (
         <ErrorState error={q.error} />
       ) : (
         <DataTable
-          rows={q.data}
+          rows={list.items}
           loading={q.isLoading}
           rowKey={(c) => c.code}
           selectedKey={selected}
-          onRowClick={(c) => setSelected(c.code === 'PKR' ? null : c.code)}
+          onRowClick={(c) => {
+            setSelected(c.code === 'PKR' ? null : c.code);
+            setRatePage(1);
+          }}
           columns={[
             {
               key: 'c',
@@ -136,36 +167,63 @@ function Currencies() {
           ]}
         />
       )}
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
       {selected && (
-        <div className="border-t border-border/70">
-          <p className="px-5 pt-4 text-[13px] font-semibold">{selected} rate history</p>
-          <DataTable
-            dense
-            rows={rates.data}
-            loading={rates.isLoading}
-            rowKey={(r) => r.id}
-            columns={[
-              { key: 'd', header: 'Date', cell: (r) => formatDate(r.date) },
-              { key: 'r', header: 'Rate', align: 'right', cell: (r) => r.rate },
-              {
-                key: 'n',
-                header: 'Note',
-                hideBelow: 'md',
-                cell: (r) => <span className="text-muted-foreground">{r.note}</span>,
-              },
-              {
-                key: 'b',
-                header: 'Entered by',
-                hideBelow: 'lg',
-                cell: (r) => <span className="text-muted-foreground">{r.createdBy}</span>,
-              },
-            ]}
-          />
-        </div>
+        <RateHistory
+          code={selected}
+          rows={rates.data}
+          loading={rates.isLoading}
+          page={ratePage}
+          onPage={setRatePage}
+        />
       )}
       <RateDialog currency={rateFor} onClose={() => setRateFor(null)} />
       <CurrencyDialog currency={editing} onClose={() => setEditing(null)} />
     </Card>
+  );
+}
+
+function RateHistory({
+  code,
+  rows,
+  loading,
+  page,
+  onPage,
+}: {
+  code: string;
+  rows: ExchangeRateDto[] | undefined;
+  loading: boolean;
+  page: number;
+  onPage: (p: number) => void;
+}) {
+  const list = filterPage(rows, { page, pageSize: 10 });
+  return (
+    <div className="border-t border-border/70">
+      <p className="px-5 pt-4 text-[13px] font-semibold">{code} rate history</p>
+      <DataTable
+        dense
+        rows={list.items}
+        loading={loading}
+        rowKey={(r) => r.id}
+        columns={[
+          { key: 'd', header: 'Date', cell: (r) => formatDate(r.date) },
+          { key: 'r', header: 'Rate', align: 'right', cell: (r) => r.rate },
+          {
+            key: 'n',
+            header: 'Note',
+            hideBelow: 'md',
+            cell: (r) => <span className="text-muted-foreground">{r.note}</span>,
+          },
+          {
+            key: 'b',
+            header: 'Entered by',
+            hideBelow: 'lg',
+            cell: (r) => <span className="text-muted-foreground">{r.createdBy}</span>,
+          },
+        ]}
+      />
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={onPage} />
+    </div>
   );
 }
 
@@ -342,10 +400,19 @@ function Periods() {
   const toast = useToast();
   const q = useQuery({ queryKey: ['accounting', 'periods'], queryFn: api.accounting.periods });
   const [target, setTarget] = useState<{ month: string; close: boolean } | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
   const label = (m: string) =>
     new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(
       new Date(`${m}-01T00:00:00Z`),
     );
+  const list = filterPage(q.data, {
+    q: search,
+    page,
+    match: (p, s) => includesQ(p.month, label(p.month)).includes(s),
+    filter: (p) => status === 'all' || (status === 'closed' ? p.closed : !p.closed),
+  });
   return (
     <Card>
       <CardHeader
@@ -353,11 +420,35 @@ function Periods() {
         description="Close a month once it is reconciled. Nothing can be posted into a closed month."
         icon={<CalendarCheck2 className="size-4" />}
       />
+      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-4 py-3">
+        <SearchInput
+          className="min-w-[12rem] flex-1"
+          placeholder="Search month"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-36"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Period status"
+        >
+          <option value="all">All periods</option>
+          <option value="open">Open</option>
+          <option value="closed">Closed</option>
+        </Select>
+      </div>
       {q.error ? (
         <ErrorState error={q.error} />
       ) : (
         <DataTable
-          rows={q.data}
+          rows={list.items}
           loading={q.isLoading}
           rowKey={(p) => p.month}
           columns={[
@@ -414,6 +505,7 @@ function Periods() {
           ]}
         />
       )}
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
       <ConfirmDialog
         open={!!target}
         onOpenChange={(o) => !o && setTarget(null)}

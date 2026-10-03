@@ -2,10 +2,15 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, type LedgerAccount } from '@prisma/client';
 import type { AccountBalanceDto, AccountOption, ChartAccountDto } from '@gnk/types';
 import type { z } from 'zod';
-import type { accountCreateSchema, accountUpdateSchema } from '@gnk/validation';
+import {
+  nextAccountCode,
+  todayPk,
+  type accountCreateSchema,
+  type accountUpdateSchema,
+} from '@gnk/validation';
 import { Decimal, num } from '../../core/money';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { BASE, toDate } from './ledger.service';
+import { BASE, LedgerService, toDate, type Tx } from './ledger.service';
 
 type CreateInput = z.output<typeof accountCreateSchema>;
 type UpdateInput = z.output<typeof accountUpdateSchema>;
@@ -17,7 +22,10 @@ interface Sums {
 /** Chart of accounts: tree, pickers, balances, and maintenance. */
 @Injectable()
 export class ChartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ledger: LedgerService,
+  ) {}
 
   /** Every account in code order, with balances rolled up into groups. */
   async list(asOf?: string): Promise<ChartAccountDto[]> {
@@ -55,7 +63,7 @@ export class ChartService {
       return names.join(' › ');
     };
     return accounts
-      .filter((a) => !a.isGroup && a.isActive)
+      .filter((a) => !a.isGroup && a.isActive && !a.isLocked)
       .map((a) => ({
         id: a.id,
         code: a.code,
@@ -94,34 +102,45 @@ export class ChartService {
     };
   }
 
-  async create(dto: CreateInput) {
-    const parent = dto.parentId
-      ? await this.prisma.ledgerAccount.findUnique({ where: { id: dto.parentId } })
-      : null;
-    if (dto.parentId && !parent) throw new NotFoundException('Parent account not found');
-    if (parent && !parent.isGroup)
-      throw this.fieldError('parentId', 'The parent must be a group account');
-    if (parent && parent.class !== dto.class)
+  async create(dto: CreateInput, actorId?: string) {
+    const parent = await this.prisma.ledgerAccount.findUnique({ where: { id: dto.parentId } });
+    if (!parent) throw new NotFoundException('Parent account not found');
+    if (!parent.isGroup) throw this.fieldError('parentId', 'The parent must be a group account');
+    if (parent.class !== dto.class)
       throw this.fieldError(
         'class',
         `Accounts under ${parent.code} must be ${parent.class.toLowerCase()}`,
       );
-    if (!parent && !dto.isGroup)
-      throw this.fieldError('parentId', 'Choose where this account sits in the chart');
     await this.assertCurrency(dto.currency);
     if (dto.isGroup && dto.currency !== BASE)
       throw this.fieldError('currency', 'Group accounts are kept in PKR');
+    if (dto.openingBalance) {
+      if (dto.isGroup)
+        throw this.fieldError('openingBalance', 'Opening balance is only for postable accounts');
+      if (dto.currency !== BASE)
+        throw this.fieldError('openingBalance', 'Opening balance is only for PKR accounts');
+    }
     try {
-      return await this.prisma.ledgerAccount.create({
-        data: {
-          code: dto.code,
-          name: dto.name,
-          class: dto.class,
-          parentId: parent?.id ?? null,
-          isGroup: dto.isGroup,
-          currency: dto.currency,
-          description: dto.description ?? null,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const rows = await tx.ledgerAccount.findMany({ select: { code: true, parentId: true } });
+        const code = nextAccountCode(
+          parent.code,
+          rows.map((r) => r.code),
+          rows.filter((r) => r.parentId === parent.id).map((r) => r.code),
+        );
+        const account = await tx.ledgerAccount.create({
+          data: {
+            code,
+            name: dto.name,
+            class: dto.class,
+            parentId: parent.id,
+            isGroup: dto.isGroup,
+            currency: dto.currency,
+            description: dto.description ?? null,
+          },
+        });
+        if (dto.openingBalance) await this.postOpening(tx, account, dto.openingBalance, actorId);
+        return account;
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')
@@ -174,6 +193,7 @@ export class ChartService {
           ...(dto.code ? { code: dto.code } : {}),
           ...(dto.parentId !== undefined ? { parentId: dto.parentId } : {}),
           ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+          ...(dto.isLocked !== undefined ? { isLocked: dto.isLocked } : {}),
           ...(dto.description !== undefined ? { description: dto.description ?? null } : {}),
         },
       });
@@ -182,6 +202,39 @@ export class ChartService {
         throw this.fieldError('code', 'This code is already used');
       throw e;
     }
+  }
+
+  /** Posts an opening-balance journal against Opening Balance Equity. */
+  async setOpening(id: string, amount: number, actorId?: string) {
+    const account = await this.prisma.ledgerAccount.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.isGroup)
+      throw this.fieldError('amount', 'Opening balance is only for postable accounts');
+    if (account.currency !== BASE)
+      throw this.fieldError('amount', 'Opening balance is only for PKR accounts');
+    if (account.isLocked) throw this.fieldError('amount', `${account.code} is locked`);
+    if (
+      await this.prisma.ledgerEntry.findFirst({
+        where: { ledgerAccountId: id, narration: 'Opening balance' },
+      })
+    )
+      throw this.fieldError('amount', 'Opening balance is already set on this account');
+    await this.prisma.$transaction((tx) => this.postOpening(tx, account, amount, actorId));
+    return this.get(id);
+  }
+
+  /** Delete a custom account only when it has no postings and no children. */
+  async remove(id: string) {
+    const account = await this.prisma.ledgerAccount.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.systemKey) throw this.fieldError('id', 'System accounts cannot be deleted');
+    if (account.accountId)
+      throw this.fieldError('id', 'Partner receivable accounts cannot be deleted');
+    if (await this.prisma.ledgerEntry.findFirst({ where: { ledgerAccountId: id } }))
+      throw this.fieldError('id', 'Accounts with transactions cannot be deleted');
+    if (await this.prisma.ledgerAccount.count({ where: { parentId: id } }))
+      throw this.fieldError('id', 'Remove the accounts under this group first');
+    await this.prisma.ledgerAccount.delete({ where: { id } });
   }
 
   /** Debit-positive PKR balance and signed foreign balance per account. */
@@ -215,6 +268,7 @@ export class ChartService {
       parentId: a.parentId,
       isGroup: a.isGroup,
       isActive: a.isActive,
+      isLocked: a.isLocked,
       systemKey: a.systemKey,
       currency: a.currency,
       description: a.description,
@@ -234,6 +288,35 @@ export class ChartService {
       id = row?.parentId ?? null;
     }
     return false;
+  }
+
+  private async postOpening(tx: Tx, account: LedgerAccount, amount: number, actorId?: string) {
+    const equity = await this.ledger.systemAccount(tx, 'OPENING_BALANCE');
+    const debitNormal = account.class === 'ASSET' || account.class === 'EXPENSE';
+    await this.ledger.post(tx, {
+      type: 'JOURNAL',
+      date: todayPk(),
+      description: `Opening balance · ${account.code} ${account.name}`,
+      createdById: actorId ?? null,
+      approvedById: actorId ?? null,
+      lines: debitNormal
+        ? [
+            { ledgerAccountId: account.id, debit: amount, narration: 'Opening balance' },
+            {
+              ledgerAccountId: equity.id,
+              credit: amount,
+              narration: `${account.code} ${account.name}`,
+            },
+          ]
+        : [
+            {
+              ledgerAccountId: equity.id,
+              debit: amount,
+              narration: `${account.code} ${account.name}`,
+            },
+            { ledgerAccountId: account.id, credit: amount, narration: 'Opening balance' },
+          ],
+    });
   }
 
   private async assertCurrency(code: string) {

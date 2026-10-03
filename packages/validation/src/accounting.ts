@@ -27,29 +27,75 @@ export function toBaseAmount(fcAmount: number, rate: number): number {
 
 // ---------- Chart of accounts ----------
 
+export const accountCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[0-9A-Z][0-9A-Z-]{1,19}$/, 'Use 2–20 digits, letters or dashes, e.g. 1122');
+
+/**
+ * Next child code under a parent. Numeric parents pad to 7 digits so children
+ * increment beside them (1100 → 1100001, 1100000 → 1100001) without colliding
+ * with the existing 4-digit chart. Non-numeric parents append -01, -02, …
+ */
+export function nextAccountCode(
+  parentCode: string,
+  usedCodes: string[],
+  siblingCodes: string[] = [],
+): string {
+  const used = new Set(usedCodes);
+  if (/^\d+$/.test(parentCode)) {
+    const width = Math.max(7, parentCode.length);
+    const base = BigInt(parentCode.padEnd(width, '0'));
+    const siblingNums = siblingCodes.filter((c) => /^\d+$/.test(c)).map((c) => BigInt(c));
+    let next =
+      [base, ...siblingNums.filter((n) => n >= base)].reduce((a, b) => (a > b ? a : b)) + 1n;
+    for (;;) {
+      const code = next.toString().padStart(width, '0');
+      if (!used.has(code)) return code;
+      next += 1n;
+    }
+  }
+  const prefix = `${parentCode}-`;
+  const nums = siblingCodes
+    .filter((c) => c.startsWith(prefix))
+    .map((c) => Number(c.slice(prefix.length)))
+    .filter((n) => Number.isInteger(n) && n >= 0);
+  let n = (nums.length ? Math.max(...nums) : 0) + 1;
+  for (;;) {
+    const code = `${parentCode}-${String(n).padStart(2, '0')}`;
+    if (!used.has(code)) return code;
+    n += 1;
+  }
+}
+
 export const accountCreateSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[0-9A-Z][0-9A-Z-]{1,19}$/, 'Use 2–20 digits, letters or dashes, e.g. 1122'),
+  /** Ignored on create; the API assigns the next code under the parent. */
+  code: accountCodeSchema.optional(),
   name: z.string().trim().min(2, 'Enter the account name').max(120),
   class: z.enum(ACCOUNT_CLASSES),
-  parentId: uuidSchema.nullable().optional(),
+  parentId: uuidSchema,
   isGroup: z.boolean().default(false),
   currency: currencyCode.default('PKR'),
   description: optionalText(300),
+  openingBalance: moneySchema.optional(),
 });
 export type AccountCreateInput = z.input<typeof accountCreateSchema>;
 
 export const accountUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
-  code: accountCreateSchema.shape.code.optional(),
+  code: accountCodeSchema.optional(),
   parentId: uuidSchema.nullable().optional(),
   isActive: z.boolean().optional(),
+  isLocked: z.boolean().optional(),
   description: optionalText(300),
 });
 export type AccountUpdateInput = z.input<typeof accountUpdateSchema>;
+
+export const openingBalanceSetSchema = z.object({
+  amount: moneySchema,
+});
+export type OpeningBalanceSetInput = z.input<typeof openingBalanceSetSchema>;
 
 // ---------- Vouchers ----------
 

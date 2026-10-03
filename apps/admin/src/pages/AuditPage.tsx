@@ -13,6 +13,7 @@ import {
   KeyValue,
   PageHeader,
   Pagination,
+  SearchInput,
   formatDateTime,
 } from '@gnk/ui';
 import { api } from '@/lib/api';
@@ -48,7 +49,7 @@ function Audit() {
       />
       <Card>
         <div className="grid gap-3 border-b p-4 sm:grid-cols-[240px_minmax(0,1fr)]">
-          <Input
+          <SearchInput
             placeholder="Action starts with, e.g. booking."
             value={f.action}
             onChange={(e) => setF({ ...f, action: e.target.value, page: 1 })}

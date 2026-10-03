@@ -30,6 +30,7 @@ export function DataTable<T>({
   empty,
   dense,
   className,
+  headerClassName,
   rowClassName,
   selectedKey,
 }: {
@@ -41,6 +42,7 @@ export function DataTable<T>({
   empty?: React.ReactNode;
   dense?: boolean;
   className?: string;
+  headerClassName?: string;
   rowClassName?: (row: T) => string | undefined;
   selectedKey?: string | null;
 }) {
@@ -61,6 +63,7 @@ export function DataTable<T>({
                   dense ? 'px-3 py-2' : 'px-4 py-2.5',
                   align(c.align),
                   c.hideBelow && hide[c.hideBelow],
+                  headerClassName,
                   c.className,
                 )}
               >

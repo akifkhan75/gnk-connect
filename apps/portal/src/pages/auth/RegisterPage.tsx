@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm, type FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Building2, CheckCircle2, MailCheck, User } from 'lucide-react';
 import {
   formatCnic,
@@ -24,6 +24,7 @@ import {
 } from '@gnk/ui';
 import { api } from '@/lib/api';
 import { applyServerErrors } from '@/lib/forms';
+import { safeInternalPath } from '@/lib/redirect';
 import { PortalAuthLayout } from '@/components/PortalAuthLayout';
 
 const STEPS = ['Account type', 'Business details', 'Contact & password', 'Review'];
@@ -46,6 +47,8 @@ const STEP_FIELDS: FieldPath<PartnerRegisterInput>[][] = [
 ];
 
 export function RegisterPage() {
+  const [params] = useSearchParams();
+  const afterAuth = safeInternalPath(params.get('next'));
   const [step, setStep] = useState(0);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string>();
@@ -150,7 +153,10 @@ export function RegisterPage() {
       footer={
         <>
           Already registered?{' '}
-          <Link to="/login" className="font-medium text-link hover:underline">
+          <Link
+            to={afterAuth ? `/login?next=${encodeURIComponent(afterAuth)}` : '/login'}
+            className="font-medium text-link hover:underline"
+          >
             Sign in
           </Link>
         </>

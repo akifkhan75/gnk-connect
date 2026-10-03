@@ -5,7 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Departure, PricingRule, Prisma, Product } from '@prisma/client';
-import type { PricingRuleDto, PricingSimulationDto, PricingTierDto, QuoteDto } from '@gnk/types';
+import type {
+  FlightLegDto,
+  PricingRuleDto,
+  PricingSimulationDto,
+  PricingTierDto,
+  ProductContentDto,
+  QuoteDto,
+} from '@gnk/types';
 import type { PricingRuleInput } from '@gnk/validation';
 import type { z } from 'zod';
 import type { pricingRuleSchema } from '@gnk/validation';
@@ -17,6 +24,7 @@ import { PricingEngine, SCOPE_PRECEDENCE, type PricingContext } from './pricing.
 
 type RuleData = z.output<typeof pricingRuleSchema>;
 type DepartureWithProduct = Departure & { product: Product };
+const content = (p: Product) => (p.content ?? {}) as unknown as ProductContentDto;
 
 export const seatsLeft = (d: Pick<Departure, 'supplierAvailable' | 'heldSeats'>) =>
   Math.max(0, d.supplierAvailable - d.heldSeats);
@@ -160,6 +168,8 @@ export class PricingService {
         departureDate: isoDate(d.departureDate)!,
         returnDate: isoDate(d.returnDate),
         baggage: d.baggage,
+        outbound: (content(d.product).outbound as FlightLegDto) ?? null,
+        inbound: (content(d.product).inbound as FlightLegDto) ?? null,
       },
     };
   }

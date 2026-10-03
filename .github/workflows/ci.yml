@@ -59,7 +59,7 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run typecheck
       - name: Unit tests
-        run: pnpm --filter @gnk/api test
+        run: pnpm --filter @gnk/api test -- --coverage --coverageReporters=text-summary
 
       - name: Build apps
         run: pnpm --filter @gnk/api --filter @gnk/portal --filter @gnk/admin --filter @gnk/website run build
@@ -77,3 +77,5 @@ jobs:
             PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=$SEED_DEMO_PASSWORD node test/smoke.mjs
           API_URL=http://localhost:4000/api/v1 ADMIN_EMAIL=$SEED_ADMIN_EMAIL ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD \
             PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=$SEED_DEMO_PASSWORD node test/erp.mjs
+          API_URL=http://localhost:4000/api/v1 ADMIN_EMAIL=$SEED_ADMIN_EMAIL ADMIN_PASSWORD=$SEED_ADMIN_PASSWORD \
+            PARTNER_EMAIL=owner@alnoor.demo PARTNER_PASSWORD=$SEED_DEMO_PASSWORD node test/modules.mjs

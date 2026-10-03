@@ -1,5 +1,8 @@
 import { Service, Destination, Testimonial, NewsItem } from '@gnk/types';
 
+/** Marketing prices are PKR. Converts the previous USD list prices. */
+export const pkr = (usd: number) => String(Math.round(usd * 280));
+
 export const BRAND_NAME = 'GNK Connect';
 export const BRAND_TAGLINE = 'Crafting Journeys, Creating Memories';
 
@@ -38,7 +41,7 @@ export const SERVICES: Service[] = [
     packages: [
       {
         name: 'Economy Package',
-        price: '$950',
+        price: pkr(950),
         duration: '15 Days',
         features: [
           '3-Star Hotels (350m to Courtyard)',
@@ -49,7 +52,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Executive VIP Package',
-        price: '$1,800',
+        price: pkr(1800),
         duration: '10 Days',
         features: [
           '5-Star Clock Tower Hotels (Haram View)',
@@ -60,7 +63,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Premium Group',
-        price: '$1,200',
+        price: pkr(1200),
         duration: '21 Days',
         features: [
           '4-Star Hotels (150m)',
@@ -111,7 +114,7 @@ export const SERVICES: Service[] = [
     packages: [
       {
         name: 'Dubai (UAE) E-Visa',
-        price: '$150',
+        price: pkr(150),
         duration: '30 Days',
         features: [
           '30/60 Days Single Entry',
@@ -122,7 +125,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Thailand Sticker Visa',
-        price: '$80',
+        price: pkr(80),
         duration: '60 Days',
         features: [
           'Official Sticker Visa',
@@ -133,7 +136,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Schengen File Consultation',
-        price: '$200',
+        price: pkr(200),
         duration: '15-20 Days',
         features: [
           'Complete Dossier Preparation',
@@ -205,7 +208,7 @@ export const SERVICES: Service[] = [
     packages: [
       {
         name: 'Naran & Babusar Top',
-        price: '$545',
+        price: pkr(545),
         duration: '5 Days',
         features: [
           'Private Sedan / GLI Transport',
@@ -216,7 +219,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Skardu Valley Adventure',
-        price: '$650',
+        price: pkr(650),
         duration: '7 Days',
         features: [
           'Executive Coaster Transport',
@@ -227,7 +230,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Hunza Valley VIP Executive',
-        price: '$800',
+        price: pkr(800),
         duration: '6 Days',
         features: [
           'Private 4x4 Prado Transport',
@@ -260,7 +263,7 @@ export const SERVICES: Service[] = [
     packages: [
       {
         name: 'Dubai Luxury Getaway',
-        price: '$800',
+        price: pkr(800),
         duration: '5 Days',
         features: [
           '4-Star Downtown Hotel',
@@ -271,7 +274,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Malaysia & Singapore Twin City',
-        price: '$1,500',
+        price: pkr(1500),
         duration: '7 Days',
         features: [
           'Connecting Flights & Visa',
@@ -282,7 +285,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Amazing Thailand Escape',
-        price: '$900',
+        price: pkr(900),
         duration: '6 Days',
         features: [
           'Bangkok & Phuket 4-Star Stays',
@@ -315,7 +318,7 @@ export const SERVICES: Service[] = [
     packages: [
       {
         name: 'Basic Schengen Compliant',
-        price: '$30',
+        price: pkr(30),
         duration: 'Up to 30 Days',
         features: [
           '€30,000 Medical Emergency Coverage',
@@ -326,7 +329,7 @@ export const SERVICES: Service[] = [
       },
       {
         name: 'Worldwide Platinum Protection',
-        price: '$80',
+        price: pkr(80),
         duration: 'Up to 60 Days',
         features: [
           '$100,000 Global Medical Cover',
@@ -346,7 +349,7 @@ export const FEATURED_DESTINATIONS: Destination[] = [
     name: 'Naran & Kaghan Valley',
     image:
       'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=800&auto=format&fit=crop',
-    price: '$545',
+    price: pkr(545),
     duration: '5 Days',
     activities: 10,
     places: 12,
@@ -358,7 +361,7 @@ export const FEATURED_DESTINATIONS: Destination[] = [
     name: 'Babusar Top & Lulusar',
     image:
       'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=800&auto=format&fit=crop',
-    price: '$450',
+    price: pkr(450),
     duration: '4 Days',
     activities: 5,
     places: 8,
@@ -370,7 +373,7 @@ export const FEATURED_DESTINATIONS: Destination[] = [
     name: 'Skardu & Deosai Plains',
     image:
       'https://images.unsplash.com/photo-1586348943529-beaae6c28db9?q=80&w=800&auto=format&fit=crop',
-    price: '$650',
+    price: pkr(650),
     duration: '7 Days',
     activities: 8,
     places: 6,
@@ -385,7 +388,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Dubai & Abu Dhabi (UAE)',
     image:
       'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?q=80&w=800&auto=format&fit=crop',
-    price: '$800',
+    price: pkr(800),
     duration: '5 Days',
     activities: 20,
     places: 5,
@@ -397,7 +400,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Vietnam (Hanoi & Da Nang)',
     image:
       'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800&auto=format&fit=crop',
-    price: '$1200',
+    price: pkr(1200),
     duration: '10 Days',
     activities: 15,
     places: 4,
@@ -409,7 +412,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Singapore City & Sentosa',
     image:
       'https://images.unsplash.com/photo-1565967511849-76a60a516170?q=80&w=800&auto=format&fit=crop',
-    price: '$1500',
+    price: pkr(1500),
     duration: '5 Days',
     activities: 10,
     places: 5,
@@ -421,7 +424,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Kuala Lumpur & Langkawi',
     image:
       'https://images.unsplash.com/photo-1596422846543-75c6fc197f07?q=80&w=800&auto=format&fit=crop',
-    price: '$950',
+    price: pkr(950),
     duration: '6 Days',
     activities: 12,
     places: 3,
@@ -433,7 +436,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Bangkok & Phuket (Thailand)',
     image:
       'https://images.unsplash.com/photo-1508009603885-50cf7c579365?q=80&w=800&auto=format&fit=crop',
-    price: '$900',
+    price: pkr(900),
     duration: '7 Days',
     activities: 14,
     places: 6,
@@ -445,7 +448,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Bali & Nusa Penida',
     image:
       'https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=800&auto=format&fit=crop',
-    price: '$1100',
+    price: pkr(1100),
     duration: '8 Days',
     activities: 10,
     places: 4,
@@ -457,7 +460,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Cairo & Nile Cruise (Egypt)',
     image:
       'https://images.unsplash.com/photo-1503177119275-0aa32b3a9368?q=80&w=800&auto=format&fit=crop',
-    price: '$1300',
+    price: pkr(1300),
     duration: '8 Days',
     activities: 12,
     places: 5,
@@ -469,7 +472,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Colombo & Kandy (Sri Lanka)',
     image:
       'https://images.unsplash.com/photo-1546708973-b339540b5162?q=80&w=800&auto=format&fit=crop',
-    price: '$850',
+    price: pkr(850),
     duration: '6 Days',
     activities: 8,
     places: 4,
@@ -481,7 +484,7 @@ export const INTERNATIONAL_DESTINATIONS: Destination[] = [
     name: 'Beijing & Shanghai (China)',
     image:
       'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=800&auto=format&fit=crop',
-    price: '$1600',
+    price: pkr(1600),
     duration: '12 Days',
     activities: 18,
     places: 8,

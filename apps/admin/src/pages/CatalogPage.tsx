@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Boxes, Eye, EyeOff, Star } from 'lucide-react';
-import { PRODUCT_TYPES, type AdminProductDetailDto } from '@gnk/types';
+import { DEPARTURE_STATUSES, PRODUCT_TYPES, type AdminProductDetailDto } from '@gnk/types';
 import {
   Badge,
   Button,
@@ -20,8 +20,10 @@ import {
   Select,
   Spinner,
   StatusBadge,
+  filterPage,
   formatDate,
   formatRelative,
+  includesQ,
   titleCase,
   useToast,
 } from '@gnk/ui';
@@ -255,54 +257,97 @@ function ProductDetail({ id }: { id: string }) {
           />
         </CardBody>
       </Card>
-      <Card>
-        <CardHeader
-          title="Departures"
-          description="Default price uses rules without partner-specific overrides."
-        />
-        <DataTable
-          dense
-          rows={p.departures}
-          rowKey={(d) => d.id}
-          columns={[
-            {
-              key: 'd',
-              header: 'Departure',
-              cell: (d) => <span className="font-medium">{formatDate(d.departureDate)}</span>,
-            },
-            { key: 'r', header: 'Return', hideBelow: 'sm', cell: (d) => formatDate(d.returnDate) },
-            {
-              key: 'a',
-              header: 'Supplier seats',
-              align: 'right',
-              cell: (d) => `${d.supplierAvailable}/${d.totalSeats}`,
-            },
-            { key: 'h', header: 'GNK holds', align: 'right', cell: (d) => d.heldSeats },
-            ...(p.departures[0]?.supplierNet != null
-              ? [
-                  {
-                    key: 'n',
-                    header: 'Net',
-                    align: 'right' as const,
-                    cell: (d: (typeof p.departures)[number]) => <Money value={d.supplierNet} />,
-                  },
-                ]
-              : []),
-            {
-              key: 'p',
-              header: 'Default price',
-              align: 'right',
-              cell: (d) => <Money value={d.defaultPrice} className="font-medium" />,
-            },
-            {
-              key: 's',
-              header: 'Status',
-              align: 'right',
-              cell: (d) => <StatusBadge status={d.status} />,
-            },
-          ]}
-        />
-      </Card>
+      <DepartureList departures={p.departures} />
     </div>
+  );
+}
+
+function DepartureList({ departures }: { departures: AdminProductDetailDto['departures'] }) {
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [page, setPage] = useState(1);
+  const list = filterPage(departures, {
+    q: search,
+    page,
+    match: (d, s) => includesQ(d.departureDate, d.returnDate, d.status).includes(s),
+    filter: (d) => status === 'all' || d.status === status,
+  });
+  return (
+    <Card>
+      <CardHeader
+        title="Departures"
+        description="Default price uses rules without partner-specific overrides."
+      />
+      <div className="flex flex-wrap items-center gap-3 border-b border-border/70 px-4 py-3">
+        <SearchInput
+          className="min-w-[14rem] flex-1"
+          placeholder="Search date or status"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+        <Select
+          className="w-40"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          aria-label="Departure status"
+        >
+          <option value="all">All statuses</option>
+          {DEPARTURE_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {titleCase(s)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <DataTable
+        dense
+        rows={list.items}
+        rowKey={(d) => d.id}
+        columns={[
+          {
+            key: 'd',
+            header: 'Departure',
+            cell: (d) => <span className="font-medium">{formatDate(d.departureDate)}</span>,
+          },
+          { key: 'r', header: 'Return', hideBelow: 'sm', cell: (d) => formatDate(d.returnDate) },
+          {
+            key: 'a',
+            header: 'Supplier seats',
+            align: 'right',
+            cell: (d) => `${d.supplierAvailable}/${d.totalSeats}`,
+          },
+          { key: 'h', header: 'GNK holds', align: 'right', cell: (d) => d.heldSeats },
+          ...(departures[0]?.supplierNet != null
+            ? [
+                {
+                  key: 'n',
+                  header: 'Net',
+                  align: 'right' as const,
+                  cell: (d: (typeof departures)[number]) => <Money value={d.supplierNet} />,
+                },
+              ]
+            : []),
+          {
+            key: 'p',
+            header: 'Default price',
+            align: 'right',
+            cell: (d) => <Money value={d.defaultPrice} className="font-medium" />,
+          },
+          {
+            key: 's',
+            header: 'Status',
+            align: 'right',
+            cell: (d) => <StatusBadge status={d.status} />,
+          },
+        ]}
+      />
+      <Pagination page={list.page} pageSize={list.pageSize} total={list.total} onChange={setPage} />
+    </Card>
   );
 }

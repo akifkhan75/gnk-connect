@@ -21,6 +21,12 @@ import {
   todayPk,
   uuidSchema,
 } from './common';
+import {
+  checkBookingPassengers,
+  genderFromTitle,
+  type FieldIssue,
+  type TripDates,
+} from './passenger-rules';
 
 // ---------- Account ----------
 
@@ -83,6 +89,7 @@ export const groupSearchSchema = z.object({
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
   minSeats: z.coerce.number().int().min(1).max(50).optional(),
+  days: z.coerce.number().int().min(1).max(90).optional(),
   sort: z.enum(['date', 'price', 'seats']).default('date'),
 });
 export type GroupSearchInput = z.input<typeof groupSearchSchema>;
@@ -103,22 +110,21 @@ export type CreateQuoteInput = z.input<typeof createQuoteSchema>;
 
 const today = todayPk;
 
+const passportName = (empty: string) =>
+  z
+    .string()
+    .trim()
+    .min(1, empty)
+    .max(50)
+    .regex(/^[A-Za-z][A-Za-z '-]*$/, 'Use letters as printed on the passport')
+    .transform((v) => v.replace(/\s+/g, ' ').toUpperCase());
+
 export const passengerSchema = z
   .object({
     type: z.enum(PAX_TYPES),
     title: z.enum(TITLES),
-    firstName: z
-      .string()
-      .trim()
-      .min(1, 'Enter the given name')
-      .max(60)
-      .regex(/^[A-Za-z][A-Za-z '-]*$/, 'Use letters as printed on the passport'),
-    lastName: z
-      .string()
-      .trim()
-      .min(1, 'Enter the surname')
-      .max(60)
-      .regex(/^[A-Za-z][A-Za-z '-]*$/, 'Use letters as printed on the passport'),
+    firstName: passportName('Enter the given name'),
+    lastName: passportName('Enter the surname'),
     gender: z.enum(GENDERS),
     dateOfBirth: isoDateSchema,
     nationality: z.string().trim().toUpperCase().length(2, 'Use the 2-letter country code'),
@@ -134,16 +140,70 @@ export const passengerSchema = z
       });
     if (p.passportExpiry <= today())
       ctx.addIssue({ code: 'custom', path: ['passportExpiry'], message: 'Passport has expired' });
+    if (genderFromTitle(p.title) !== p.gender)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['title'],
+        message: `Title ${p.title} does not match gender`,
+      });
+    if (p.title === 'MSTR' && p.type !== 'CHILD')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['title'],
+        message: 'MSTR is for male children only',
+      });
   });
 export type PassengerInput = z.input<typeof passengerSchema>;
+export type PassengerParsed = z.output<typeof passengerSchema>;
 
-export const createBookingSchema = z.object({
-  quoteId: uuidSchema,
-  passengers: z.array(passengerSchema).min(1).max(MAX_SEATS_PER_BOOKING),
-  agentNotes: optionalText(1000),
-  acceptTerms: z.literal(true, { error: 'Accept the booking terms to continue' }),
-});
+/** Field-level Zod plus trip/party rules from plan 09. */
+export function validatePassengerList(
+  raw: unknown,
+  seats: number,
+  trip: TripDates,
+): { ok: true; data: PassengerParsed[] } | { ok: false; issues: FieldIssue[] } {
+  const parsed = passengerSchema.array().safeParse(raw);
+  const issues: FieldIssue[] = [];
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      issues.push({ path: ['passengers', ...issue.path].join('.'), message: issue.message });
+    }
+    return { ok: false, issues };
+  }
+  issues.push(...checkBookingPassengers(parsed.data, seats, trip));
+  if (issues.length) return { ok: false, issues };
+  return { ok: true, data: parsed.data };
+}
+
+export const createBookingSchema = z
+  .object({
+    quoteId: uuidSchema,
+    passengers: z.array(passengerSchema).max(MAX_SEATS_PER_BOOKING).default([]),
+    agentNotes: optionalText(1000),
+    acceptTerms: z.literal(true, { error: 'Accept the booking terms to continue' }),
+  })
+  .superRefine((v, ctx) => {
+    if (v.passengers.length > MAX_SEATS_PER_BOOKING) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['passengers'],
+        message: `At most ${MAX_SEATS_PER_BOOKING} passengers`,
+      });
+    }
+  });
 export type CreateBookingInput = z.input<typeof createBookingSchema>;
+
+/** Fill passenger names after a “passengers later” hold. */
+export const addPassengersSchema = z.object({
+  passengers: z.array(passengerSchema).min(1).max(MAX_SEATS_PER_BOOKING),
+});
+export type AddPassengersInput = z.input<typeof addPassengersSchema>;
+
+export const passportScanSchema = z.object({
+  image: z.string().min(40).max(6_000_000),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+});
+export type PassportScanInput = z.input<typeof passportScanSchema>;
 
 export const bookingListSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
